@@ -12,6 +12,11 @@ Context layout:
                                project-context section, phase pointer table
   .ai/agent/phases/*.md        loaded on demand, only when the phase runs
 
+Versioning:
+  .ai/ is excluded from the host project's repo (init appends it to the
+  project .gitignore) and tracked in its own git repo at .ai/.git. Every
+  subcommand commits its changes there. CLAUDE.md stays in the host repo.
+
 All generated agent docs use telegraphic English: no filler, symbols over
 words, exact identifiers kept verbatim. Lowers token cost per session.
 
@@ -24,6 +29,7 @@ Usage:
 import argparse
 import re
 import shutil
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -389,6 +395,50 @@ def project_root(project_dir: str) -> Path:
     return root
 
 
+# ----------------------------------------------------------------------- git
+
+def run_git(args: list, cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+def ensure_gitignore(root: Path):
+    """Exclude .ai/ from the host project's repo (only if root is a git repo)."""
+    if not (root / ".git").exists():
+        return
+    gitignore = root / ".gitignore"
+    lines = gitignore.read_text(encoding="utf-8").splitlines() if gitignore.exists() else []
+    if any(line.strip().lstrip("/").rstrip("/") == ".ai" for line in lines):
+        return
+    content = "\n".join(lines).rstrip("\n")
+    content = (content + "\n" if content else "") + ".ai/\n"
+    gitignore.write_text(content, encoding="utf-8")
+    print(f"updated  {gitignore.relative_to(root)} (+ .ai/)")
+
+
+def ai_commit(root: Path, message: str):
+    """Track .ai/ in its own repo; commit pending changes with message."""
+    ai_dir = root / ".ai"
+    if not ai_dir.is_dir():
+        return
+    if shutil.which("git") is None:
+        print("warning: git not found; .ai changes not committed")
+        return
+    if not (ai_dir / ".git").exists():
+        r = run_git(["init"], ai_dir)
+        if r.returncode != 0:
+            print(f"warning: git init failed in .ai: {r.stderr.strip()}")
+            return
+        print("initialized git repo in .ai/")
+    run_git(["add", "-A"], ai_dir)
+    if run_git(["diff", "--cached", "--quiet"], ai_dir).returncode == 0:
+        return  # nothing staged
+    r = run_git(["commit", "-m", message], ai_dir)
+    if r.returncode != 0:
+        print(f"warning: commit in .ai failed: {r.stderr.strip() or r.stdout.strip()}")
+    else:
+        print(f"committed in .ai: {message}")
+
+
 # -------------------------------------------------------------- subcommands
 
 def cmd_init(args) -> int:
@@ -416,6 +466,9 @@ def cmd_init(args) -> int:
 
     write(root / "CLAUDE.md", render_claude_md(name), args.force, created, skipped)
 
+    ensure_gitignore(root)
+    ai_commit(root, f"init: scaffold KB + phase docs ({name})")
+
     report(root, created, skipped)
     print(f"\nKB: {kb.relative_to(root)}  |  phases: {PHASES_DIR}"
           f"  |  nodes: {len(ALL_NODES)}  |  project: {name}")
@@ -432,6 +485,7 @@ def cmd_new_ticket(args) -> int:
     write(tdir / "ticket.md", render_ticket_md(args.ticket_id, title), False, created, skipped)
     write(tdir / "plan.md", render_plan_md(args.ticket_id), False, created, skipped)
     report(root, created, skipped)
+    ai_commit(root, f"new-ticket: {args.ticket_id}")
     return 0
 
 
@@ -467,6 +521,7 @@ def cmd_archive(args) -> int:
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tdir), str(dest))
     print(f"archived  {tdir.relative_to(root)} -> {dest.relative_to(root)}")
+    ai_commit(root, f"archive: ticket {args.ticket_id}")
     return 0
 
 
