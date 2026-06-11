@@ -17,8 +17,9 @@ Versioning:
   project .gitignore) and tracked in its own git repo at .ai/.git. Every
   subcommand commits its changes there. CLAUDE.md stays in the host repo.
 
-All generated agent docs use telegraphic English: no filler, symbols over
-words, exact identifiers kept verbatim. Lowers token cost per session.
+Generated docs use two language registers (concept v4, CONCEPT.md section 8):
+normative docs (CLAUDE.md protocol, phase docs) in plain imperative English,
+KB content (node summaries, tickets) telegraphic. Identifiers verbatim.
 
 Usage:
   python init_agent.py init [project_dir] [--force] [--project-name NAME]
@@ -150,6 +151,7 @@ def render_manifest(project_name: str) -> str:
         "  per_task_max_nodes: 4",
         "  per_task_max_tokens: 6000",
         "  related_hops: 1",
+        "  budget_policy: soft  # overrun allowed; state reason in one line, log it",
         "nodes:",
     ]
     for path, meta in sorted(ALL_NODES.items()):
@@ -184,9 +186,11 @@ def render_index(project_name: str) -> str:
 def render_claude_md(project_name: str) -> str:
     return f"""# Agent: {project_name}
 
-Project-aware agent. KB = `.ai/knowledgebase/`. Token efficiency = hard
-requirement. This file ≤2000 tokens. Phase instructions in `{PHASES_DIR}/`,
-load only when phase runs.
+Project-aware agent (concept v4). KB = `.ai/knowledgebase/`. Token efficiency
+is a hard requirement; this file stays under 2000 tokens. Phase instructions
+live in `{PHASES_DIR}/` and are loaded only when the phase runs. Write
+normative instructions in plain imperative English; write KB content
+telegraphic. Keep identifiers, paths, and commands verbatim.
 
 ## Phases
 
@@ -200,17 +204,23 @@ load only when phase runs.
 ## KB Protocol
 
 1. Parse `.ai/knowledgebase/manifest.yaml` first. Never load all nodes.
-2. Hot-tier content = Project Context section below. Never load `tier: hot`
-   nodes separately.
-3. Match task vs `covers` globs + `tags` (stage 1, exact). On miss only:
-   keyword-score manifest summaries (stage 2).
-4. Budget: ≤4 cold nodes / ≤6000 tokens per task. `related` links ≤1 hop,
-   only on explicit context miss.
-5. Cache loaded node ids per session. Never reload.
-6. Mark loaded nodes used vs unused (compaction telemetry).
+2. Hot-tier content is embedded in the Project Context section below. Never
+   load `tier: hot` nodes separately.
+3. Match the task against `covers` globs and `tags` first (stage 1, exact).
+   Only on a miss, keyword-score the manifest summaries (stage 2).
+4. Budgets are soft targets: aim for at most 4 cold nodes / 6000 tokens per
+   task, and follow `related` links at most 1 hop. If you must exceed a
+   budget, state the reason in one line, proceed, and log the overrun.
+   Recall beats precision: never skip context you need just to stay under
+   budget.
+5. Cache loaded node ids per session. Invalidate the cache after context
+   compaction; summarized content no longer counts as loaded.
+6. Mark loaded nodes as used or unused (compaction telemetry).
 7. Never load `tasks/_archive/`.
-8. Invariants: single source of truth, never duplicate. Node cap ~1500
-   tokens → split + cross-link.
+8. Session hygiene: clear bulky tool results after extracting what you need.
+   Run exploration in sub-agent contexts when the harness supports them.
+9. Invariants: single source of truth, never duplicate. Split a node over
+   ~1500 tokens and cross-link the parts.
 
 ## Ticket Layout
 
@@ -243,95 +253,114 @@ override.
 def render_phase_init() -> str:
     return f"""# Phase 1: Initialization
 
-Read before analyzing project.
+Read this before analyzing the project.
 
 ## Strategy
-- Sample, no full scan: per module read entry points, public API, tests.
-- Build KB nodes bottom-up: module nodes → architecture overview.
-- After node changes: regenerate `manifest.yaml` + `INDEX.md`.
-- Regenerate `GENERATED:project-context` section in CLAUDE.md from hot-tier
-  nodes, condensed: project one-liner, tech stack, build/test/lint commands,
-  top conventions, module map (1 line/module + cold-node ref), core glossary
-  terms. Cap: 1500 tokens.
+- Sample, do not scan everything: per module, read entry points, public API,
+  and tests.
+- Run exploration in isolated sub-agent contexts when the harness supports
+  them. Each sub-agent returns a condensed summary of at most 2000 tokens.
+  Keep raw file dumps out of the synthesizing context.
+- Build KB nodes bottom-up: module nodes first, then the architecture
+  overview.
+- After node changes, regenerate `manifest.yaml` and `INDEX.md`.
+- Regenerate the `GENERATED:project-context` section in CLAUDE.md from the
+  hot-tier nodes, condensed: project one-liner, tech stack, build/test/lint
+  commands, top conventions, module map (one line per module plus cold-node
+  ref), core glossary terms. Cap: 1500 tokens.
 
 ## Non-derivable knowledge
-Ask user: domain terms, unwritten conventions, ownership. Record answers
-directly in matching KB nodes.
+Ask the user about domain terms, unwritten conventions, and ownership.
+Record the answers directly in the matching KB nodes.
 
 ## Incrementality
-Record commit SHA + per-file hashes. Re-init = diff only.
+Record the commit SHA and per-file hashes. A re-init processes only the diff.
 
 ## Output
-Coverage report: areas read vs skipped (lazy-init candidates, Phase 4).
+Produce a coverage report: areas read vs skipped (lazy-init candidates for
+Phase 4).
 """
 
 
 def render_phase_planning() -> str:
     return f"""# Phase 2: Planning (high-reasoning model)
 
-Read before decomposing ticket.
+Read this before decomposing a ticket.
 
 ## Workflow
 1. Scaffold: `python init_agent.py new-ticket <ticket-id>`.
 2. Load matched KB nodes (protocol budgets apply).
-3. Interactive Q&A with user until acceptance criteria unambiguous. Bounded
-   rounds. Record answers in `ticket.md`.
-4. One task file per task. `plan.md` = thin index only.
+3. Run interactive Q&A with the user until the acceptance criteria are
+   unambiguous. Keep the rounds bounded. Record answers in `ticket.md`.
+4. Write one task file per task. `plan.md` stays a thin index.
+5. Plan-review gate: review the finished plan against the acceptance
+   criteria yourself, then get user sign-off on `plan.md` before
+   implementation starts. A weak plan poisons every downstream task.
 
 ## Task file format (`NN-<slug>.md`)
 Frontmatter: `status: planned`, `complexity: low|med|high`, `depends: []`.
 Body, self-contained:
-- Goal + testable acceptance criteria
-- Affected files, explicit paths
-- Pre-bound KB node ids **with content hashes**
+- Goal and testable acceptance criteria
+- Affected files with explicit paths
+- Pre-bound KB node ids with content hashes
 - Expected signatures/interfaces
 - Test skeletons
 
-Pre-binding = main cross-phase token saver. Implementation must never search
-for context.
+Pre-binding is a warm start, not a contract: implementation starts from the
+bound nodes and files and may run at most 5 targeted searches of its own
+before escalating `missing-context`.
 
 ## plan.md
-Index only: order, dependencies, complexity, routing, status. Frontmatter
-`read-first` pointer forces implementation model to load its phase doc. Do
-not remove.
+Index only: order, dependencies, complexity, routing, status. The
+frontmatter `read-first` pointer forces the implementation model to load its
+phase doc. Do not remove it.
 
 ## Routing
-Set `complexity` per task. `high` → high-reasoning model, even in
-implementation phase.
+Set `complexity` per task. `high` routes to the high-reasoning model, even
+during the implementation phase.
 """
 
 
 def render_phase_implementation() -> str:
     return """# Phase 3: Implementation (cost-efficient model)
 
-Read before executing any task.
+Read this before executing any task.
 
 ## Load discipline
-Load only: `plan.md` + single current task file + its pre-bound KB nodes +
-listed files. Nothing else. Never whole ticket folder.
+Load only: `plan.md`, the single current task file, its pre-bound KB nodes,
+and the listed files. You may run at most 5 targeted searches beyond that.
+Never load the whole ticket folder.
 
-## Hash check
-Verify pre-bound node content hashes before start. Drift → stop, re-plan
-affected task only (escalate to planning model). Never execute on stale
-context.
+## Hash check (diff-aware)
+Verify the pre-bound node content hashes before starting. On drift, diff the
+current node content against the bound hash:
+- If the delta does not touch the task's interfaces or acceptance criteria,
+  proceed on the fresh content.
+- If it does, stop and re-plan the affected task only (escalate to the
+  planning model).
+Never proceed silently on stale context. Never trigger a full re-plan for
+cosmetic drift.
 
 ## Definition of done (per task)
-- Tests pass + lint clean
-- Task frontmatter `status: done`
-- KB patch appended to `kb-delta.yaml`:
+- Tests pass and lint is clean
+- Task frontmatter is `status: done`
+- A KB patch is appended to `kb-delta.yaml`:
   `op: update|create|split`, `node: <id>`, `diff: <content>`
 
-## Escalation (typed; never improvise around blocker)
-- `missing-context` → reload KB (1 hop) first, then model upgrade
-- `ambiguity`       → ask user
-- `test-fail` ×2    → model upgrade, this task only
+## Escalation (typed; never improvise around a blocker)
+- `missing-context`: use your bounded discovery first, then reload KB (1 hop,
+  in a sub-agent when available), then upgrade the model.
+- `ambiguity`: ask the user.
+- `test-fail` twice: upgrade the model, for this task only.
 
 ## KB maintenance
-- `kb-delta.yaml` auto-apply: metadata/`covers` changes only. Structural
-  changes → review gate.
-- Hot-tier node updates → regenerate `GENERATED:project-context` in CLAUDE.md.
-- ADRs (`decisions/`) append-only. Supersede via link, never edit.
-- Nodes loaded-but-unused >50% of tasks → narrow triggers.
+- `kb-delta.yaml` auto-apply covers metadata and `covers` changes only.
+  Structural changes go through the review gate.
+- After hot-tier node updates, regenerate `GENERATED:project-context` in
+  CLAUDE.md.
+- ADRs (`decisions/`) are append-only. Supersede via link, never edit.
+- Narrow the triggers of nodes that are loaded but unused in more than 50%
+  of tasks.
 """
 
 
