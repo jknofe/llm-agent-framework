@@ -35,7 +35,20 @@ project intent instead of discovering it from scratch. Phase 1 verifies and
 refines it against the code.
 
 `init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold nodes),
-`.ai/agent/phases/` (on-demand phase docs) and slim core `CLAUDE.md`.
+`.ai/agent/phases/` (on-demand phase docs), slim core `CLAUDE.md` and
+`.claude/commands/` with three Claude Code slash commands:
+
+- `/explore` runs Phase 1 (build the knowledge base)
+- `/plan <ticket-id>` runs Phase 2 (decompose a ticket into task files)
+- `/implement <ticket-id>` runs Phase 3 (work the planned tasks)
+
+The commands are thin pointers to the phase docs, so phase instructions stay
+in one place. `init` also writes `.claude/settings.json` with a read-only
+permission allow list (grep, find, ls, cat, awk, read-only git, ...) so
+exploration runs without a confirmation prompt per command. Compound
+commands (`a && b`) only skip the prompt when every part of the chain is
+allowed, so common chain members like `cd`, `echo` and `pwd` are included.
+`CLAUDE.md` and `.claude/` belong to the host repo.
 
 `.ai/` is versioned in its own git repo (`.ai/.git`) and excluded from the
 host project via a `.gitignore` entry written by `init`. All subcommands

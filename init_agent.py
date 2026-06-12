@@ -3,7 +3,8 @@
 init_agent.py - Scaffold and manage a project-aware LLM agent.
 
 Subcommands:
-  init        Create .ai/knowledgebase/, .ai/agent/phases/ and CLAUDE.md
+  init        Create .ai/knowledgebase/, .ai/agent/phases/, CLAUDE.md and
+              .claude/commands/ (slash commands /explore, /plan, /implement)
   new-ticket  Scaffold tasks/<ticket-id>/ (ticket.md, plan.md)
   archive     Move a finished ticket to tasks/_archive/ (all tasks must be done)
 
@@ -11,6 +12,10 @@ Context layout:
   CLAUDE.md                    always loaded: KB protocol, budgets, generated
                                project-context section, phase pointer table
   .ai/agent/phases/*.md        loaded on demand, only when the phase runs
+  .claude/commands/*.md        Claude Code slash commands; thin pointers that
+                               tell the agent which phase doc to read
+  .claude/settings.json        permission allow list: read-only shell commands
+                               run without prompts (incl. parts of && chains)
 
 Versioning:
   .ai/ is excluded from the host project's repo (init appends it to the
@@ -285,6 +290,10 @@ Read this before analyzing the project.
   what to sample first, then verify and refine it against the code.
 - Sample, do not scan everything: per module, read entry points, public API,
   and tests.
+- Prefer the harness's native read and search tools (Read, Grep, Glob) over
+  shell `grep`/`cat`/`awk`: same result, no permission prompts. Shell
+  commands you do need are pre-allowed in `.claude/settings.json`
+  (read-only list).
 - Run exploration in isolated sub-agent contexts when the harness supports
   them. Each sub-agent returns a condensed summary of at most 2000 tokens.
   Keep raw file dumps out of the synthesizing context.
@@ -389,6 +398,88 @@ cosmetic drift.
 - Narrow the triggers of nodes that are loaded but unused in more than 50%
   of tasks.
 """
+
+
+def render_commands() -> dict:
+    """Slash commands for Claude Code (.claude/commands/). Thin pointers:
+    each command tells the agent which phase doc to read; the phase docs
+    stay the single source of truth."""
+    return {
+        "explore.md": (
+            "---\n"
+            'description: "Run Phase 1 (Initialization): build the knowledge base"\n'
+            "---\n"
+            "Run Phase 1 (Initialization) of the project-aware agent framework.\n\n"
+            f"Read `{PHASES_DIR}/init.md` first, before any other step, and follow\n"
+            "it exactly. Outcome: filled KB nodes in `.ai/knowledgebase/`,\n"
+            "regenerated `manifest.yaml` and `INDEX.md`, populated\n"
+            "`GENERATED:project-context` section in `CLAUDE.md`, and a coverage\n"
+            "report.\n\n"
+            "$ARGUMENTS\n"
+        ),
+        "plan.md": (
+            "---\n"
+            'description: "Run Phase 2 (Planning): decompose a ticket into task files"\n'
+            "---\n"
+            "Run Phase 2 (Planning) for ticket: $ARGUMENTS\n\n"
+            f"Read `{PHASES_DIR}/planning.md` first, before any other step, and\n"
+            "follow it exactly, including the Q&A rounds and the plan-review gate.\n"
+        ),
+        "implement.md": (
+            "---\n"
+            'description: "Run Phase 3 (Implementation): work the planned tasks"\n'
+            "---\n"
+            "Run Phase 3 (Implementation) for ticket: $ARGUMENTS\n\n"
+            f"Read `{PHASES_DIR}/implementation.md` first, before any other step,\n"
+            "and follow it exactly. Load the ticket's `plan.md` and work the task\n"
+            "files in order.\n"
+        ),
+    }
+
+
+def render_settings_json() -> str:
+    """Project permission allow list (.claude/settings.json) so Phase 1
+    exploration runs without a prompt per command. Read-only commands only.
+    Compound commands (a && b) prompt unless every part of the chain matches
+    a rule, so common chain members (cd, echo, pwd, read-only git) are
+    included as well."""
+    allow = [
+        "Bash(cd:*)",
+        "Bash(pwd:*)",
+        "Bash(echo:*)",
+        "Bash(ls:*)",
+        "Bash(tree:*)",
+        "Bash(cat:*)",
+        "Bash(head:*)",
+        "Bash(tail:*)",
+        "Bash(wc:*)",
+        "Bash(grep:*)",
+        "Bash(rg:*)",
+        "Bash(find:*)",
+        "Bash(awk:*)",
+        "Bash(sort:*)",
+        "Bash(uniq:*)",
+        "Bash(cut:*)",
+        "Bash(tr:*)",
+        "Bash(which:*)",
+        "Bash(file:*)",
+        "Bash(stat:*)",
+        "Bash(git status:*)",
+        "Bash(git log:*)",
+        "Bash(git diff:*)",
+        "Bash(git show:*)",
+        "Bash(git branch:*)",
+    ]
+    rules = ",\n".join(f'      "{r}"' for r in allow)
+    return (
+        "{\n"
+        '  "permissions": {\n'
+        '    "allow": [\n'
+        f"{rules}\n"
+        "    ]\n"
+        "  }\n"
+        "}\n"
+    )
 
 
 def render_ticket_md(ticket_id: str, title: str) -> str:
@@ -524,6 +615,12 @@ def cmd_init(args) -> int:
           args.force, created, skipped)
 
     write(root / "CLAUDE.md", render_claude_md(name, desc), args.force, created, skipped)
+
+    commands = root / ".claude" / "commands"
+    for fname, content in render_commands().items():
+        write(commands / fname, content, args.force, created, skipped)
+    write(root / ".claude" / "settings.json", render_settings_json(),
+          args.force, created, skipped)
 
     ensure_gitignore(root)
     ai_commit(root, f"init: scaffold KB + phase docs ({name})")
