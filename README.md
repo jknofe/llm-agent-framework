@@ -20,12 +20,19 @@ to `~/.llm-agent-framework` first.
 ## Usage
 
 ```
-init-agent init [project_dir] [--force] [--project-name NAME]
+init-agent init [project_dir] [description] [--force] [--project-name NAME]
+init-agent init . "ROS Docker container, builds ROS2 humble and jazzy snaps"
 init-agent new-ticket TICKET_ID [project_dir] [--title TITLE]
 init-agent archive TICKET_ID [project_dir] [--force]
 ```
 
 Or directly without installing: `python init_agent.py <subcommand> ...`
+
+The optional `description` is a one-line project summary. It is seeded into
+the architecture overview node, `manifest.yaml` and the CLAUDE.md project
+context section, so the agent's first ramp-up (Phase 1) starts from a known
+project intent instead of discovering it from scratch. Phase 1 verifies and
+refines it against the code.
 
 `init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold nodes),
 `.ai/agent/phases/` (on-demand phase docs) and slim core `CLAUDE.md`.
