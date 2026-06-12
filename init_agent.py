@@ -339,12 +339,6 @@ Archive only when the user asks for it, then: verify every task file in
 verify `kb-delta.yaml` was applied to the KB; move `tasks/<id>/` to
 `tasks/_archive/<id>/`; commit the `.ai` repo (`archive: <id>`).
 
-## Model Use
-
-Run the main loop on a strong model. Delegate exploration and review to
-sub-agents with isolated context instead of switching the main model.
-Escalation rules live in `{PHASES_DIR}/implementation.md`.
-
 {cli_note}## Project Context
 
 {GEN_BEGIN}

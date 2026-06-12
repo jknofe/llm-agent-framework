@@ -1,6 +1,7 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-06-12, v5 (standards + deterministic enforcement, changes in §12).
+State: 2026-06-12, v5.1 (standards + deterministic enforcement, changes in
+§12; v5.1: model choice fully delegated to user, §3).
 Language policy: two registers (§8): plain imperative English for normative
 docs, telegraphic English for KB content. English = best-trained model
 language + denser tokenization than German.
@@ -162,24 +163,24 @@ view.
 - Post-merge + session start: `check_stale.py` flags nodes whose `covers`
   globs match commits since `updated`
 
-## 3. Model split: evaluation (revised v5)
+## 3. Model choice (revised v5.1)
 
-v4 routed by per-task complexity tags (planning = high-reasoning model,
-low/med tasks = cost-efficient model). Dropped:
+Model choice belongs to the user, via harness controls (`/model`,
+`opusplan`, sub-agent `model:` frontmatter). The framework is
+model-agnostic: no routing machinery, no model instructions in generated
+docs.
 
-- Harnesses route per sub-agent / session, not per task file; mid-session
-  per-task model switching is not a primitive that exists
-- Complexity surfaces during execution, not planning; reactive upgrade
-  (test-fail ×2) burned two cheap attempts first
-- Cost asymmetry argument needs outcome data the framework cannot collect
-  yet (§5); tier price/capability gap keeps narrowing
-
-Current default: main loop on a strong model; phases differ by loaded
-instructions, not model identity. Cheap/isolated capacity via sub-agents:
-exploration (Phase 1), adversarial review (Phases 2+3), targeted KB reloads.
-Review ≪ generation tokens, so the gates stay cheap. Re-introduce complexity
-routing only when outcome data exists to tune it; until then tags are
-ceremony.
+- v4 per-task complexity routing dropped in v5: harnesses route per
+  sub-agent/session, not per task file; routing machinery cost > savings at
+  this scale; outcome data to tune it never existed
+- v5 "strong main loop" default guidance dropped in v5.1: restates or
+  fights a user decision the harness already owns; always-on tokens, zero
+  behavior change
+- Kept as property, not instruction: self-contained task files +
+  fresh-context review gates are what make cheap-execution modes (e.g.
+  opusplan: plan on strong model, implement on cheap one) viable. Stated in
+  README, not in agent docs. Direction stays asymmetric: never plan on the
+  weak model
 
 ## 4. Ticket lifecycle
 
@@ -207,7 +208,7 @@ ceremony.
 - Telemetry: cut in v5. v4 specified two layers (token cost + outcomes)
   with no collection mechanism; spec without mechanism = dead weight.
   Re-add together with collection hooks when needed; outcome data stays the
-  precondition for complexity routing (§3)
+  precondition for any future routing automation (§3)
 
 ## 6. AGENTS.md as hot-tier transport (decision, revised v5)
 
@@ -359,8 +360,10 @@ protocol prose. Changes vs v4:
 6. Deterministic KB tools in `.ai/agent/tools/`: gen_index.py (INDEX.md
    from manifest), check_stale.py (covers globs vs commits since `updated`,
    CI-wirable exit code)
-7. Complexity-tag model routing dropped (§3): strong main loop + sub-agent
-   delegation; re-add only with outcome data
+7. Model routing dropped entirely (§3): v5 cut complexity-tag routing,
+   v5.1 (same day) cut the remaining "strong main loop" guidance and the
+   AGENTS.md Model Use section. Model choice = user's, via harness controls;
+   framework model-agnostic
 8. Telemetry spec cut (§5): no mechanism existed, spec without mechanism is
    dead weight
 9. Right-sizing: trivial path in Phase 2; one-sentence single-file changes

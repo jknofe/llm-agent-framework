@@ -49,6 +49,12 @@ Small changes need no ticket: a fix you can describe in one sentence that
 touches a single file is done directly; the agent updates the affected KB
 nodes and commits `.ai`. The pipeline is for everything larger.
 
+The framework is model-agnostic: it never tells the harness which model to
+run, you decide via the harness (for example `/model opusplan` in Claude
+Code to plan on Opus and implement on Sonnet). The self-contained task
+files and the fresh-context review gates are what keep cheap execution
+safe. If you do split models, keep the direction: plan on the strong one.
+
 ## Skills
 
 `init` scaffolds the workflow as Agent Skills, the open SKILL.md standard
