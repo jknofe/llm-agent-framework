@@ -6,6 +6,8 @@ Subcommands:
   init        Create .ai/knowledgebase/, .ai/agent/phases/, CLAUDE.md and
               .claude/commands/ (slash commands /explore, /plan, /implement)
   new-ticket  Scaffold tasks/<ticket-id>/ (ticket.md, plan.md)
+  add-reference  Register external material (other repos, docs): raw copy in
+              .ai/external/<name>/, describing KB node in references/<name>.md
   archive     Move a finished ticket to tasks/_archive/ (all tasks must be done)
 
 Context layout:
@@ -32,6 +34,7 @@ Usage:
                             the overview node, manifest and CLAUDE.md context
   python init_agent.py init . "ROS Docker container, builds ROS2 snaps"
   python init_agent.py new-ticket TICKET_ID [project_dir] [--title TITLE]
+  python init_agent.py add-reference NAME ORIGIN [project_dir] [--summary TEXT]
   python init_agent.py archive TICKET_ID [project_dir] [--force]
 """
 
@@ -53,6 +56,7 @@ KB_DIRS = [
     "domain",
     "infra",
     "decisions",
+    "references",
     "tasks",
     "tasks/_archive",
 ]
@@ -250,6 +254,10 @@ telegraphic. Keep identifiers, paths, and commands verbatim.
    Run exploration in sub-agent contexts when the harness supports them.
 9. Invariants: single source of truth, never duplicate. Split a node over
    ~1500 tokens and cross-link the parts.
+10. External references: nodes under `references/` describe material in
+    `.ai/external/` (other repos, docs, example code). Load the node first,
+    then search the raw copy with targeted queries (in a sub-agent when
+    available). Never bulk-load raw external material into context.
 
 ## Ticket Layout
 
@@ -482,6 +490,50 @@ def render_settings_json() -> str:
     )
 
 
+def render_reference_node(name: str, origin: str, summary: str, pinned: str) -> str:
+    return (
+        "---\n"
+        f"id: references/{name}\n"
+        f"summary: {summary}\n"
+        "tags: [external, reference]\n"
+        "covers: []\n"
+        "tier: cold\n"
+        f"updated: {TODAY}\n"
+        f"origin: {origin}\n"
+        f"fetched: {TODAY}\n"
+        f"pinned: {pinned or 'n/a'}\n"
+        "related: []\n"
+        "---\n\n"
+        f"# Reference: {name}\n\n"
+        f"Local copy: `.ai/external/{name}/`\n"
+        f"Origin: {origin}\n\n"
+        "Consult for: <!-- fill: which questions this material answers -->\n"
+        "Entry points: <!-- fill: key files or dirs to start searching -->\n\n"
+        "Search the raw copy with targeted queries; never bulk-load it.\n"
+    )
+
+
+def append_reference_to_indexes(kb: Path, name: str, summary: str):
+    """Register a reference node in manifest.yaml and INDEX.md (append-only;
+    node entries form a flat list, order is irrelevant)."""
+    manifest = kb / "manifest.yaml"
+    if manifest.exists():
+        with manifest.open("a", encoding="utf-8") as f:
+            f.write(
+                f"  - id: references/{name}\n"
+                f"    path: references/{name}.md\n"
+                f"    summary: {summary}\n"
+                "    tags: [external, reference]\n"
+                "    covers: []\n"
+                "    tier: cold\n"
+                f"    updated: {TODAY}\n"
+            )
+    index = kb / "INDEX.md"
+    if index.exists():
+        with index.open("a", encoding="utf-8") as f:
+            f.write(f"| `references/{name}.md` | cold | {summary} |\n")
+
+
 def render_ticket_md(ticket_id: str, title: str) -> str:
     return (
         "---\n"
@@ -562,6 +614,22 @@ def ensure_gitignore(root: Path):
     print(f"updated  {gitignore.relative_to(root)} (+ .ai/)")
 
 
+def ensure_ai_gitignore(root: Path):
+    """Keep raw external copies out of .ai's own repo; they are re-fetchable
+    from their origin and would bloat the KB history."""
+    ai_dir = root / ".ai"
+    if not ai_dir.is_dir():
+        return
+    gi = ai_dir / ".gitignore"
+    lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
+    if any(line.strip().rstrip("/") == "external" for line in lines):
+        return
+    content = "\n".join(lines).rstrip("\n")
+    content = (content + "\n" if content else "") + "external/\n"
+    gi.write_text(content, encoding="utf-8")
+    print(f"updated  .ai/.gitignore (+ external/)")
+
+
 def ai_commit(root: Path, message: str):
     """Track .ai/ in its own repo; commit pending changes with message."""
     ai_dir = root / ".ai"
@@ -623,6 +691,7 @@ def cmd_init(args) -> int:
           args.force, created, skipped)
 
     ensure_gitignore(root)
+    ensure_ai_gitignore(root)
     ai_commit(root, f"init: scaffold KB + phase docs ({name})")
 
     report(root, created, skipped)
@@ -681,6 +750,52 @@ def cmd_archive(args) -> int:
     return 0
 
 
+def cmd_add_reference(args) -> int:
+    root = project_root(args.project_dir)
+    kb = root / ".ai" / "knowledgebase"
+    if not kb.is_dir():
+        sys.exit("error: no .ai/knowledgebase found; run init first")
+
+    name = args.name
+    node_path = kb / "references" / f"{name}.md"
+    if node_path.exists():
+        sys.exit(f"error: reference {name} already exists at {node_path}")
+    ext_dir = root / ".ai" / "external" / name
+    if ext_dir.exists():
+        sys.exit(f"error: {ext_dir} already exists")
+
+    origin = args.origin
+    src = Path(origin).expanduser()
+    pinned = ""
+    ext_dir.parent.mkdir(parents=True, exist_ok=True)
+    if src.is_dir() and not (src / ".git").exists():
+        shutil.copytree(src, ext_dir)
+        print(f"copied   {origin} -> {ext_dir.relative_to(root)}")
+    else:
+        if shutil.which("git") is None:
+            sys.exit("error: git not found; cannot clone origin")
+        r = run_git(["clone", "--depth", "1", origin, str(ext_dir)], root)
+        if r.returncode != 0:
+            sys.exit(f"error: clone failed: {r.stderr.strip()}")
+        rp = run_git(["rev-parse", "--short", "HEAD"], ext_dir)
+        pinned = rp.stdout.strip() if rp.returncode == 0 else ""
+        print(f"cloned   {origin} -> {ext_dir.relative_to(root)} (@{pinned})")
+
+    summary = args.summary or f"External reference {name}; fill in what it answers"
+    node_path.parent.mkdir(parents=True, exist_ok=True)
+    node_path.write_text(render_reference_node(name, origin, summary, pinned),
+                         encoding="utf-8")
+    print(f"created  {node_path.relative_to(root)}")
+    append_reference_to_indexes(kb, name, summary)
+    print("updated  manifest.yaml, INDEX.md")
+
+    ensure_ai_gitignore(root)
+    ai_commit(root, f"add-reference: {name}")
+    print(f"\nNext: fill 'Consult for' and 'Entry points' in "
+          f"{node_path.relative_to(root)}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -700,6 +815,15 @@ def main() -> int:
     p.add_argument("project_dir", nargs="?", default=".")
     p.add_argument("--title", default=None)
     p.set_defaults(func=cmd_new_ticket)
+
+    p = sub.add_parser("add-reference",
+                       help="register external material (git URL or local path)")
+    p.add_argument("name", help="reference name, becomes references/<name>")
+    p.add_argument("origin", help="git URL to clone or local path to copy")
+    p.add_argument("project_dir", nargs="?", default=".")
+    p.add_argument("--summary", default=None,
+                   help="one-line summary for manifest and node frontmatter")
+    p.set_defaults(func=cmd_add_reference)
 
     p = sub.add_parser("archive", help="archive a finished ticket")
     p.add_argument("ticket_id")

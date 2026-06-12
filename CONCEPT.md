@@ -28,6 +28,8 @@ language + denser tokenization than German.
 │   └── ci-cd.md
 ├── decisions/               # ADRs, append-only
 │   └── NNNN-<slug>.md
+├── references/              # external references: 1 node per source
+│   └── <name>.md            # origin, fetched, pinned, usage notes
 └── tasks/
     ├── <ticket-id>/
     │   ├── ticket.md        # original + Q&A answers
@@ -35,7 +37,19 @@ language + denser tokenization than German.
     │   ├── NN-<slug>.md     # one file per task, self-contained
     │   └── kb-delta.yaml    # accumulated KB patches
     └── _archive/            # finished tickets, invisible to agent
+
+.ai/external/                # raw external material (clones, doc dumps);
+└── <name>/                  # search territory, never load territory;
+                             # excluded from .ai git (re-fetchable)
 ```
+
+### External references
+
+Two layers: raw copy in `.ai/external/<name>/` (clone/copy via
+`add-reference`), curated node `references/<name>.md` in KB (origin, fetched
+date, pinned version, consult-for notes). Agent loads node only; raw copy =
+targeted search, sub-agent where available, never bulk-load. Staleness
+visible via `fetched`/`pinned` frontmatter.
 
 ### Node format
 
