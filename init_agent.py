@@ -29,7 +29,14 @@ normative docs (CLAUDE.md protocol, phase docs) in plain imperative English,
 KB content (node summaries, tickets) telegraphic. Identifiers verbatim.
 
 Usage:
-  python init_agent.py init [project_dir] [description] [--force] [--project-name NAME]
+  python init_agent.py init [project_dir] [description] [--force]
+                            [--project-name NAME] [--harness claude|copilot]
+                            run interactively, init prompts for missing
+                            values (name, description, harness); Enter
+                            accepts the default. Non-TTY runs use defaults.
+                            harness copilot: .github/copilot-instructions.md
+                            instead of CLAUDE.md, .github/prompts/*.prompt.md
+                            instead of .claude/commands/, no settings.json
                             description: one-line project summary, seeded into
                             the overview node, manifest and CLAUDE.md context
   python init_agent.py init . "ROS Docker container, builds ROS2 snaps"
@@ -287,7 +294,12 @@ override.
 """
 
 
-def render_phase_init() -> str:
+def render_phase_init(inst: str = "CLAUDE.md", harness: str = "claude") -> str:
+    perms = (
+        " Shell\n"
+        "  commands you do need are pre-allowed in `.claude/settings.json`\n"
+        "  (read-only list)." if harness == "claude" else ""
+    )
     return f"""# Phase 1: Initialization
 
 Read this before analyzing the project.
@@ -299,16 +311,14 @@ Read this before analyzing the project.
 - Sample, do not scan everything: per module, read entry points, public API,
   and tests.
 - Prefer the harness's native read and search tools (Read, Grep, Glob) over
-  shell `grep`/`cat`/`awk`: same result, no permission prompts. Shell
-  commands you do need are pre-allowed in `.claude/settings.json`
-  (read-only list).
+  shell `grep`/`cat`/`awk`: same result, no permission prompts.{perms}
 - Run exploration in isolated sub-agent contexts when the harness supports
   them. Each sub-agent returns a condensed summary of at most 2000 tokens.
   Keep raw file dumps out of the synthesizing context.
 - Build KB nodes bottom-up: module nodes first, then the architecture
   overview.
 - After node changes, regenerate `manifest.yaml` and `INDEX.md`.
-- Regenerate the `GENERATED:project-context` section in CLAUDE.md from the
+- Regenerate the `GENERATED:project-context` section in {inst} from the
   hot-tier nodes, condensed: project one-liner, tech stack, build/test/lint
   commands, top conventions, module map (one line per module plus cold-node
   ref), core glossary terms. Cap: 1500 tokens.
@@ -365,8 +375,8 @@ during the implementation phase.
 """
 
 
-def render_phase_implementation() -> str:
-    return """# Phase 3: Implementation (cost-efficient model)
+def render_phase_implementation(inst: str = "CLAUDE.md") -> str:
+    return f"""# Phase 3: Implementation (cost-efficient model)
 
 Read this before executing any task.
 
@@ -401,43 +411,59 @@ cosmetic drift.
 - `kb-delta.yaml` auto-apply covers metadata and `covers` changes only.
   Structural changes go through the review gate.
 - After hot-tier node updates, regenerate `GENERATED:project-context` in
-  CLAUDE.md.
+  {inst}.
 - ADRs (`decisions/`) are append-only. Supersede via link, never edit.
 - Narrow the triggers of nodes that are loaded but unused in more than 50%
   of tasks.
 """
 
 
-def render_commands() -> dict:
-    """Slash commands for Claude Code (.claude/commands/). Thin pointers:
-    each command tells the agent which phase doc to read; the phase docs
-    stay the single source of truth."""
+def render_commands(inst: str = "CLAUDE.md", harness: str = "claude") -> dict:
+    """Slash commands as thin pointers: each tells the agent which phase doc
+    to read; the phase docs stay the single source of truth.
+
+    claude:  .claude/commands/<name>.md, args via $ARGUMENTS
+    copilot: .github/prompts/<name>.prompt.md, args via ${input:...}
+    """
+    if harness == "copilot":
+        ext = ".prompt.md"
+        fm_extra = "mode: agent\n"
+        arg_focus = "${input:focus}"
+        arg_ticket = "${input:ticket}"
+    else:
+        ext = ".md"
+        fm_extra = ""
+        arg_focus = "$ARGUMENTS"
+        arg_ticket = "$ARGUMENTS"
     return {
-        "explore.md": (
+        f"explore{ext}": (
             "---\n"
             'description: "Run Phase 1 (Initialization): build the knowledge base"\n'
+            f"{fm_extra}"
             "---\n"
             "Run Phase 1 (Initialization) of the project-aware agent framework.\n\n"
             f"Read `{PHASES_DIR}/init.md` first, before any other step, and follow\n"
             "it exactly. Outcome: filled KB nodes in `.ai/knowledgebase/`,\n"
             "regenerated `manifest.yaml` and `INDEX.md`, populated\n"
-            "`GENERATED:project-context` section in `CLAUDE.md`, and a coverage\n"
+            f"`GENERATED:project-context` section in `{inst}`, and a coverage\n"
             "report.\n\n"
-            "$ARGUMENTS\n"
+            f"{arg_focus}\n"
         ),
-        "plan.md": (
+        f"plan{ext}": (
             "---\n"
             'description: "Run Phase 2 (Planning): decompose a ticket into task files"\n'
+            f"{fm_extra}"
             "---\n"
-            "Run Phase 2 (Planning) for ticket: $ARGUMENTS\n\n"
+            f"Run Phase 2 (Planning) for ticket: {arg_ticket}\n\n"
             f"Read `{PHASES_DIR}/planning.md` first, before any other step, and\n"
             "follow it exactly, including the Q&A rounds and the plan-review gate.\n"
         ),
-        "implement.md": (
+        f"implement{ext}": (
             "---\n"
             'description: "Run Phase 3 (Implementation): work the planned tasks"\n'
+            f"{fm_extra}"
             "---\n"
-            "Run Phase 3 (Implementation) for ticket: $ARGUMENTS\n\n"
+            f"Run Phase 3 (Implementation) for ticket: {arg_ticket}\n\n"
             f"Read `{PHASES_DIR}/implementation.md` first, before any other step,\n"
             "and follow it exactly. Load the ticket's `plan.md` and work the task\n"
             "files in order.\n"
@@ -587,6 +613,18 @@ def read_status(path: Path) -> str:
     return m.group(1) if m else "unknown"
 
 
+def ask(text: str, default: str = "") -> str:
+    """Interactive prompt with default. Returns the default without prompting
+    when stdin is not a terminal (scripted/CI use)."""
+    if not sys.stdin.isatty():
+        return default
+    suffix = f" [{default}]" if default else " (Enter to skip)"
+    try:
+        return input(f"{text}{suffix}: ").strip() or default
+    except EOFError:
+        return default
+
+
 def project_root(project_dir: str) -> Path:
     root = Path(project_dir).resolve()
     if not root.is_dir():
@@ -658,8 +696,12 @@ def ai_commit(root: Path, message: str):
 
 def cmd_init(args) -> int:
     root = project_root(args.project_dir)
-    name = args.project_name or root.name
-    desc = (args.description or "").strip()
+    name = args.project_name or ask("Project name", root.name)
+    desc = (args.description or "").strip() or ask("Project description, one line")
+    harness = (args.harness or ask("Harness (claude/copilot)", "claude")).lower()
+    if harness not in ("claude", "copilot"):
+        print(f"unknown harness '{harness}', using claude")
+        harness = "claude"
     if desc:
         seed_description(desc)
     kb = root / ".ai" / "knowledgebase"
@@ -676,19 +718,25 @@ def cmd_init(args) -> int:
     write(kb / "manifest.yaml", render_manifest(name, desc), args.force, created, skipped)
     write(kb / "INDEX.md", render_index(name), args.force, created, skipped)
 
+    inst_rel = ("CLAUDE.md" if harness == "claude"
+                else ".github/copilot-instructions.md")
+
     phases = root / PHASES_DIR
-    write(phases / "init.md", render_phase_init(), args.force, created, skipped)
+    write(phases / "init.md", render_phase_init(inst_rel, harness),
+          args.force, created, skipped)
     write(phases / "planning.md", render_phase_planning(), args.force, created, skipped)
-    write(phases / "implementation.md", render_phase_implementation(),
+    write(phases / "implementation.md", render_phase_implementation(inst_rel),
           args.force, created, skipped)
 
-    write(root / "CLAUDE.md", render_claude_md(name, desc), args.force, created, skipped)
+    write(root / inst_rel, render_claude_md(name, desc), args.force, created, skipped)
 
-    commands = root / ".claude" / "commands"
-    for fname, content in render_commands().items():
+    commands = (root / ".claude" / "commands" if harness == "claude"
+                else root / ".github" / "prompts")
+    for fname, content in render_commands(inst_rel, harness).items():
         write(commands / fname, content, args.force, created, skipped)
-    write(root / ".claude" / "settings.json", render_settings_json(),
-          args.force, created, skipped)
+    if harness == "claude":
+        write(root / ".claude" / "settings.json", render_settings_json(),
+              args.force, created, skipped)
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
@@ -696,7 +744,8 @@ def cmd_init(args) -> int:
 
     report(root, created, skipped)
     print(f"\nKB: {kb.relative_to(root)}  |  phases: {PHASES_DIR}"
-          f"  |  nodes: {len(ALL_NODES)}  |  project: {name}")
+          f"  |  nodes: {len(ALL_NODES)}  |  project: {name}"
+          f"  |  harness: {harness}")
     return 0
 
 
@@ -808,6 +857,9 @@ def main() -> int:
                         "manifest and CLAUDE.md project context")
     p.add_argument("--force", action="store_true")
     p.add_argument("--project-name", default=None)
+    p.add_argument("--harness", choices=["claude", "copilot"], default=None,
+                   help="claude: CLAUDE.md + .claude/ (default). copilot: "
+                        ".github/copilot-instructions.md + .github/prompts/")
     p.set_defaults(func=cmd_init)
 
     p = sub.add_parser("new-ticket", help="scaffold a ticket folder")

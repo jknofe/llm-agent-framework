@@ -21,7 +21,9 @@ to `~/.llm-agent-framework` first.
 
 A typical project lifecycle, from zero to working tickets:
 
-1. **Scaffold**, in your project root, with a one-line project description:
+1. **Scaffold**: run `init-agent init` in your project root and answer the
+   prompts (project name, one-line description, claude or copilot); Enter
+   accepts the defaults. Everything can also be passed as arguments:
    `init-agent init . "ROS Docker container, builds ROS2 humble and jazzy snaps"`
 2. **Build the knowledge base**: start Claude Code and run `/explore`.
    The agent samples the codebase, fills the KB nodes and asks you about
@@ -40,12 +42,17 @@ A typical project lifecycle, from zero to working tickets:
 
 ```
 init-agent init [project_dir] [description] [--force] [--project-name NAME]
+                [--harness claude|copilot]
 init-agent new-ticket TICKET_ID [project_dir] [--title TITLE]
 init-agent add-reference NAME ORIGIN [project_dir] [--summary TEXT]
 init-agent archive TICKET_ID [project_dir] [--force]
 ```
 
 Or directly without installing: `python init_agent.py <subcommand> ...`
+
+`init` is interactive: values not passed as arguments are prompted for, and
+hitting Enter accepts the default (directory name, no description, claude).
+Without a terminal (scripts, CI) the defaults are used directly.
 
 ## Slash commands (Claude Code)
 
@@ -59,6 +66,20 @@ Or directly without installing: `python init_agent.py <subcommand> ...`
 
 The commands are thin pointers to the phase docs in `.ai/agent/phases/`, so
 phase instructions stay in one place.
+
+## GitHub Copilot support
+
+`init --harness copilot` targets Copilot instead of Claude Code:
+
+- instructions file: `.github/copilot-instructions.md` instead of `CLAUDE.md`
+- prompt files: `.github/prompts/{explore,plan,implement}.prompt.md` instead
+  of `.claude/commands/`, invoked the same way (`/explore`, `/plan`,
+  `/implement`) in VS Code Copilot Chat; ticket ids are passed as input
+  variables, e.g. `/plan: ticket=FEAT-42`
+- no `.claude/settings.json` (Copilot has no equivalent permission allow list)
+
+The `.ai/` knowledge base, phase docs and all CLI subcommands are identical
+for both harnesses; only the entry files differ.
 
 ## What init creates
 
