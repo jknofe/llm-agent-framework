@@ -38,6 +38,9 @@ language + denser tokenization than German.
     │   └── kb-delta.yaml    # accumulated KB patches
     └── _archive/            # finished tickets, invisible to agent
 
+.ai/tickets/                 # inbox: <ID>-<slug>.md, via /add-ticket or
+                             # dropped in by user; /plan consumes into tasks/
+
 .ai/external/                # raw external material (clones, doc dumps);
 └── <name>/                  # search territory, never load territory;
                              # excluded from .ai git (re-fetchable)
@@ -106,7 +109,8 @@ view.
 - Coverage report: unread areas (lazy init in Phase 4)
 
 ### Phase 2: Planning (high-reasoning model)
-- Ticket scaffold: `init_agent.py new-ticket <id>`
+- Ticket source: `.ai/tickets/` inbox (via /add-ticket or user-dropped md
+  file); agent creates `tasks/<id>/` from it, deletes inbox file
 - Interactive Q&A until acceptance criteria unambiguous; answers → ticket.md
 - One file per task `NN-<slug>.md`: goal, criteria, affected files, pre-bound
   KB node ids + content hashes (**warm start**), expected
@@ -160,11 +164,12 @@ Effective as **dynamic routing**, not rigid split.
 
 - Status in frontmatter (`planned|in-progress|done|blocked`), never folder
   names → stable paths for pre-bound refs + hashes
-- Ticket done: kb-delta applied → `init_agent.py archive <id>` moves to
-  `tasks/_archive/`
+- Intake: ticket md lands in `.ai/tickets/` inbox (/add-ticket or by hand);
+  /plan converts to `tasks/<id>/`
+- Ticket done: kb-delta applied → user prompts agent to archive; agent
+  verifies all tasks `done` + kb-delta applied, moves to `tasks/_archive/`,
+  commits .ai (no CLI command; rules in instructions file)
 - Archive invisible to agent; knowledge lives on in KB/ADRs
-- archive command blocks on open tasks (--force overrides), warns on missing
-  kb-delta.yaml
 
 ## 5. Living KB
 
@@ -204,8 +209,8 @@ CLAUDE.md is loaded every session anyway:
 Portability: where a harness reads `AGENTS.md` (vendor-neutral standard)
 instead of CLAUDE.md, generate the same content there; source stays KB.
 
-Open / next step: `sync-claude` subcommand (hot nodes → section between
-markers).
+Regeneration of the section is an agent duty (Phase 1 + after hot-node
+kb-delta), not a CLI feature: the CLI only scaffolds.
 
 ## 7. CLAUDE.md split: phase docs on demand (decision)
 
@@ -281,3 +286,24 @@ coding-agents literature, plan-then-execute studies). Changes vs v3:
 Unchanged: KB layout, manifest navigation, hot/cold tiers, hot tier via
 CLAUDE.md generated section, kb-delta, staleness CI, ticket lifecycle +
 archive.
+
+## 11. Tooling update (2026-06-12)
+
+CLI reduced to a single interactive scaffold command (`init-agent`, no
+subcommands, no parameters; prompts: name, description, harness
+claude/copilot, overwrite-confirm replaces --force). Lifecycle ops moved
+from CLI to agent:
+
+- ticket intake: `.ai/tickets/` inbox (`<ID>-<slug>.md`), filled via
+  /add-ticket or by hand; /plan consumes inbox → `tasks/<id>/`
+- references: /add-reference (clone/copy → `.ai/external/`, node + index
+  updates by agent) or material placed by hand, node created on discovery
+- archive: user prompts agent; rules in instructions file, no command
+- .ai commits: agent duty (protocol rule), CLI commits only at init;
+  `git -C .ai` pre-allowed in the permission list
+
+Rationale: every lifecycle op is agent-executable instruction-following;
+keeping it in the CLI duplicated logic the agent must know anyway and
+forced parameter ceremony on the user. Slash commands /explore, /add-ticket,
+/plan, /implement, /add-reference; harness copilot gets the same as
+.github/prompts/*.prompt.md.

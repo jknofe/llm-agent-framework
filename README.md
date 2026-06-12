@@ -19,92 +19,89 @@ to `~/.llm-agent-framework` first.
 
 ## How to use
 
-A typical project lifecycle, from zero to working tickets:
+The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
+in your project root and answer the prompts (project name, one-line
+description, claude or copilot); Enter accepts the defaults. If a scaffold
+already exists it asks before overwriting. `init-agent -h` shows help.
+Everything after init is done by the agent through slash commands and
+folder conventions:
 
-1. **Scaffold**: run `init-agent init` in your project root and answer the
-   prompts (project name, one-line description, claude or copilot); Enter
-   accepts the defaults. Everything can also be passed as arguments:
-   `init-agent init . "ROS Docker container, builds ROS2 humble and jazzy snaps"`
-2. **Build the knowledge base**: start Claude Code and run `/explore`.
-   The agent samples the codebase, fills the KB nodes and asks you about
-   non-derivable knowledge (domain terms, unwritten rules).
-3. **Register external material** the agent will need, e.g. an upstream
-   library or its docs:
-   `init-agent add-reference ros2-docs https://github.com/ros2/ros2_documentation.git`
-4. **Plan a ticket**: `init-agent new-ticket FEAT-42 --title "Add jazzy build"`,
-   then `/plan FEAT-42` in Claude Code. Answer the Q&A rounds and sign off
-   on the plan.
-5. **Implement**: `/implement FEAT-42`. The agent works the task files in
+1. **Build the knowledge base**: run `/explore`. The agent samples the
+   codebase, fills the KB nodes and asks you about non-derivable knowledge
+   (domain terms, unwritten rules).
+2. **Register external material** the agent will need (an upstream library,
+   its docs): `/add-reference ros2-docs https://github.com/ros2/ros2_documentation.git`,
+   or put the material into `.ai/external/<name>/` yourself.
+3. **Add a ticket**: `/add-ticket JIRA-1234 Add jazzy build`, or drop a
+   markdown file into the `.ai/tickets/` inbox yourself, named like
+   `JIRA1234-do-this-and-that.md`.
+4. **Plan it**: `/plan JIRA-1234`. Answer the Q&A rounds and sign off on
+   the plan.
+5. **Implement**: `/implement JIRA-1234`. The agent works the task files in
    order and records KB updates in `kb-delta.yaml`.
-6. **Archive** the finished ticket: `init-agent archive FEAT-42`.
+6. **Archive**: just ask the agent ("archive JIRA-1234"). It verifies all
+   tasks are done and the KB delta is applied, then moves the ticket to
+   `tasks/_archive/`.
 
-## CLI commands
+## Slash commands
 
-```
-init-agent init [project_dir] [description] [--force] [--project-name NAME]
-                [--harness claude|copilot]
-init-agent new-ticket TICKET_ID [project_dir] [--title TITLE]
-init-agent add-reference NAME ORIGIN [project_dir] [--summary TEXT]
-init-agent archive TICKET_ID [project_dir] [--force]
-```
+`init` scaffolds these into your project (`.claude/commands/` for Claude
+Code, `.github/prompts/` for Copilot):
 
-Or directly without installing: `python init_agent.py <subcommand> ...`
+| Command | What it does |
+|---|---|
+| `/explore [focus]` | Phase 1: samples the codebase, fills the KB, regenerates manifest/INDEX and the instructions-file project context. Optional free-text focus. |
+| `/add-ticket <id> <title...>` | Stores the ticket as markdown in the `.ai/tickets/` inbox. No planning yet. |
+| `/plan <ticket-id>` | Phase 2: turns the inbox ticket into `tasks/<id>/` with self-contained task files via Q&A, ends with the plan-review gate. |
+| `/implement <ticket-id>` | Phase 3: works the planned task files in order; tests, KB delta, typed escalation on blockers. |
+| `/add-reference <name> <origin>` | Clones/copies external material to `.ai/external/<name>/` and registers a `references/<name>` KB node (origin, fetch date, pinned version). |
 
-`init` is interactive: values not passed as arguments are prompted for, and
-hitting Enter accepts the default (directory name, no description, claude).
-Without a terminal (scripts, CI) the defaults are used directly.
-
-## Slash commands (Claude Code)
-
-`init` scaffolds these into `.claude/commands/` of your project:
-
-| Command | Phase | What it does |
-|---|---|---|
-| `/explore [focus]` | 1 Initialization | Samples the codebase, fills the KB, regenerates manifest/INDEX and the CLAUDE.md project context. Optional free-text focus, e.g. `/explore focus on the docker setup`. |
-| `/plan <ticket-id>` | 2 Planning | Decomposes the ticket into self-contained task files via Q&A, ends with the plan-review gate. |
-| `/implement <ticket-id>` | 3 Implementation | Works the planned task files in order; tests, KB delta, typed escalation on blockers. |
-
-The commands are thin pointers to the phase docs in `.ai/agent/phases/`, so
-phase instructions stay in one place.
+The phase commands are thin pointers to the phase docs in
+`.ai/agent/phases/`, so phase instructions stay in one place. The add-*
+commands are self-contained. Archiving has no command: prompt the agent;
+the rules live in the instructions file.
 
 ## GitHub Copilot support
 
-`init --harness copilot` targets Copilot instead of Claude Code:
+Choosing `copilot` at the harness prompt targets Copilot instead of Claude
+Code:
 
 - instructions file: `.github/copilot-instructions.md` instead of `CLAUDE.md`
-- prompt files: `.github/prompts/{explore,plan,implement}.prompt.md` instead
-  of `.claude/commands/`, invoked the same way (`/explore`, `/plan`,
-  `/implement`) in VS Code Copilot Chat; ticket ids are passed as input
-  variables, e.g. `/plan: ticket=FEAT-42`
+- prompt files: `.github/prompts/*.prompt.md` instead of
+  `.claude/commands/`, invoked the same way (`/explore`, `/plan`, ...) in
+  VS Code Copilot Chat; arguments are passed as input variables, e.g.
+  `/plan: ticket=FEAT-42`
 - no `.claude/settings.json` (Copilot has no equivalent permission allow list)
 
-The `.ai/` knowledge base, phase docs and all CLI subcommands are identical
-for both harnesses; only the entry files differ.
+Prompt files require VS Code with the `chat.promptFiles` setting enabled.
+Copilot CLI does not load prompt files; it does read
+`.github/copilot-instructions.md`, which therefore contains the phase
+kickoff lines to type instead (also printed at the end of `init`), e.g.
+`Run Phase 1: read .ai/agent/phases/init.md first and follow it exactly.`
+
+The `.ai/` knowledge base and phase docs are identical for both harnesses;
+only the entry files differ.
 
 ## What init creates
 
 `init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold
-nodes), `.ai/agent/phases/` (on-demand phase docs), slim core `CLAUDE.md`,
-the slash commands above and `.claude/settings.json` with a read-only
-permission allow list (grep, find, ls, cat, awk, read-only git, ...) so
-exploration runs without a confirmation prompt per command. Compound
+nodes), the `.ai/tickets/` inbox, `.ai/agent/phases/` (on-demand phase
+docs), the slim core instructions file, the slash commands above and, for
+Claude Code, `.claude/settings.json` with a read-only permission allow list
+(grep, find, ls, cat, awk, read-only git, `git -C .ai`, ...) so exploration
+and `.ai` commits run without a confirmation prompt per command. Compound
 commands (`a && b`) only skip the prompt when every part of the chain is
 allowed, so common chain members like `cd`, `echo` and `pwd` are included.
-`CLAUDE.md` and `.claude/` belong to the host repo.
+The instructions file and `.claude/` / `.github/` belong to the host repo.
 
-The optional `description` is a one-line project summary. It is seeded into
-the architecture overview node, `manifest.yaml` and the CLAUDE.md project
-context section, so the agent's first ramp-up (Phase 1) starts from a known
-project intent instead of discovering it from scratch. Phase 1 verifies and
-refines it against the code.
-
-`add-reference` registers external material (another repo, documentation,
-example code) for the agent. The raw copy goes to `.ai/external/<name>/`
-(cloned from a git URL or copied from a local path, excluded from `.ai`'s
-git repo) and a small KB node `references/<name>.md` records origin, fetch
-date, pinned version and usage notes. The agent loads only the node and
-searches the raw copy with targeted queries instead of reading it whole.
+The description prompted at init is seeded into the architecture overview
+node, `manifest.yaml` and the project context section of the instructions
+file, so the agent's first ramp-up (Phase 1) starts from a known project
+intent instead of discovering it from scratch. Phase 1 verifies and refines
+it against the code.
 
 `.ai/` is versioned in its own git repo (`.ai/.git`) and excluded from the
-host project via a `.gitignore` entry written by `init`. All subcommands
-auto-commit their `.ai/` changes; `CLAUDE.md` remains in the host repo.
+host project via a `.gitignore` entry written by `init`. `init` makes the
+first commit; afterwards the agent commits `.ai` changes itself (a protocol
+rule in the instructions file). Raw external material under `.ai/external/`
+stays out of that repo too (re-fetchable, would bloat history).

@@ -1,52 +1,49 @@
 #!/usr/bin/env python3
 """
-init_agent.py - Scaffold and manage a project-aware LLM agent.
+init_agent.py - Scaffold a project-aware LLM agent (interactive, run in the
+project root). The script only initializes; everything afterwards is done by
+the agent through slash commands and folder conventions:
 
-Subcommands:
-  init        Create .ai/knowledgebase/, .ai/agent/phases/, CLAUDE.md and
-              .claude/commands/ (slash commands /explore, /plan, /implement)
-  new-ticket  Scaffold tasks/<ticket-id>/ (ticket.md, plan.md)
-  add-reference  Register external material (other repos, docs): raw copy in
-              .ai/external/<name>/, describing KB node in references/<name>.md
-  archive     Move a finished ticket to tasks/_archive/ (all tasks must be done)
+  /explore               Phase 1: build the knowledge base
+  /add-ticket            store a ticket as markdown in the .ai/tickets/ inbox
+                         (or drop a <ID>-<slug>.md file there yourself)
+  /plan <id>             Phase 2: turn an inbox ticket into tasks/<id>/
+  /implement <id>        Phase 3: work the planned task files
+  /add-reference         register external material (repos, docs) under
+                         .ai/external/ + a references/<name> KB node
+                         (or place material in .ai/external/ yourself)
+  archive                no command: ask the agent to archive a finished
+                         ticket; the rules live in the instructions file
+
+Prompts: project name, one-line description, harness (claude/copilot).
+Enter accepts the default. Non-TTY runs use all defaults. If a scaffold
+already exists, init asks before overwriting (overwrite regenerates stubs
+and reverts hand-filled KB content).
 
 Context layout:
-  CLAUDE.md                    always loaded: KB protocol, budgets, generated
-                               project-context section, phase pointer table
+  CLAUDE.md (claude) /         always loaded: KB protocol, budgets, generated
+  .github/copilot-instructions.md (copilot)  project-context, phase pointers
   .ai/agent/phases/*.md        loaded on demand, only when the phase runs
-  .claude/commands/*.md        Claude Code slash commands; thin pointers that
-                               tell the agent which phase doc to read
-  .claude/settings.json        permission allow list: read-only shell commands
-                               run without prompts (incl. parts of && chains)
+  .claude/commands/*.md /      slash commands; thin pointers to phase docs,
+  .github/prompts/*.prompt.md  self-contained for the add-* helpers
+  .claude/settings.json        permission allow list (claude only): read-only
+                               shell commands run without prompts
 
 Versioning:
   .ai/ is excluded from the host project's repo (init appends it to the
-  project .gitignore) and tracked in its own git repo at .ai/.git. Every
-  subcommand commits its changes there. CLAUDE.md stays in the host repo.
+  project .gitignore) and tracked in its own git repo at .ai/.git. init
+  makes the first commit; afterwards the agent commits .ai changes itself
+  (protocol rule in the instructions file).
 
 Generated docs use two language registers (concept v4, CONCEPT.md section 8):
-normative docs (CLAUDE.md protocol, phase docs) in plain imperative English,
+normative docs (instructions file, phase docs) in plain imperative English,
 KB content (node summaries, tickets) telegraphic. Identifiers verbatim.
 
 Usage:
-  python init_agent.py init [project_dir] [description] [--force]
-                            [--project-name NAME] [--harness claude|copilot]
-                            run interactively, init prompts for missing
-                            values (name, description, harness); Enter
-                            accepts the default. Non-TTY runs use defaults.
-                            harness copilot: .github/copilot-instructions.md
-                            instead of CLAUDE.md, .github/prompts/*.prompt.md
-                            instead of .claude/commands/, no settings.json
-                            description: one-line project summary, seeded into
-                            the overview node, manifest and CLAUDE.md context
-  python init_agent.py init . "ROS Docker container, builds ROS2 snaps"
-  python init_agent.py new-ticket TICKET_ID [project_dir] [--title TITLE]
-  python init_agent.py add-reference NAME ORIGIN [project_dir] [--summary TEXT]
-  python init_agent.py archive TICKET_ID [project_dir] [--force]
+  python init_agent.py        (or: init-agent)
 """
 
 import argparse
-import re
 import shutil
 import subprocess
 import sys
@@ -228,8 +225,21 @@ def render_index(project_name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_claude_md(project_name: str, description: str = "") -> str:
+def render_claude_md(project_name: str, description: str = "",
+                     harness: str = "claude") -> str:
     seed = f"{description}\n" if description else ""
+    cli_note = ""
+    if harness == "copilot":
+        cli_note = f"""## Copilot CLI
+
+Prompt files (`/explore`, `/plan`, `/implement`) work in VS Code only. In
+Copilot CLI, start a phase with its kickoff line:
+
+- `Run Phase 1: read {PHASES_DIR}/init.md first and follow it exactly.`
+- `Plan ticket <id>: read {PHASES_DIR}/planning.md first, then the ticket.`
+- `Implement ticket <id>: read {PHASES_DIR}/implementation.md first, then plan.md.`
+
+"""
     return f"""# Agent: {project_name}
 
 Project-aware agent (concept v4). KB = `.ai/knowledgebase/`. Token efficiency
@@ -270,11 +280,19 @@ telegraphic. Keep identifiers, paths, and commands verbatim.
 10. External references: nodes under `references/` describe material in
     `.ai/external/` (other repos, docs, example code). Load the node first,
     then search the raw copy with targeted queries (in a sub-agent when
-    available). Never bulk-load raw external material into context.
+    available). Never bulk-load raw external material into context. If you
+    find material in `.ai/external/` without a `references/` node, create
+    the node (see the /add-reference command for the format).
+11. Persist `.ai` changes: after changing files under `.ai/`, commit them in
+    its own repo with a short message, e.g.
+    `git -C .ai add -A && git -C .ai commit -m "plan: JIRA-1234"`.
+    Never commit `.ai` content to the host project repo.
 
 ## Ticket Layout
 
 ```
+.ai/tickets/      # inbox: <ID>-<slug>.md (e.g. JIRA1234-do-this-and-that.md),
+                  # added via /add-ticket or dropped in by the user
 tasks/<ticket-id>/
   ticket.md       # original ticket + recorded Q&A answers
   plan.md         # task index; frontmatter carries read-first pointer
@@ -284,7 +302,12 @@ tasks/_archive/   # finished tickets; never load
 ```
 
 Status in frontmatter (`planned|in-progress|done|blocked`), never in folder
-names. Archive finished tickets: `python init_agent.py archive <id>`.
+names. `/plan <id>` turns an inbox ticket into `tasks/<id>/`.
+
+Archive only when the user asks for it, then: verify every task file in
+`tasks/<id>/` has `status: done` (if not, list the open ones and ask);
+verify `kb-delta.yaml` was applied to the KB; move `tasks/<id>/` to
+`tasks/_archive/<id>/`; commit the `.ai` repo (`archive: <id>`).
 
 ## Model Routing (default)
 
@@ -292,7 +315,7 @@ Planning + tasks `complexity: high` → high-reasoning model. `low`/`med` →
 cost-efficient model. Escalation rules in `{PHASES_DIR}/implementation.md`
 override.
 
-## Project Context
+{cli_note}## Project Context
 
 <!-- BEGIN GENERATED:project-context (source: hot-tier nodes, max 1500 tokens) -->
 {seed}<!-- Populated in Phase 1. Do not edit. -->
@@ -348,14 +371,24 @@ def render_phase_planning() -> str:
 Read this before decomposing a ticket.
 
 ## Workflow
-1. Scaffold: `python init_agent.py new-ticket <ticket-id>`.
-2. Load matched KB nodes (protocol budgets apply).
-3. Run interactive Q&A with the user until the acceptance criteria are
+1. Locate the ticket in the inbox: `.ai/tickets/<id>*.md` (created via
+   /add-ticket or dropped in by the user). If it is missing, ask the user
+   for the ticket content.
+2. Create `tasks/<id>/`: move the inbox file's content into `ticket.md`
+   (format below), then delete the inbox file.
+3. Load matched KB nodes (protocol budgets apply).
+4. Run interactive Q&A with the user until the acceptance criteria are
    unambiguous. Keep the rounds bounded. Record answers in `ticket.md`.
-4. Write one task file per task. `plan.md` stays a thin index.
-5. Plan-review gate: review the finished plan against the acceptance
+5. Write one task file per task. `plan.md` stays a thin index.
+6. Plan-review gate: review the finished plan against the acceptance
    criteria yourself, then get user sign-off on `plan.md` before
    implementation starts. A weak plan poisons every downstream task.
+7. Commit the `.ai` repo (`plan: <id>`).
+
+## ticket.md format
+Frontmatter: `id`, `title`, `status: planned`, `created: <date>`.
+Body: the original ticket description, then a `## Q&A (Planning)` section
+with the recorded answers.
 
 ## Task file format (`NN-<slug>.md`)
 Frontmatter: `status: planned`, `complexity: low|med|high`, `depends: []`.
@@ -370,10 +403,13 @@ Pre-binding is a warm start, not a contract: implementation starts from the
 bound nodes and files and may run at most 5 targeted searches of its own
 before escalating `missing-context`.
 
-## plan.md
-Index only: order, dependencies, complexity, routing, status. The
-frontmatter `read-first` pointer forces the implementation model to load its
-phase doc. Do not remove it.
+## plan.md format
+Frontmatter: `ticket: <id>`, `status: planned`,
+`read-first: {PHASES_DIR}/implementation.md`, `updated: <date>`.
+Body: index only, a task table
+`| # | Task file | Depends on | Complexity | Model | Status |`.
+The frontmatter `read-first` pointer forces the implementation model to load
+its phase doc. Do not remove it.
 
 ## Routing
 Set `complexity` per task. `high` routes to the high-reasoning model, even
@@ -455,6 +491,20 @@ def render_commands(inst: str = "CLAUDE.md", harness: str = "claude") -> dict:
             "report.\n\n"
             f"{arg_focus}\n"
         ),
+        f"add-ticket{ext}": (
+            "---\n"
+            'description: "Store a ticket as markdown in the .ai/tickets/ inbox"\n'
+            f"{fm_extra}"
+            "---\n"
+            f"Add a ticket to the inbox. Ticket id, title, description: {arg_ticket}\n\n"
+            "1. Build the filename `<ID>-<slug>.md` from id and title, e.g.\n"
+            "   `JIRA1234-do-this-and-that.md`.\n"
+            "2. Write `.ai/tickets/<ID>-<slug>.md` with frontmatter `id`, `title`,\n"
+            "   `status: new`, `created: <today>` and the description as body.\n"
+            "   Ask for a one-line description if none was given.\n"
+            '3. Commit the `.ai` repo (`add-ticket: <ID>`).\n\n'
+            "Do not start planning or implementing; that begins with /plan <ID>.\n"
+        ),
         f"plan{ext}": (
             "---\n"
             'description: "Run Phase 2 (Planning): decompose a ticket into task files"\n'
@@ -463,6 +513,7 @@ def render_commands(inst: str = "CLAUDE.md", harness: str = "claude") -> dict:
             f"Run Phase 2 (Planning) for ticket: {arg_ticket}\n\n"
             f"Read `{PHASES_DIR}/planning.md` first, before any other step, and\n"
             "follow it exactly, including the Q&A rounds and the plan-review gate.\n"
+            "The ticket is in the `.ai/tickets/` inbox.\n"
         ),
         f"implement{ext}": (
             "---\n"
@@ -473,6 +524,27 @@ def render_commands(inst: str = "CLAUDE.md", harness: str = "claude") -> dict:
             f"Read `{PHASES_DIR}/implementation.md` first, before any other step,\n"
             "and follow it exactly. Load the ticket's `plan.md` and work the task\n"
             "files in order.\n"
+        ),
+        f"add-reference{ext}": (
+            "---\n"
+            'description: "Register external material (repo, docs) as a reference"\n'
+            f"{fm_extra}"
+            "---\n"
+            f"Register an external reference. Name and origin (git URL or local\n"
+            f"path): {arg_ticket}\n\n"
+            "1. Fetch the material into `.ai/external/<name>/`:\n"
+            "   git URL or local git repo: `git clone --depth 1 <origin>`;\n"
+            "   plain local folder: copy it.\n"
+            "2. Ensure `.ai/.gitignore` contains `external/`.\n"
+            "3. Create `.ai/knowledgebase/references/<name>.md` with frontmatter:\n"
+            "   `id: references/<name>`, one-line `summary`,\n"
+            "   `tags: [external, reference]`, `covers: []`, `tier: cold`,\n"
+            "   `updated`, `origin`, `fetched: <today>`,\n"
+            "   `pinned: <commit sha or n/a>`, `related: []`.\n"
+            "   Body: local copy path, what the material answers, entry points.\n"
+            "4. Append the node to `manifest.yaml` and `INDEX.md`.\n"
+            '5. Commit the `.ai` repo (`add-reference: <name>`).\n\n'
+            "Reminder: search raw copies with targeted queries; never bulk-load.\n"
         ),
     }
 
@@ -509,6 +581,7 @@ def render_settings_json() -> str:
         "Bash(git diff:*)",
         "Bash(git show:*)",
         "Bash(git branch:*)",
+        "Bash(git -C .ai:*)",
     ]
     rules = ",\n".join(f'      "{r}"' for r in allow)
     return (
@@ -520,82 +593,6 @@ def render_settings_json() -> str:
         "  }\n"
         "}\n"
     )
-
-
-def render_reference_node(name: str, origin: str, summary: str, pinned: str) -> str:
-    return (
-        "---\n"
-        f"id: references/{name}\n"
-        f"summary: {summary}\n"
-        "tags: [external, reference]\n"
-        "covers: []\n"
-        "tier: cold\n"
-        f"updated: {TODAY}\n"
-        f"origin: {origin}\n"
-        f"fetched: {TODAY}\n"
-        f"pinned: {pinned or 'n/a'}\n"
-        "related: []\n"
-        "---\n\n"
-        f"# Reference: {name}\n\n"
-        f"Local copy: `.ai/external/{name}/`\n"
-        f"Origin: {origin}\n\n"
-        "Consult for: <!-- fill: which questions this material answers -->\n"
-        "Entry points: <!-- fill: key files or dirs to start searching -->\n\n"
-        "Search the raw copy with targeted queries; never bulk-load it.\n"
-    )
-
-
-def append_reference_to_indexes(kb: Path, name: str, summary: str):
-    """Register a reference node in manifest.yaml and INDEX.md (append-only;
-    node entries form a flat list, order is irrelevant)."""
-    manifest = kb / "manifest.yaml"
-    if manifest.exists():
-        with manifest.open("a", encoding="utf-8") as f:
-            f.write(
-                f"  - id: references/{name}\n"
-                f"    path: references/{name}.md\n"
-                f"    summary: {summary}\n"
-                "    tags: [external, reference]\n"
-                "    covers: []\n"
-                "    tier: cold\n"
-                f"    updated: {TODAY}\n"
-            )
-    index = kb / "INDEX.md"
-    if index.exists():
-        with index.open("a", encoding="utf-8") as f:
-            f.write(f"| `references/{name}.md` | cold | {summary} |\n")
-
-
-def render_ticket_md(ticket_id: str, title: str) -> str:
-    return (
-        "---\n"
-        f"id: {ticket_id}\n"
-        f"title: {title}\n"
-        "status: planned\n"
-        f"created: {TODAY}\n"
-        "---\n\n"
-        f"# {ticket_id}: {title}\n\n"
-        "## Description\n\n<!-- Original ticket here. -->\n\n"
-        "## Q&A (Planning)\n\n<!-- Recorded clarification answers. -->\n"
-    )
-
-
-def render_plan_md(ticket_id: str) -> str:
-    return (
-        "---\n"
-        f"ticket: {ticket_id}\n"
-        "status: planned\n"
-        f"read-first: {PHASES_DIR}/implementation.md\n"
-        f"updated: {TODAY}\n"
-        "---\n\n"
-        f"# Plan: {ticket_id}\n\n"
-        "<!-- Implementation model: read read-first file above before any task. -->\n\n"
-        "| # | Task file | Depends on | Complexity | Model | Status |\n"
-        "|---|---|---|---|---|---|\n"
-        "<!-- One row per NN-<slug>.md task file. -->\n"
-    )
-
-
 # ------------------------------------------------------------------ helpers
 
 def write(path: Path, content: str, force: bool, created: list, skipped: list):
@@ -611,12 +608,7 @@ def report(root: Path, created: list, skipped: list):
     for p in created:
         print(f"created  {p.relative_to(root)}")
     for p in skipped:
-        print(f"skipped  {p.relative_to(root)} (exists, use --force)")
-
-
-def read_status(path: Path) -> str:
-    m = re.search(r"^status:\s*(\S+)", path.read_text(encoding="utf-8"), re.M)
-    return m.group(1) if m else "unknown"
+        print(f"skipped  {p.relative_to(root)} (exists)")
 
 
 def ask(text: str, default: str = "") -> str:
@@ -652,13 +644,6 @@ def ask_choice(text: str, options: list, default: str) -> str:
         if raw in options:
             return raw
         print(f"  invalid choice: {raw}")
-
-
-def project_root(project_dir: str) -> Path:
-    root = Path(project_dir).resolve()
-    if not root.is_dir():
-        sys.exit(f"error: {root} is not a directory")
-    return root
 
 
 # ----------------------------------------------------------------------- git
@@ -721,16 +706,24 @@ def ai_commit(root: Path, message: str):
         print(f"committed in .ai: {message}")
 
 
-# -------------------------------------------------------------- subcommands
+# --------------------------------------------------------------------- init
 
-def cmd_init(args) -> int:
-    root = project_root(args.project_dir)
-    name = args.project_name or ask("Project name", root.name)
-    desc = (args.description or "").strip() or ask("Project description, one line")
-    harness = args.harness or ask_choice("Harness", ["claude", "copilot"], "claude")
+def cmd_init() -> int:
+    root = Path.cwd()
+    kb = root / ".ai" / "knowledgebase"
+
+    name = ask("Project name", root.name)
+    desc = ask("Project description, one line")
+    harness = ask_choice("Harness", ["claude", "copilot"], "claude")
+
+    force = False
+    if (kb / "manifest.yaml").exists():
+        answer = ask("Scaffold exists. Overwrite regenerates stubs and "
+                     "reverts hand-filled KB content. Overwrite? (y/N)", "n")
+        force = answer.lower() in ("y", "yes")
+
     if desc:
         seed_description(desc)
-    kb = root / ".ai" / "knowledgebase"
     created, skipped = [], []
 
     for d in KB_DIRS:
@@ -738,31 +731,37 @@ def cmd_init(args) -> int:
         if not any((kb / d).iterdir()):
             (kb / d / ".gitkeep").touch()
 
-    for rel, meta in ALL_NODES.items():
-        write(kb / rel, frontmatter(meta) + meta["body"], args.force, created, skipped)
+    tickets = root / ".ai" / "tickets"
+    tickets.mkdir(parents=True, exist_ok=True)
+    if not any(tickets.iterdir()):
+        (tickets / ".gitkeep").touch()
 
-    write(kb / "manifest.yaml", render_manifest(name, desc), args.force, created, skipped)
-    write(kb / "INDEX.md", render_index(name), args.force, created, skipped)
+    for rel, meta in ALL_NODES.items():
+        write(kb / rel, frontmatter(meta) + meta["body"], force, created, skipped)
+
+    write(kb / "manifest.yaml", render_manifest(name, desc), force, created, skipped)
+    write(kb / "INDEX.md", render_index(name), force, created, skipped)
 
     inst_rel = ("CLAUDE.md" if harness == "claude"
                 else ".github/copilot-instructions.md")
 
     phases = root / PHASES_DIR
     write(phases / "init.md", render_phase_init(inst_rel, harness),
-          args.force, created, skipped)
-    write(phases / "planning.md", render_phase_planning(), args.force, created, skipped)
+          force, created, skipped)
+    write(phases / "planning.md", render_phase_planning(), force, created, skipped)
     write(phases / "implementation.md", render_phase_implementation(inst_rel),
-          args.force, created, skipped)
+          force, created, skipped)
 
-    write(root / inst_rel, render_claude_md(name, desc), args.force, created, skipped)
+    write(root / inst_rel, render_claude_md(name, desc, harness),
+          force, created, skipped)
 
     commands = (root / ".claude" / "commands" if harness == "claude"
                 else root / ".github" / "prompts")
     for fname, content in render_commands(inst_rel, harness).items():
-        write(commands / fname, content, args.force, created, skipped)
+        write(commands / fname, content, force, created, skipped)
     if harness == "claude":
         write(root / ".claude" / "settings.json", render_settings_json(),
-              args.force, created, skipped)
+              force, created, skipped)
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
@@ -772,146 +771,22 @@ def cmd_init(args) -> int:
     print(f"\nKB: {kb.relative_to(root)}  |  phases: {PHASES_DIR}"
           f"  |  nodes: {len(ALL_NODES)}  |  project: {name}"
           f"  |  harness: {harness}")
-    return 0
-
-
-def cmd_new_ticket(args) -> int:
-    root = project_root(args.project_dir)
-    tdir = root / ".ai" / "knowledgebase" / "tasks" / args.ticket_id
-    if tdir.exists():
-        sys.exit(f"error: ticket {args.ticket_id} already exists at {tdir}")
-    title = args.title or args.ticket_id
-    created, skipped = [], []
-    write(tdir / "ticket.md", render_ticket_md(args.ticket_id, title), False, created, skipped)
-    write(tdir / "plan.md", render_plan_md(args.ticket_id), False, created, skipped)
-    report(root, created, skipped)
-    ai_commit(root, f"new-ticket: {args.ticket_id}")
-    return 0
-
-
-def cmd_archive(args) -> int:
-    root = project_root(args.project_dir)
-    tasks_dir = root / ".ai" / "knowledgebase" / "tasks"
-    tdir = tasks_dir / args.ticket_id
-    if not tdir.is_dir():
-        sys.exit(f"error: ticket {args.ticket_id} not found at {tdir}")
-
-    open_items = []
-    plan = tdir / "plan.md"
-    if plan.exists() and read_status(plan) != "done":
-        open_items.append((plan, read_status(plan)))
-    for task_file in sorted(tdir.glob("[0-9][0-9]-*.md")):
-        st = read_status(task_file)
-        if st != "done":
-            open_items.append((task_file, st))
-
-    if open_items and not args.force:
-        print(f"error: ticket {args.ticket_id} has unfinished items:", file=sys.stderr)
-        for p, st in open_items:
-            print(f"  {p.relative_to(root)}  status={st}", file=sys.stderr)
-        print("use --force to archive anyway", file=sys.stderr)
-        return 1
-
-    if not (tdir / "kb-delta.yaml").exists():
-        print("warning: no kb-delta.yaml found; verify KB updates were applied")
-
-    dest = tasks_dir / "_archive" / args.ticket_id
-    if dest.exists():
-        sys.exit(f"error: {dest} already exists in archive")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(tdir), str(dest))
-    print(f"archived  {tdir.relative_to(root)} -> {dest.relative_to(root)}")
-    ai_commit(root, f"archive: ticket {args.ticket_id}")
-    return 0
-
-
-def cmd_add_reference(args) -> int:
-    root = project_root(args.project_dir)
-    kb = root / ".ai" / "knowledgebase"
-    if not kb.is_dir():
-        sys.exit("error: no .ai/knowledgebase found; run init first")
-
-    name = args.name
-    node_path = kb / "references" / f"{name}.md"
-    if node_path.exists():
-        sys.exit(f"error: reference {name} already exists at {node_path}")
-    ext_dir = root / ".ai" / "external" / name
-    if ext_dir.exists():
-        sys.exit(f"error: {ext_dir} already exists")
-
-    origin = args.origin
-    src = Path(origin).expanduser()
-    pinned = ""
-    ext_dir.parent.mkdir(parents=True, exist_ok=True)
-    if src.is_dir() and not (src / ".git").exists():
-        shutil.copytree(src, ext_dir)
-        print(f"copied   {origin} -> {ext_dir.relative_to(root)}")
-    else:
-        if shutil.which("git") is None:
-            sys.exit("error: git not found; cannot clone origin")
-        r = run_git(["clone", "--depth", "1", origin, str(ext_dir)], root)
-        if r.returncode != 0:
-            sys.exit(f"error: clone failed: {r.stderr.strip()}")
-        rp = run_git(["rev-parse", "--short", "HEAD"], ext_dir)
-        pinned = rp.stdout.strip() if rp.returncode == 0 else ""
-        print(f"cloned   {origin} -> {ext_dir.relative_to(root)} (@{pinned})")
-
-    summary = args.summary or f"External reference {name}; fill in what it answers"
-    node_path.parent.mkdir(parents=True, exist_ok=True)
-    node_path.write_text(render_reference_node(name, origin, summary, pinned),
-                         encoding="utf-8")
-    print(f"created  {node_path.relative_to(root)}")
-    append_reference_to_indexes(kb, name, summary)
-    print("updated  manifest.yaml, INDEX.md")
-
-    ensure_ai_gitignore(root)
-    ai_commit(root, f"add-reference: {name}")
-    print(f"\nNext: fill 'Consult for' and 'Entry points' in "
-          f"{node_path.relative_to(root)}")
+    if harness == "copilot":
+        print("\nPrompt files (/explore, /plan, /implement) work in VS Code only.")
+        print("Copilot CLI kickoff lines (copy-paste; also listed in "
+              f"{inst_rel}):")
+        print(f"  Run Phase 1: read {PHASES_DIR}/init.md first and follow it exactly.")
+        print(f"  Plan ticket <id>: read {PHASES_DIR}/planning.md first, then the ticket.")
+        print(f"  Implement ticket <id>: read {PHASES_DIR}/implementation.md first, then plan.md.")
     return 0
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = ap.add_subparsers(dest="cmd", required=True)
-
-    p = sub.add_parser("init", help="scaffold KB, phase docs and CLAUDE.md")
-    p.add_argument("project_dir", nargs="?", default=".")
-    p.add_argument("description", nargs="?", default=None,
-                   help="one-line project summary, seeded into overview node, "
-                        "manifest and CLAUDE.md project context")
-    p.add_argument("--force", action="store_true")
-    p.add_argument("--project-name", default=None)
-    p.add_argument("--harness", choices=["claude", "copilot"], default=None,
-                   help="claude: CLAUDE.md + .claude/ (default). copilot: "
-                        ".github/copilot-instructions.md + .github/prompts/")
-    p.set_defaults(func=cmd_init)
-
-    p = sub.add_parser("new-ticket", help="scaffold a ticket folder")
-    p.add_argument("ticket_id")
-    p.add_argument("project_dir", nargs="?", default=".")
-    p.add_argument("--title", default=None)
-    p.set_defaults(func=cmd_new_ticket)
-
-    p = sub.add_parser("add-reference",
-                       help="register external material (git URL or local path)")
-    p.add_argument("name", help="reference name, becomes references/<name>")
-    p.add_argument("origin", help="git URL to clone or local path to copy")
-    p.add_argument("project_dir", nargs="?", default=".")
-    p.add_argument("--summary", default=None,
-                   help="one-line summary for manifest and node frontmatter")
-    p.set_defaults(func=cmd_add_reference)
-
-    p = sub.add_parser("archive", help="archive a finished ticket")
-    p.add_argument("ticket_id")
-    p.add_argument("project_dir", nargs="?", default=".")
-    p.add_argument("--force", action="store_true",
-                   help="archive even with unfinished tasks")
-    p.set_defaults(func=cmd_archive)
-
-    args = ap.parse_args()
-    return args.func(args)
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.parse_args()
+    return cmd_init()
 
 
 if __name__ == "__main__":
