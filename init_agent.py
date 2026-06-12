@@ -53,6 +53,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
+try:
+    # Enables arrow keys / line editing in input() prompts (ask()).
+    import readline  # noqa: F401
+except ImportError:
+    pass  # not available on all platforms (e.g. Windows); plain input then
+
 TODAY = date.today().isoformat()
 
 # ---------------------------------------------------------------- structure
@@ -625,6 +631,29 @@ def ask(text: str, default: str = "") -> str:
         return default
 
 
+def ask_choice(text: str, options: list, default: str) -> str:
+    """Numbered selection prompt: pick by number or name, Enter = default.
+    Returns the default without prompting when stdin is not a terminal."""
+    if not sys.stdin.isatty():
+        return default
+    print(f"{text}:")
+    for i, opt in enumerate(options, 1):
+        mark = "  (default)" if opt == default else ""
+        print(f"  {i}) {opt}{mark}")
+    while True:
+        try:
+            raw = input(f"Select [Enter = {default}]: ").strip().lower()
+        except EOFError:
+            return default
+        if not raw:
+            return default
+        if raw.isdigit() and 1 <= int(raw) <= len(options):
+            return options[int(raw) - 1]
+        if raw in options:
+            return raw
+        print(f"  invalid choice: {raw}")
+
+
 def project_root(project_dir: str) -> Path:
     root = Path(project_dir).resolve()
     if not root.is_dir():
@@ -698,10 +727,7 @@ def cmd_init(args) -> int:
     root = project_root(args.project_dir)
     name = args.project_name or ask("Project name", root.name)
     desc = (args.description or "").strip() or ask("Project description, one line")
-    harness = (args.harness or ask("Harness (claude/copilot)", "claude")).lower()
-    if harness not in ("claude", "copilot"):
-        print(f"unknown harness '{harness}', using claude")
-        harness = "claude"
+    harness = args.harness or ask_choice("Harness", ["claude", "copilot"], "claude")
     if desc:
         seed_description(desc)
     kb = root / ".ai" / "knowledgebase"
