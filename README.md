@@ -1,6 +1,9 @@
 # llm-agent-framework
 
-Universal, project-configurable LLM agent for large software projects.
+Universal, project-configurable LLM agent for software projects of any size.
+At init you pick a size profile: **large** (the full knowledge-base framework,
+for big codebases where context must be rationed) or **small** (a stripped-down
+profile for codebases up to ~10k LOC, see [Small projects](#small-projects)).
 Concept: CONCEPT.md. All agent docs: telegraphic English, token-optimized.
 
 ## Install
@@ -21,11 +24,13 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, claude or copilot); Enter accepts the defaults. If a scaffold
-already exists it asks before regenerating framework files (phase docs,
-skills, hooks, settings); hand-filled KB content is always preserved, never
-reverted to stubs. `init-agent -h` shows help. Everything after init is done
-by the agent through skills and folder conventions:
+description, project size, claude or copilot); Enter accepts the defaults
+(size **large**). If a scaffold already exists it asks before regenerating
+framework files (instructions, skills, hooks, settings); hand-filled KB
+content, notes, and specs are always preserved, never reverted to stubs.
+`init-agent -h` shows help. The numbered steps below describe the **large**
+profile; for **small**, see [Small projects](#small-projects). Everything
+after init is done by the agent through skills and folder conventions:
 
 1. **Build the knowledge base**: run `/explore`. The agent samples the
    codebase, fills the KB nodes and asks you about non-derivable knowledge
@@ -54,6 +59,41 @@ run, you decide via the harness (for example `/model opusplan` in Claude
 Code to plan on Opus and implement on Sonnet). The self-contained task
 files and the fresh-context review gates are what keep cheap execution
 safe. If you do split models, keep the direction: plan on the strong one.
+
+## Small projects
+
+Choosing **small** at the size prompt targets codebases up to roughly 10k LOC,
+where the whole source is cheap to read on demand and the full knowledge base
+is overkill. The small profile keeps only what still pays at that scale and
+drops the rest:
+
+- **AGENTS.md** stays the canonical, dense instructions file: protocol,
+  right-sizing rule, build/test/lint commands, conventions, and a generated
+  project-context section (the only "knowledge store"). Roughly half the size
+  of the large profile's AGENTS.md.
+- **`.ai/`** is still a private nested git repo (gitignored from the host), but
+  holds just `notes.md` (running memory: decisions, gotchas, domain terms) and
+  per-change specs under `changes/<id>/spec.md`.
+- Three skills instead of five: **`/explore`** fills the project-context
+  section and `notes.md`; **`/spec <id> <title>`** writes a lightweight spec
+  (goal + acceptance criteria + task checklist) for a non-trivial change;
+  **`/build <id>`** implements it and ends with **one** fresh-context review of
+  the diff against the acceptance criteria (the `reviewer` subagent). A change
+  you can describe in one sentence skips the spec entirely.
+- Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, and the read-only
+  permission allow list. Dropped: the `INDEX.md`-protection hook.
+
+Dropped versus large (all of it exists to ration context in big codebases):
+the `manifest.yaml`/`INDEX.md` KB with hot/cold tiers and per-task token
+budgets, drift detection, the staleness/index tools (`gen_index.py`,
+`check_stale.py`), the on-demand phase docs, the `kb-delta.yaml` patches, and
+the second review gate. At ~10k LOC the agent re-reads the real source faster
+than it could maintain a synced index.
+
+If a small project outgrows the profile, re-run `init-agent` and pick
+**large**: it preserves your hand-filled content (the existing project-context
+section is carried over), after which you move what you want from `notes.md`
+into KB nodes by hand.
 
 ## Skills
 
@@ -127,6 +167,9 @@ The `.ai/` knowledge base and phase docs are identical for both harnesses;
 only the entry files differ.
 
 ## What init creates
+
+This section describes the **large** profile; the **small** profile creates the
+reduced set described under [Small projects](#small-projects).
 
 `init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold
 nodes), the `.ai/tickets/` inbox, `.ai/agent/phases/` (on-demand phase

@@ -15,11 +15,23 @@ the agent through skills and folder conventions:
   archive                no command: ask the agent to archive a finished
                          ticket; the rules live in AGENTS.md
 
-Prompts: project name, one-line description, harness (claude/copilot).
-Enter accepts the default. Non-TTY runs use all defaults. If a scaffold
-already exists, init asks before overwriting framework files; hand-filled
-KB content (nodes, manifest, INDEX, generated project-context section) is
-always preserved, never reverted to stubs.
+Prompts: project name, one-line description, project size (large/small),
+harness (claude/copilot). Enter accepts the default. Non-TTY runs use all
+defaults (size large). If a scaffold already exists, init asks before
+overwriting framework files; hand-filled content (KB nodes, manifest, INDEX,
+notes, specs, the generated project-context section) is always preserved,
+never reverted to stubs.
+
+Size profiles:
+  large (default)  Full framework: KB (manifest, hot/cold nodes, INDEX),
+                   on-demand phase docs, deterministic KB tools, ticket
+                   pipeline. For large codebases where context must be rationed.
+  small            For codebases up to ~10k LOC, where the source is small
+                   enough to read on demand. No KB/manifest/phase docs/tools:
+                   a dense AGENTS.md (commands + conventions + generated
+                   project-context), running memory in .ai/notes.md, a
+                   lightweight per-change spec (.ai/changes/<id>/spec.md) and
+                   one fresh-context review gate. Skills: /explore /spec /build.
 
 Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral): KB
@@ -157,6 +169,8 @@ TOOLS_DIR = ".ai/agent/tools"
 
 GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
              "(source: hot-tier nodes, max 1500 tokens) -->")
+GEN_BEGIN_SMALL = ("<!-- BEGIN GENERATED:project-context "
+                   "(source: /explore, max 1500 tokens) -->")
 GEN_END = "<!-- END GENERATED:project-context -->"
 
 
@@ -353,6 +367,102 @@ def render_claude_pointer() -> str:
         "Canonical agent instructions live in AGENTS.md (vendor-neutral).\n"
         "Imported below; do not duplicate content here.\n\n"
         "@AGENTS.md\n"
+    )
+
+
+def render_agents_md_small(project_name: str, description: str = "",
+                           harness: str = "claude",
+                           generated_body: str = None) -> str:
+    """Small-profile AGENTS.md: dense, self-contained. No KB protocol, no
+    budgets table, no phase pointers. The generated project-context section is
+    the only knowledge store; the source code is read on demand."""
+    if generated_body is None:
+        seed = f"{description}\n" if description else ""
+        generated_body = (f"{seed}<!-- Populated by /explore. "
+                          "Do not edit by hand. -->")
+    hook_note = (" A Stop hook in `.claude/settings.json`\n"
+                 "   reminds you when `.ai` is dirty." if harness == "claude"
+                 else "")
+    entry_note = ("packaged as Agent Skills under `.claude/skills/`"
+                  if harness == "claude"
+                  else "exposed as prompt files under `.github/prompts/`")
+    cli_note = ""
+    if harness == "copilot":
+        cli_note = """## Copilot CLI
+
+Prompt files (`/explore`, `/spec`, `/build`) work in VS Code only. In Copilot
+CLI, state the intent directly; the Protocol and Workflows above apply:
+
+- `Explore the project and fill the Project Context section + .ai/notes.md.`
+- `Spec change <id> "<title>": write .ai/changes/<id>/spec.md (goal, acceptance criteria, tasks).`
+- `Build change <id>: implement .ai/changes/<id>/spec.md, then review the diff against the criteria.`
+
+"""
+    return f"""# Agent: {project_name}
+
+Small-project agent (concept v5, small profile). Token efficiency is a hard
+requirement: keep this file dense and scannable. At this scale the source code
+is the knowledge base, so explore it on demand with your read/search tools
+(just-in-time) instead of maintaining a separate knowledge store. Workflow
+entry points are {entry_note}. Write normative instructions in plain imperative
+English; write notes telegraphic. Keep identifiers, paths, and commands
+verbatim.
+
+## Right-sizing
+A change you can describe in one sentence that touches one or two files needs
+no spec: make it, update `.ai/notes.md` if a decision or gotcha emerged, and
+commit `.ai`. Use `/spec` then `/build` for everything larger.
+
+## Protocol
+1. Explore the codebase with native read/search tools (Read, Grep, Glob), not
+   by loading everything. The source is the knowledge base.
+2. Durable knowledge (decisions, gotchas, domain terms, unwritten rules) goes
+   in `.ai/notes.md` (append, telegraphic). Read it at the start of a task.
+3. Non-trivial work: `/spec <id>` writes `.ai/changes/<id>/spec.md` (goal,
+   acceptance criteria, task checklist); `/build <id>` implements it.
+4. Before declaring a change done, have the full diff reviewed in a fresh
+   context (the `reviewer` sub-agent where available, otherwise ask the user)
+   against the acceptance criteria. Fix correctness gaps; ignore style-only
+   findings.
+5. Tests and lint must pass. Done = checks green and review clean.
+6. After changing files under `.ai/`, commit them in its own repo:
+   `git -C .ai add -A && git -C .ai commit -m "<short summary>"`. Never commit
+   `.ai` content to the host project repo.{hook_note}
+7. When compacting the session, preserve: the current change id, the spec file
+   path, the list of modified files, and the build/test commands.
+
+## Workflows
+| Command | What it does |
+|---|---|
+| `/explore` | Sample the code; fill the Project Context below and `.ai/notes.md`. |
+| `/spec <id> <title>` | Write `.ai/changes/<id>/spec.md` for a non-trivial change. |
+| `/build <id>` | Implement the spec's tasks, review the diff, finish. |
+
+## Changes layout
+```
+.ai/changes/<id>/spec.md   # goal, acceptance criteria, task checklist, notes
+.ai/changes/_archive/      # finished changes; never load
+.ai/notes.md               # running memory: decisions, gotchas, domain terms
+```
+Status lives in the spec frontmatter (`planned|in-progress|done`), never in
+folder names. Archive only when the user asks: verify `status: done`, move
+`changes/<id>/` to `changes/_archive/`, commit `.ai`.
+
+{cli_note}## Project Context
+
+{GEN_BEGIN_SMALL}
+{generated_body}
+{GEN_END}
+"""
+
+
+def render_notes_stub() -> str:
+    return (
+        "# Project Notes\n\n"
+        "<!-- Running memory for the agent: durable decisions, gotchas, domain\n"
+        "terms, unwritten rules. Append, telegraphic. Read at the start of a\n"
+        "task. The code is the source of truth for structure; this file captures\n"
+        "what the code does not say. -->\n"
     )
 
 
@@ -596,12 +706,96 @@ def command_specs(arg_focus: str, arg_ticket: str) -> list:
     ]
 
 
-def render_skills() -> dict:
+def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
+    """(name, description, body) for the small-profile skills/prompt files:
+    explore, spec, build. Self-contained (no phase-doc layer); rendered to both
+    Agent Skills (claude) and prompt files (copilot)."""
+    hook_offer = ""
+    if harness == "claude":
+        hook_offer = (
+            "- Once the build/test/lint commands are known, offer the user a Stop\n"
+            "  hook in `.claude/settings.json` that runs lint (and fast tests if\n"
+            "  cheap) on turn end, so \"done = checks pass\" is a hard gate. Add it\n"
+            "  only with consent.\n"
+        )
+    return [
+        (
+            "explore",
+            "Explore the codebase and fill the AGENTS.md project context plus "
+            ".ai/notes.md",
+            "Explore this project to ground the agent.\n\n"
+            "- Sample the code with your read/search tools (Read, Grep, Glob); do\n"
+            "  not load everything. Read entry points, each area's public API, and\n"
+            "  the tests. At this size the source is the knowledge base.\n"
+            "- Fill the `GENERATED:project-context` section of `AGENTS.md`,\n"
+            "  condensed (cap ~1500 tokens): one-line purpose, tech stack,\n"
+            "  build/test/lint commands (highest priority), top conventions, a\n"
+            "  one-line-per-area module map, and core glossary terms.\n"
+            "- Ask the user about non-derivable knowledge (domain terms, unwritten\n"
+            "  rules, ownership); record the answers in `.ai/notes.md`.\n"
+            f"{hook_offer}"
+            "- Commit `.ai` (`explore: project context`).\n\n"
+            f"{arg_focus}\n",
+        ),
+        (
+            "spec",
+            "Write a lightweight spec for a non-trivial change: goal, acceptance "
+            "criteria, task checklist",
+            f"Write a spec for a non-trivial change. Id and title: {arg_ticket}\n\n"
+            "1. Read `.ai/notes.md` and explore the relevant code first.\n"
+            "2. Run a short, bounded Q&A with the user until the acceptance\n"
+            "   criteria are unambiguous.\n"
+            "3. Write `.ai/changes/<id>/spec.md`:\n"
+            "   ---\n"
+            "   id: <id>\n"
+            "   title: <title>\n"
+            "   status: planned\n"
+            "   created: <today>\n"
+            "   ---\n"
+            "   ## Goal               one paragraph: what and why\n"
+            "   ## Acceptance criteria\n"
+            "   - [ ] testable criterion\n"
+            "   ## Tasks\n"
+            "   - [ ] task - files: <paths>\n"
+            "   ## Notes              Q&A answers, decisions\n"
+            "4. Commit `.ai` (`spec: <id>`).\n\n"
+            "Do not implement yet; that is `/build <id>`. A change you can\n"
+            "describe in one sentence touching one or two files needs no spec:\n"
+            "edit it directly and update `.ai/notes.md` if a decision emerged.\n",
+        ),
+        (
+            "build",
+            "Implement a change's spec: work the task checklist, review the diff, "
+            "finish",
+            f"Implement a planned change. Id: {arg_ticket}\n\n"
+            "1. Load `.ai/changes/<id>/spec.md`; set `status: in-progress`. Read\n"
+            "   `.ai/notes.md`.\n"
+            "2. Work the task checklist in order. Explore the real code with\n"
+            "   read/search tools as needed; do not load the whole tree.\n"
+            "3. Keep tests and lint green.\n"
+            "4. Review gate: before declaring the change done, have the full diff\n"
+            "   reviewed in a fresh context against the acceptance criteria. Run\n"
+            "   the `reviewer` sub-agent where the harness supports sub-agents,\n"
+            "   otherwise ask the user. Fix gaps that affect correctness or the\n"
+            "   stated criteria; ignore style-only findings.\n"
+            "5. Append any durable decision or gotcha to `.ai/notes.md`. If\n"
+            "   conventions, commands, or the module map changed, update the\n"
+            "   Project Context section of `AGENTS.md`.\n"
+            "6. Set `status: done` and commit `.ai` (`build: <id>`).\n\n"
+            "Escalate instead of improvising: on missing context, do bounded\n"
+            "discovery then ask the user; if a test fails twice on the same task,\n"
+            "stop and rethink the approach rather than make a third blind attempt.\n",
+        ),
+    ]
+
+
+def render_skills(specs) -> dict:
     """Agent Skills (SKILL.md, open standard): .claude/skills/<name>/SKILL.md.
     Read by Claude Code and other SKILL.md-compatible harnesses; descriptions
-    enable model invocation, /name invokes directly."""
+    enable model invocation, /name invokes directly. `specs` is a command_specs
+    list (full or small profile)."""
     out = {}
-    for name, desc, body in command_specs("$ARGUMENTS", "$ARGUMENTS"):
+    for name, desc, body in specs:
         out[f"{name}/SKILL.md"] = (
             "---\n"
             f"name: {name}\n"
@@ -612,10 +806,11 @@ def render_skills() -> dict:
     return out
 
 
-def render_prompt_files() -> dict:
-    """Copilot prompt files: .github/prompts/<name>.prompt.md, VS Code only."""
+def render_prompt_files(specs) -> dict:
+    """Copilot prompt files: .github/prompts/<name>.prompt.md, VS Code only.
+    `specs` is a command_specs list (full or small profile)."""
     out = {}
-    for name, desc, body in command_specs("${input:focus}", "${input:ticket}"):
+    for name, desc, body in specs:
         out[f"{name}.prompt.md"] = (
             "---\n"
             f'description: "{desc}"\n'
@@ -869,12 +1064,13 @@ if __name__ == "__main__":
 '''
 
 
-def render_settings_json() -> str:
+def render_settings_json(small: bool = False) -> str:
     """Project settings (.claude/settings.json): a read-only permission allow
-    list so Phase 1 exploration runs without a prompt per command, plus hooks
-    that enforce protocol rules deterministically. Compound commands (a && b)
-    prompt unless every part of the chain matches a rule, so common chain
-    members (cd, echo, pwd, read-only git) are included as well."""
+    list so exploration runs without a prompt per command, plus hooks that
+    enforce protocol rules deterministically. Compound commands (a && b) prompt
+    unless every part of the chain matches a rule, so common chain members (cd,
+    echo, pwd, read-only git) are included as well. The small profile omits the
+    KB tools and the INDEX-protection hook; neither exists there."""
     allow = [
         "Bash(cd:*)",
         "Bash(pwd:*)",
@@ -902,37 +1098,38 @@ def render_settings_json() -> str:
         "Bash(git show:*)",
         "Bash(git branch:*)",
         "Bash(git -C .ai:*)",
-        f"Bash(python3 {TOOLS_DIR}/gen_index.py:*)",
-        f"Bash(python3 {TOOLS_DIR}/check_stale.py:*)",
     ]
-    settings = {
-        "permissions": {"allow": allow},
-        "hooks": {
-            "PreToolUse": [
+    if not small:
+        allow += [
+            f"Bash(python3 {TOOLS_DIR}/gen_index.py:*)",
+            f"Bash(python3 {TOOLS_DIR}/check_stale.py:*)",
+        ]
+    hooks = {}
+    if not small:
+        hooks["PreToolUse"] = [
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": 'python3 "$CLAUDE_PROJECT_DIR/'
+                                   '.claude/hooks/protect_generated.py"',
+                    }
+                ],
+            }
+        ]
+    hooks["Stop"] = [
+        {
+            "hooks": [
                 {
-                    "matcher": "Write|Edit|MultiEdit",
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": 'python3 "$CLAUDE_PROJECT_DIR/'
-                                       '.claude/hooks/protect_generated.py"',
-                        }
-                    ],
+                    "type": "command",
+                    "command": 'python3 "$CLAUDE_PROJECT_DIR/'
+                               '.claude/hooks/ai_repo_clean.py"',
                 }
             ],
-            "Stop": [
-                {
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": 'python3 "$CLAUDE_PROJECT_DIR/'
-                                       '.claude/hooks/ai_repo_clean.py"',
-                        }
-                    ],
-                }
-            ],
-        },
-    }
+        }
+    ]
+    settings = {"permissions": {"allow": allow}, "hooks": hooks}
     return json.dumps(settings, indent=2) + "\n"
 
 
@@ -1095,19 +1292,30 @@ def ai_commit(root: Path, message: str):
 
 def cmd_init() -> int:
     root = Path.cwd()
-    kb = root / ".ai" / "knowledgebase"
 
     name = ask("Project name", root.name)
     desc = ask("Project description, one line")
+    size = ask_choice("Project size", ["large", "small"], "large")
     harness = ask_choice("Harness", ["claude", "copilot"], "claude")
 
+    marker = (root / ".ai" / "knowledgebase" / "manifest.yaml"
+              if size == "large" else root / "AGENTS.md")
     force = False
-    if (kb / "manifest.yaml").exists():
+    if marker.exists():
         answer = ask("Scaffold exists. Overwrite regenerates framework files "
-                     "(phase docs, skills, hooks, settings); hand-filled KB "
-                     "content is preserved either way. Overwrite? (y/N)", "n")
+                     "(instructions, skills, hooks, settings); hand-filled "
+                     "content (KB, notes, specs) is preserved either way. "
+                     "Overwrite? (y/N)", "n")
         force = answer.lower() in ("y", "yes")
 
+    if size == "small":
+        return scaffold_small(root, name, desc, harness, force)
+    return scaffold_large(root, name, desc, harness, force)
+
+
+def scaffold_large(root: Path, name: str, desc: str, harness: str,
+                   force: bool) -> int:
+    kb = root / ".ai" / "knowledgebase"
     if desc:
         seed_description(desc)
     created, skipped, preserved = [], [], []
@@ -1152,7 +1360,8 @@ def cmd_init() -> int:
 
     if harness == "claude":
         write(root / "CLAUDE.md", render_claude_pointer(), force, created, skipped)
-        for rel, content in render_skills().items():
+        for rel, content in render_skills(
+                command_specs("$ARGUMENTS", "$ARGUMENTS")).items():
             write(root / ".claude" / "skills" / rel, content,
                   force, created, skipped)
         write(root / ".claude" / "agents" / "reviewer.md",
@@ -1165,7 +1374,8 @@ def cmd_init() -> int:
         write(root / ".claude" / "settings.json", render_settings_json(),
               force, created, skipped)
     else:
-        for fname, content in render_prompt_files().items():
+        for fname, content in render_prompt_files(
+                command_specs("${input:focus}", "${input:ticket}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
 
@@ -1184,6 +1394,66 @@ def cmd_init() -> int:
         print(f"  Run Phase 1: read {PHASES_DIR}/init.md first and follow it exactly.")
         print(f"  Plan ticket <id>: read {PHASES_DIR}/planning.md first, then the ticket.")
         print(f"  Implement ticket <id>: read {PHASES_DIR}/implementation.md first, then plan.md.")
+    return 0
+
+
+def scaffold_small(root: Path, name: str, desc: str, harness: str,
+                   force: bool) -> int:
+    """Small profile: dense AGENTS.md + running notes + per-change specs, no KB
+    manifest, phase docs, or deterministic KB tools. `.ai/` is still a private
+    nested repo (notes + specs); AGENTS.md and .claude/.github live in the host
+    repo, as in the full profile."""
+    created, skipped, preserved = [], [], []
+
+    archive = root / ".ai" / "changes" / "_archive"
+    archive.mkdir(parents=True, exist_ok=True)
+    if not any(archive.iterdir()):
+        (archive / ".gitkeep").touch()
+
+    # Agent/user-owned content: never clobbered once hand-filled.
+    write_owned(root / ".ai" / "notes.md", render_notes_stub(),
+                created, skipped, preserved)
+
+    # AGENTS.md is framework-owned except its generated section: recover it
+    # (also from legacy CLAUDE.md scaffolds) so re-init never reverts /explore.
+    generated = extract_generated(root)
+    write(root / "AGENTS.md",
+          render_agents_md_small(name, desc, harness, generated),
+          force, created, skipped)
+
+    if harness == "claude":
+        write(root / "CLAUDE.md", render_claude_pointer(), force, created, skipped)
+        for rel, content in render_skills(
+                command_specs_small(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
+            write(root / ".claude" / "skills" / rel, content,
+                  force, created, skipped)
+        write(root / ".claude" / "agents" / "reviewer.md",
+              render_reviewer_agent(), force, created, skipped)
+        write(root / ".claude" / "hooks" / "ai_repo_clean.py",
+              render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / ".claude" / "settings.json",
+              render_settings_json(small=True), force, created, skipped)
+    else:
+        for fname, content in render_prompt_files(
+                command_specs_small(harness, "${input:focus}",
+                                    "${input:ticket}")).items():
+            write(root / ".github" / "prompts" / fname, content,
+                  force, created, skipped)
+
+    ensure_gitignore(root)
+    ensure_ai_gitignore(root)
+    ai_commit(root, f"init: small-profile scaffold ({name})")
+
+    report(root, created, skipped, preserved)
+    entry = ".claude" if harness == "claude" else ".github/prompts"
+    print(f"\n.ai: notes.md + changes/  |  AGENTS.md + {entry}"
+          f"  |  profile: small  |  project: {name}  |  harness: {harness}")
+    if harness == "copilot":
+        print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
+        print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
+        print("  Explore the project and fill the Project Context + .ai/notes.md.")
+        print('  Spec change <id> "<title>": write .ai/changes/<id>/spec.md.')
+        print("  Build change <id>: implement the spec, then review the diff.")
     return 0
 
 

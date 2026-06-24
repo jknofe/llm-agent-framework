@@ -1,7 +1,8 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-06-12, v5.1 (standards + deterministic enforcement, changes in
-§12; v5.1: model choice fully delegated to user, §3).
+State: 2026-06-24, v5.2 (size profiles: a stripped-down small profile for
+codebases ≤10k LOC, §13). v5.1: model choice fully delegated to user (§3);
+v5: standards + deterministic enforcement (§12).
 Language policy: two registers (§8): plain imperative English for normative
 docs, telegraphic English for KB content. English = best-trained model
 language + denser tokenization than German.
@@ -379,3 +380,70 @@ protocol prose. Changes vs v4:
 
 Unchanged: KB layout, manifest navigation, hot/cold tiers, kb-delta,
 staleness model, ticket lifecycle + archive, two-register language policy.
+
+## 13. Small-project profile (2026-06-24, v5.2)
+
+`init-agent` now prompts for a size profile. **large** (default) is the full
+framework above. **small** targets codebases up to ~10k LOC, where there is no
+context scarcity to manage: the whole source is cheap to read on demand. The
+profile is a strict subset — same private nested `.ai` repo, same AGENTS.md
+transport, same review-gate idea — with the large-codebase machinery removed.
+
+Design rule: keep what pays even when the code is small; drop everything whose
+only job is rationing context or tracking drift in a large KB. Rationale:
+current best practice favors just-in-time retrieval (keep lightweight
+identifiers, read the real source via tools) over a pre-loaded knowledge store,
+and "do the simplest thing that works"; at ≤10k LOC the agent re-reads the
+source faster than it can maintain a synced index, so the index's upkeep cost
+(drift, staleness, commits, regeneration) exceeds its value.
+
+### Kept
+- AGENTS.md as canonical, always-on instructions (host repo) + CLAUDE.md
+  pointer; build/test/lint commands are the highest-ROI content.
+- Generated `project-context` section in AGENTS.md as the only knowledge store
+  (arch summary, module map, glossary, commands), filled by `/explore`.
+- Private nested `.ai/.git` repo + the `ai_repo_clean` Stop hook (owner
+  decision, 2026-06-24: same privacy model as large).
+- `reviewer` sub-agent as a single final-diff review gate before done.
+- Read-only permission allow list; right-sizing rule + trivial path;
+  two-register language; dual skill/prompt rendering from one spec list.
+
+### Simplified
+- KB (manifest, INDEX, hot/cold nodes, two-stage retrieval, per-task budgets,
+  `related` hops) → the AGENTS.md generated section, plus ad-hoc
+  `.ai/<topic>.md` only if a project genuinely needs it.
+- Ticket pipeline (inbox → ticket.md → plan.md → NN-task.md → kb-delta.yaml,
+  two gates) → a single `.ai/changes/<id>/spec.md` (goal + acceptance criteria
+  + task checklist) and one gate.
+- Four phases + on-demand phase docs + skills-as-pointers → three
+  self-contained skills (`/explore`, `/spec`, `/build`); instructions inlined,
+  still loaded on trigger by the harness (progressive disclosure kept,
+  indirection dropped).
+- Living KB + ADRs (`decisions/`) → one append-only `.ai/notes.md` (structured
+  note-taking).
+- Five skills → three.
+
+### Dropped (solving a non-problem at this scale)
+- manifest.yaml, INDEX.md, hot/cold tiers, two-stage retrieval, per-task
+  token/node budgets, `related`-hop limits.
+- Drift detection (`kb-commit` + per-node `git diff`), staleness scanning
+  (`check_stale.py`), `gen_index.py`, the `protect_generated` hook (no
+  generated INDEX to protect).
+- `kb-delta.yaml` structured patches; the plan-review gate (keep only the final
+  review); the `add-ticket` and `add-reference` skills (external material:
+  clone into `.ai/external/` ad hoc and note it in `notes.md`).
+
+### Trade-offs
+- Retained ceremony: the `.ai` commit discipline + Stop hook is the one piece of
+  large-profile operational tax kept, by owner decision.
+- One gate not two: a poor task decomposition can slip past planning; mitigated
+  by small task counts and the final diff review. Plan-review is the upgrade
+  path.
+- Graduation is not automatic: crossing ~10-15k LOC means re-running init as
+  large (hand-filled content is preserved) and hand-migrating `notes.md`/specs
+  into KB nodes; the artifact shapes differ. No auto-migrator.
+
+### Unchanged across profiles
+Private `.ai` repo model, AGENTS.md generated-section transport, the
+fresh-context review idea, two-register language, the right-sizing rule, and
+the single-interactive-scaffold CLI (now with one extra size prompt).
