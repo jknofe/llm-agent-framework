@@ -146,6 +146,12 @@ that runs your lint/tests, turning "done = checks pass" into a hard gate.
 Hooks and the reviewer subagent are scaffolded for the claude harness;
 Copilot has no equivalent mechanism, there the rules stay protocol text.
 
+These hooks only fire when the scaffolded repo is the **active Claude Code
+project directory**. Driving the agent from a parent directory, a monorepo
+subdir, or a sub-agent means the hooks do not run (`$CLAUDE_PROJECT_DIR`
+points elsewhere) — in that case the protocol rules in `AGENTS.md` are the
+only guarantee, so commit `.ai` by hand and do not assume a hook ran.
+
 ## GitHub Copilot support
 
 Choosing `copilot` at the harness prompt targets Copilot instead of Claude

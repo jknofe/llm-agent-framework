@@ -17,7 +17,8 @@ the agent through skills and folder conventions:
 
 Prompts: project name, one-line description, project size (large/small),
 harness (claude/copilot). Enter accepts the default. Non-TTY runs use all
-defaults (size large). If a scaffold already exists, init asks before
+defaults (size large) unless overridden by the flags below. If a scaffold
+already exists, init asks before
 overwriting framework files; hand-filled content (KB nodes, manifest, INDEX,
 notes, specs, the generated project-context section) is always preserved,
 never reverted to stubs.
@@ -61,7 +62,11 @@ normative docs (AGENTS.md, phase docs) in plain imperative English, KB
 content (node summaries, tickets) telegraphic. Identifiers verbatim.
 
 Usage:
-  python init_agent.py        (or: init-agent)
+  python init_agent.py        (or: init-agent)            interactive
+  python init_agent.py --size small --name foo --desc "…" non-interactive
+  Flags: --name, --description/--desc, --size {large,small}, --harness
+  {claude,copilot}, -y/--yes (overwrite framework files without prompting).
+  Any omitted value is prompted for, or uses its default on a non-TTY.
 """
 
 import argparse
@@ -273,7 +278,9 @@ Copilot CLI, start a phase with its kickoff line:
 
 """
     hook_note = (" A Stop hook in `.claude/settings.json`\n"
-                 "    reminds you when `.ai` is dirty." if harness == "claude"
+                 "    reminds you when `.ai` is dirty, but only when this repo is\n"
+                 "    the active Claude project directory; otherwise commit by\n"
+                 "    hand and never assume the hook ran." if harness == "claude"
                  else "")
     entry_note = ("packaged as Agent Skills under `.claude/skills/`"
                   if harness == "claude"
@@ -298,7 +305,10 @@ and commands verbatim.
 
 Right-sizing: a change you can describe in one sentence and that touches a
 single file needs no ticket. Do it directly, update the affected KB nodes,
-and commit `.ai`. Use the ticket pipeline for everything larger.
+and commit `.ai`. Use the ticket pipeline for everything larger — but for a
+change confined to one self-contained area (e.g. adding a `debian/` dir), take
+planning.md's trivial path: one task file, one review gate, no Q&A rounds. Do
+not pay ceremony that exceeds the task.
 
 ## KB Protocol
 
@@ -337,21 +347,22 @@ and commit `.ai`. Use the ticket pipeline for everything larger.
 ```
 .ai/tickets/      # inbox: <ID>-<slug>.md (e.g. JIRA1234-do-this-and-that.md),
                   # added via /add-ticket or dropped in by the user
-tasks/<ticket-id>/
+.ai/knowledgebase/tasks/<ticket-id>/
   ticket.md       # original ticket + recorded Q&A answers
   plan.md         # task index; frontmatter: read-first pointer, kb-commit
   NN-<slug>.md    # one file per task, self-contained
   kb-delta.yaml   # accumulated KB patches
-tasks/_archive/   # finished tickets; never load
+.ai/knowledgebase/tasks/_archive/   # finished tickets; never load
 ```
 
 Status in frontmatter (`planned|in-progress|done|blocked`), never in folder
-names. `/plan <id>` turns an inbox ticket into `tasks/<id>/`.
+names. `/plan <id>` turns an inbox ticket into `.ai/knowledgebase/tasks/<id>/`
+(and promotes its `status` from `new` to `planned`).
 
 Archive only when the user asks for it, then: verify every task file in
-`tasks/<id>/` has `status: done` (if not, list the open ones and ask);
-verify `kb-delta.yaml` was applied to the KB; move `tasks/<id>/` to
-`tasks/_archive/<id>/`; commit the `.ai` repo (`archive: <id>`).
+`.ai/knowledgebase/tasks/<id>/` has `status: done` (if not, list the open ones
+and ask); verify `kb-delta.yaml` was applied to the KB; move it to
+`.ai/knowledgebase/tasks/_archive/<id>/`; commit the `.ai` repo (`archive: <id>`).
 
 {cli_note}## Project Context
 
@@ -381,7 +392,9 @@ def render_agents_md_small(project_name: str, description: str = "",
         generated_body = (f"{seed}<!-- Populated by /explore. "
                           "Do not edit by hand. -->")
     hook_note = (" A Stop hook in `.claude/settings.json`\n"
-                 "   reminds you when `.ai` is dirty." if harness == "claude"
+                 "   reminds you when `.ai` is dirty, but only when this repo is\n"
+                 "   the active Claude project directory; otherwise commit by hand\n"
+                 "   and never assume the hook ran." if harness == "claude"
                  else "")
     entry_note = ("packaged as Agent Skills under `.claude/skills/`"
                   if harness == "claude"
@@ -421,9 +434,10 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 3. Non-trivial work: `/spec <id>` writes `.ai/changes/<id>/spec.md` (goal,
    acceptance criteria, task checklist); `/build <id>` implements it.
 4. Before declaring a change done, have the full diff reviewed in a fresh
-   context (the `reviewer` sub-agent where available, otherwise ask the user)
-   against the acceptance criteria. Fix correctness gaps; ignore style-only
-   findings.
+   context against the acceptance criteria: the `reviewer` sub-agent where
+   available; in an autonomous run, a fresh general-purpose sub-agent or, if
+   none is reachable, a recorded clean-context self-review. Fix correctness
+   gaps; ignore style-only findings.
 5. Tests and lint must pass. Done = checks green and review clean.
 6. After changing files under `.ai/`, commit them in its own repo:
    `git -C .ai add -A && git -C .ai commit -m "<short summary>"`. Never commit
@@ -508,6 +522,12 @@ Read this before analyzing the project.
 ## Non-derivable knowledge
 Ask the user about domain terms, unwritten conventions, and ownership.
 Record the answers directly in the matching KB nodes.
+
+## Autonomous mode
+If no human is available to answer (headless or sub-agent run): do not block.
+Decide each open question from the evidence in the code and configs, record it
+as a single numbered assumption (the resolved decision, not your deliberation),
+and proceed. Surface assumptions a maintainer would likely want to revisit.
 {hook_offer}
 ## Incrementality
 Record the commit SHA of the host repo in the overview node. A re-init
@@ -528,17 +548,27 @@ Read this before decomposing a ticket.
 1. Locate the ticket in the inbox: `.ai/tickets/<id>*.md` (created via
    /add-ticket or dropped in by the user). If it is missing, ask the user
    for the ticket content.
-2. Create `tasks/<id>/`: move the inbox file's content into `ticket.md`
-   (format below), then delete the inbox file.
+2. Create `.ai/knowledgebase/tasks/<id>/`: move the inbox file's content into
+   `ticket.md` (format below) and set its frontmatter `status: planned` (it
+   was `status: new` in the inbox), then delete the inbox file.
 3. Load matched KB nodes (protocol budgets apply).
 4. Run interactive Q&A with the user until the acceptance criteria are
-   unambiguous. Keep the rounds bounded. Record answers in `ticket.md`.
+   unambiguous. Keep the rounds bounded. Record answers in `ticket.md`. If no
+   human is available (autonomous run), do not block: resolve each open
+   question from the evidence, record it as a single numbered assumption (the
+   decision, not your deliberation) in `ticket.md`, and proceed.
 5. Write one task file per task. `plan.md` stays a thin index.
 6. Plan-review gate: have the plan reviewed in a fresh context that did not
    produce it. Use the `reviewer` sub-agent where the harness supports
-   sub-agents; otherwise ask the user to review. Fix gaps that touch the
-   acceptance criteria, then get user sign-off on `plan.md` before
-   implementation starts. A weak plan poisons every downstream task.
+   sub-agents. If it cannot be spawned (e.g. you are yourself a sub-agent) and
+   no human is available (autonomous run), spawn a fresh general-purpose
+   sub-agent given only the plan and the acceptance criteria — never your own
+   working context; if no fresh context is reachable at all, do a
+   clean-context self-review against this gate's checklist and record that the
+   `reviewer` sub-agent was unavailable. Never silently skip the gate. Fix gaps
+   that touch the acceptance criteria, then get user sign-off on `plan.md` (in
+   an autonomous run, record the assumptions instead) before implementation
+   starts. A weak plan poisons every downstream task.
 7. Commit the `.ai` repo (`plan: <id>`).
 
 ## Trivial tickets
@@ -607,9 +637,13 @@ cosmetic drift.
 
 ## Ticket review gate
 After the last task is done, review the combined change in a fresh context
-before declaring the ticket done: run the `reviewer` sub-agent (or, without
-sub-agent support, ask the user to review) on the full diff against the
-acceptance criteria in `ticket.md` and `plan.md`. Fix gaps that affect
+before declaring the ticket done: run the `reviewer` sub-agent on the full
+diff against the acceptance criteria in `ticket.md` and `plan.md`. If the
+harness cannot spawn it (e.g. you are yourself a sub-agent) and no human is
+available, spawn a fresh general-purpose sub-agent given only the diff and the
+criteria; if no fresh context is reachable at all, do a clean-context
+self-review against those criteria and record that the `reviewer` sub-agent
+was unavailable. Never silently skip the gate. Fix gaps that affect
 correctness or the stated requirements; ignore style-only findings. Record
 the outcome in `plan.md` (`reviewed: <date>`).
 
@@ -662,7 +696,9 @@ def command_specs(arg_focus: str, arg_ticket: str) -> list:
             "   `status: new`, `created: <today>` and the description as body.\n"
             "   Ask for a one-line description if none was given.\n"
             '3. Commit the `.ai` repo (`add-ticket: <ID>`).\n\n'
-            "Do not start planning or implementing; that begins with /plan <ID>.\n",
+            "Do not start planning or implementing; that begins with /plan <ID>,\n"
+            "which moves the ticket into `.ai/knowledgebase/tasks/<ID>/` and\n"
+            "promotes its status from `new` to `planned`.\n",
         ),
         (
             "plan",
@@ -744,7 +780,9 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             f"Write a spec for a non-trivial change. Id and title: {arg_ticket}\n\n"
             "1. Read `.ai/notes.md` and explore the relevant code first.\n"
             "2. Run a short, bounded Q&A with the user until the acceptance\n"
-            "   criteria are unambiguous.\n"
+            "   criteria are unambiguous. If no human is available (autonomous\n"
+            "   run), resolve each open question from the evidence and record it\n"
+            "   as a single numbered assumption in the spec Notes, then proceed.\n"
             "3. Write `.ai/changes/<id>/spec.md`:\n"
             "   ---\n"
             "   id: <id>\n"
@@ -775,8 +813,12 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "3. Keep tests and lint green.\n"
             "4. Review gate: before declaring the change done, have the full diff\n"
             "   reviewed in a fresh context against the acceptance criteria. Run\n"
-            "   the `reviewer` sub-agent where the harness supports sub-agents,\n"
-            "   otherwise ask the user. Fix gaps that affect correctness or the\n"
+            "   the `reviewer` sub-agent where the harness supports sub-agents. If\n"
+            "   it cannot be spawned (e.g. you are yourself a sub-agent) and no\n"
+            "   human is available, spawn a fresh general-purpose sub-agent given\n"
+            "   only the diff and the criteria; failing that, do a clean-context\n"
+            "   self-review and note that the `reviewer` sub-agent was unavailable.\n"
+            "   Never skip the gate. Fix gaps that affect correctness or the\n"
             "   stated criteria; ignore style-only findings.\n"
             "5. Append any durable decision or gotcha to `.ai/notes.md`. If\n"
             "   conventions, commands, or the module map changed, update the\n"
@@ -821,28 +863,50 @@ def render_prompt_files(specs) -> dict:
     return out
 
 
-def render_reviewer_agent() -> str:
-    return """---
+def render_reviewer_agent(small: bool = False) -> str:
+    if small:
+        desc = ("Adversarial fresh-context review of a change's diff against "
+                "its acceptance criteria. Use for the review gate in /build.")
+        input_block = (
+            "Input: a code diff plus the change's acceptance criteria in\n"
+            "`.ai/changes/<id>/spec.md`."
+        )
+        coverage = ("- Every acceptance criterion is implemented and, where "
+                    "testable, tested.\n"
+                    "- The spec is self-contained: paths explicit, interfaces "
+                    "stated.")
+    else:
+        desc = ("Adversarial fresh-context review of a plan or diff against "
+                "acceptance criteria. Use for the plan-review gate (Phase 2) "
+                "and the ticket review gate (Phase 3).")
+        input_block = (
+            "Input: a plan (`.ai/knowledgebase/tasks/<id>/plan.md` plus its "
+            "task files)\nor a code diff, plus the ticket's acceptance "
+            "criteria\n(`.ai/knowledgebase/tasks/<id>/ticket.md`)."
+        )
+        coverage = ("- Every acceptance criterion is covered by a task (plan) "
+                    "or implemented and\n  tested (diff).\n"
+                    "- Task files are self-contained: paths explicit, "
+                    "interfaces stated.")
+    return f"""---
 name: reviewer
-description: Adversarial fresh-context review of a plan or diff against
-  acceptance criteria. Use for the plan-review gate (Phase 2) and the ticket
-  review gate (Phase 3).
+description: {desc}
 tools: Read, Grep, Glob, Bash
 ---
 You review work you did not produce. You see only the artifact and the
 acceptance criteria, never the reasoning that produced it. Evaluate the
 result on its own terms.
 
-Input: a plan (`.ai/knowledgebase/tasks/<id>/plan.md` plus its task files)
-or a code diff, plus the ticket's acceptance criteria
-(`.ai/knowledgebase/tasks/<id>/ticket.md`).
+{input_block}
 
 Check:
-- Every acceptance criterion is covered by a task (plan) or implemented and
-  tested (diff).
+{coverage}
 - Nothing outside the stated scope changed.
 - Stated edge cases have tests.
-- Task files are self-contained: paths explicit, interfaces stated.
+- For build, CI, or packaging config you cannot run here: reason about whether
+  it would actually build or run — required toolchain/compiler versions, and
+  whether declared dependencies exist in the target distro/registry — not just
+  whether the files are well-formed.
 
 Report only gaps that affect correctness or the stated requirements, with
 file and line references. Do not report style preferences. If the work is
@@ -1290,18 +1354,22 @@ def ai_commit(root: Path, message: str):
 
 # --------------------------------------------------------------------- init
 
-def cmd_init() -> int:
+def cmd_init(args=None) -> int:
     root = Path.cwd()
 
-    name = ask("Project name", root.name)
-    desc = ask("Project description, one line")
-    size = ask_choice("Project size", ["large", "small"], "large")
-    harness = ask_choice("Harness", ["claude", "copilot"], "claude")
+    name = (args.name if args and args.name is not None
+            else ask("Project name", root.name))
+    desc = (args.description if args and args.description is not None
+            else ask("Project description, one line"))
+    size = (args.size if args and args.size
+            else ask_choice("Project size", ["large", "small"], "large"))
+    harness = (args.harness if args and args.harness
+               else ask_choice("Harness", ["claude", "copilot"], "claude"))
 
     marker = (root / ".ai" / "knowledgebase" / "manifest.yaml"
               if size == "large" else root / "AGENTS.md")
-    force = False
-    if marker.exists():
+    force = bool(args and args.yes)
+    if marker.exists() and not force:
         answer = ask("Scaffold exists. Overwrite regenerates framework files "
                      "(instructions, skills, hooks, settings); hand-filled "
                      "content (KB, notes, specs) is preserved either way. "
@@ -1428,7 +1496,7 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
             write(root / ".claude" / "skills" / rel, content,
                   force, created, skipped)
         write(root / ".claude" / "agents" / "reviewer.md",
-              render_reviewer_agent(), force, created, skipped)
+              render_reviewer_agent(small=True), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "settings.json",
@@ -1461,8 +1529,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.parse_args()
-    return cmd_init()
+    ap.add_argument("--name", help="project name (skip the prompt)")
+    ap.add_argument("--description", "--desc", dest="description",
+                    help="one-line project description (skip the prompt)")
+    ap.add_argument("--size", choices=["large", "small"],
+                    help="size profile (skip the prompt); default large")
+    ap.add_argument("--harness", choices=["claude", "copilot"],
+                    help="target harness (skip the prompt); default claude")
+    ap.add_argument("-y", "--yes", action="store_true",
+                    help="overwrite framework files without prompting")
+    return cmd_init(ap.parse_args())
 
 
 if __name__ == "__main__":
