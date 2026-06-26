@@ -12,6 +12,9 @@ the agent through skills and folder conventions:
   /add-reference         register external material (repos, docs) under
                          .ai/external/ + a references/<name> KB node
                          (or place material in .ai/external/ yourself)
+  /import-kb <source>    import an existing knowledge base of any structure:
+                         read, classify, and transform it into .ai (KB nodes +
+                         notes.md large; project-context + notes.md small)
   archive                no command: ask the agent to archive a finished
                          ticket; the rules live in AGENTS.md
 
@@ -32,7 +35,8 @@ Size profiles:
                    a dense AGENTS.md (commands + conventions + generated
                    project-context), running memory in .ai/notes.md, a
                    lightweight per-change spec (.ai/changes/<id>/spec.md) and
-                   one fresh-context review gate. Skills: /explore /spec /build.
+                   one fresh-context review gate. Skills: /explore /spec /build
+                   /import-kb.
 
 Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral): KB
@@ -776,6 +780,52 @@ def command_specs(arg_focus: str, arg_ticket: str) -> list:
             '5. Commit the `.ai` repo (`add-reference: <name>`).\n\n'
             "Reminder: search raw copies with targeted queries; never bulk-load.\n",
         ),
+        (
+            "import-kb",
+            "Import an existing knowledge base of any structure into the .ai KB: "
+            "read, classify, and transform its docs into framework nodes",
+            "Import an existing knowledge base into the `.ai` KB, regardless of\n"
+            f"its source structure. Source (folder, file, or repo of docs, wiki,\n"
+            f"or notes): {arg_ticket}\n\n"
+            "This transforms curated knowledge INTO framework KB nodes. It is not\n"
+            "/add-reference: that registers raw external material for targeted\n"
+            "search without transforming it. If the source is upstream code or\n"
+            "docs you only want to search later, use /add-reference instead.\n\n"
+            "1. Survey the source without bulk-loading it into context: list the\n"
+            "   tree and sample representative files (entry docs, READMEs, index\n"
+            "   or TOC files) to learn its structure and content types. Run the\n"
+            "   survey in a sub-agent where available; bring back a condensed map\n"
+            "   (<=2000 tokens) of what topics exist, where, and in what shape.\n"
+            "2. Classify each piece of source content into the target taxonomy:\n"
+            "   architecture/ (structure, modules, data flow, entry points),\n"
+            "   conventions/ (code style, testing, git workflow), domain/\n"
+            "   (glossary, business rules), infra/ (build, CI/CD, deploy),\n"
+            "   decisions/ (ADRs and rationale, append-only), references/\n"
+            "   (pointers to external material; do not inline large bodies).\n"
+            "   Operational gotchas, runbooks, and CI quirks go to `.ai/notes.md`,\n"
+            "   not a node.\n"
+            "3. Transform, do not copy verbatim. Synthesize each source topic into\n"
+            "   telegraphic KB content under the node cap (~1500 tokens; split and\n"
+            "   cross-link if larger), with full frontmatter (id, summary, tags,\n"
+            "   covers globs, tier hot|cold, updated, related). Set `covers` by\n"
+            "   matching source topics to real code paths. Merge into existing\n"
+            "   nodes instead of duplicating; never create a second source of\n"
+            "   truth.\n"
+            "4. Record provenance: note the source origin (path or URL) in each\n"
+            "   created or updated node so the transform is auditable.\n"
+            "5. Update `manifest.yaml` for every new or changed node, then run\n"
+            f"   `python3 {TOOLS_DIR}/gen_index.py`. Regenerate the\n"
+            "   GENERATED:project-context section of AGENTS.md if hot-tier nodes\n"
+            "   changed.\n"
+            "6. Report a mapping table: source item -> target node\n"
+            "   (created/merged/skipped), and list anything you could not classify\n"
+            "   for the user to decide.\n"
+            "7. Do not delete or modify the source. Commit the `.ai` repo\n"
+            "   (`import-kb: <source>`).\n\n"
+            "If the source is itself a legacy `.ai/` (e.g. docs/ chapters plus a\n"
+            "tasks/ tree), transform docs/ into nodes and ignore its task and\n"
+            "ticket state.\n",
+        ),
     ]
 
 
@@ -866,6 +916,31 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "Escalate instead of improvising: on missing context, do bounded\n"
             "discovery then ask the user; if a test fails twice on the same task,\n"
             "stop and rethink the approach rather than make a third blind attempt.\n",
+        ),
+        (
+            "import-kb",
+            "Import an existing knowledge base of any structure into the small "
+            "profile: distill it into the AGENTS.md project context and notes.md",
+            "Import an existing knowledge base into the small-profile `.ai`,\n"
+            f"regardless of source structure. Source (folder, file, or repo):\n"
+            f"{arg_ticket}\n\n"
+            "At this scale there is no KB node store; the targets are the\n"
+            "GENERATED:project-context section of AGENTS.md and `.ai/notes.md`.\n\n"
+            "1. Survey the source without bulk-loading it: list the tree and\n"
+            "   sample entry/index files (sub-agent where available; bring back a\n"
+            "   condensed map).\n"
+            "2. Distill, do not copy. Fold stable, high-value facts (purpose, tech\n"
+            "   stack, build/test/lint commands, top conventions, module map,\n"
+            "   glossary) into the project-context section of AGENTS.md\n"
+            "   (cap ~1500 tokens). Put operational gotchas, runbooks, decisions,\n"
+            "   and domain terms into `.ai/notes.md` (append, telegraphic).\n"
+            "3. If a body of material is large and only worth searching later (an\n"
+            "   upstream repo or doc dump), clone or copy it into\n"
+            "   `.ai/external/<name>/` and note it in `.ai/notes.md` instead of\n"
+            "   inlining it.\n"
+            "4. Report a short mapping: source -> project-context / notes.md /\n"
+            "   external / skipped. Do not delete the source. Commit `.ai`\n"
+            "   (`import-kb: <source>`).\n",
         ),
     ]
 

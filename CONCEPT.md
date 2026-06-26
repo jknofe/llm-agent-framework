@@ -1,8 +1,9 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-06-26, v5.3 (durable task cursor + running-memory notes.md in both
-profiles, backported from the legacy agents, §14). v5.2: size profiles, a
-stripped-down small profile for codebases ≤10k LOC, §13). v5.1: model choice
+State: 2026-06-26, v5.4 (/import-kb: transform an existing knowledge base of any
+structure into .ai, §15). v5.3: durable task cursor + running-memory notes.md in
+both profiles, backported from the legacy agents (§14). v5.2: size profiles, a
+stripped-down small profile for codebases ≤10k LOC (§13). v5.1: model choice
 fully delegated to user (§3); v5: standards + deterministic enforcement (§12).
 Language policy: two registers (§8): plain imperative English for normative
 docs, telegraphic English for KB content. English = best-trained model
@@ -337,8 +338,8 @@ from CLI to agent:
 Rationale: every lifecycle op is agent-executable instruction-following;
 keeping it in the CLI duplicated logic the agent must know anyway and
 forced parameter ceremony on the user. Slash commands /explore, /add-ticket,
-/plan, /implement, /add-reference; harness copilot gets the same as
-.github/prompts/*.prompt.md.
+/plan, /implement, /add-reference, /import-kb (§15); harness copilot gets the
+same as .github/prompts/*.prompt.md.
 
 ## 12. v5 revision notes (2026-06-12)
 
@@ -503,3 +504,51 @@ quirks explicitly so the genre is obvious in both profiles.
 KB layout and protocol, manifest navigation, hot/cold tiers, kb-delta, drift
 and staleness model, ticket lifecycle + archive, review gates, two-register
 language, size profiles, single-interactive-scaffold CLI.
+
+## 15. Knowledge-base import (2026-06-26, v5.4)
+
+`/import-kb <source>` ingests an *existing* knowledge base of arbitrary
+structure — a docs/wiki folder, a Confluence/Markdown export, a README-heavy
+repo, or a legacy `.ai/` (e.g. the ancestor agents' `docs/` chapters) — and
+transforms it into the framework's own shape. The transform is the model's job,
+not a parser's: the input has no fixed schema to match ("regardless of
+structure"), so a deterministic importer cannot exist. The skill encodes a
+read → classify → transform protocol; the model supplies the understanding.
+
+### Why a skill, not a tool
+The input layout is unknown by definition, which is exactly what an LLM is for:
+read heterogeneous material, infer what each piece *is*, map it onto the target
+taxonomy. A script could only handle one known layout. The deterministic parts
+the skill reuses are the ones the framework already owns: `gen_index.py` for
+INDEX, the manifest format, the node frontmatter schema.
+
+### Protocol (both profiles)
+1. **Survey, don't bulk-load.** List the source tree, sample entry/index/README
+   files, run the survey in a sub-agent where available, return a condensed map.
+   The source may be huge; it never enters the synthesizing context wholesale.
+2. **Classify** each piece of content into the target shape.
+3. **Transform, don't copy.** Synthesize into telegraphic content, dedup against
+   existing knowledge (merge, never a second source of truth), record provenance
+   (source path/URL) so the import is auditable.
+4. **Wire up + commit.** Regenerate the dependent artifacts, commit `.ai`, report
+   a source→target mapping and list the unclassifiable remainder for the user.
+
+### Profile differences
+- **Large**: targets are KB nodes under the six categories; operational
+  gotchas/runbooks route to `notes.md` (§14). Output is full nodes with
+  frontmatter and `covers` globs matched to real code paths; `manifest.yaml` +
+  `INDEX.md` + the project-context section are regenerated.
+- **Small**: no node store; the skill distills stable facts into the AGENTS.md
+  project-context section and routes the rest to `notes.md`. Large bodies worth
+  only searching are cloned into `.ai/external/` and noted, not inlined. The
+  small profile now carries four skills (`/explore`, `/spec`, `/build`,
+  `/import-kb`).
+
+### Boundary vs /add-reference
+`/import-kb` *absorbs and transforms* curated knowledge into the KB (the source
+can then be retired). `/add-reference` *keeps raw external material* under
+`.ai/external/` as search territory and registers only a thin pointer node, no
+transformation. Code or upstream docs you only want to search later go through
+add-reference; a prior team's documentation you want to *become* your KB goes
+through import-kb. The skill body states this distinction so the agent chooses
+correctly.

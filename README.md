@@ -74,12 +74,14 @@ drops the rest:
 - **`.ai/`** is still a private nested git repo (gitignored from the host), but
   holds just `notes.md` (running memory: decisions, gotchas, domain terms) and
   per-change specs under `changes/<id>/spec.md`.
-- Three skills instead of five: **`/explore`** fills the project-context
+- Four skills: **`/explore`** fills the project-context
   section and `notes.md`; **`/spec <id> <title>`** writes a lightweight spec
   (goal + acceptance criteria + task checklist) for a non-trivial change;
   **`/build <id>`** implements it and ends with **one** fresh-context review of
-  the diff against the acceptance criteria (the `reviewer` subagent). A change
-  you can describe in one sentence skips the spec entirely.
+  the diff against the acceptance criteria (the `reviewer` subagent); and
+  **`/import-kb <source>`** distills an existing knowledge base of any structure
+  into the project-context section and `notes.md`. A change you can describe in
+  one sentence skips the spec entirely.
 - Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, and the read-only
   permission allow list. Dropped: the `INDEX.md`-protection hook.
 
@@ -110,6 +112,7 @@ invoked the same way:
 | `/plan <ticket-id>` | Phase 2: turns the inbox ticket into `tasks/<id>/` with self-contained task files via Q&A, ends with the fresh-context plan-review gate. |
 | `/implement <ticket-id>` | Phase 3: works the planned task files in order; tests, KB delta, drift check against the plan's `kb-commit`, ticket review gate. |
 | `/add-reference <name> <origin>` | Clones/copies external material to `.ai/external/<name>/` and registers a `references/<name>` KB node (origin, fetch date, pinned version). |
+| `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and transforms it into the framework KB: classifies the content into nodes, writes frontmatter, sets `covers` globs, updates `manifest.yaml`/`INDEX.md` and the project-context section, routes gotchas/runbooks to `notes.md`. Distinct from `/add-reference`, which keeps raw material for search instead of transforming it. |
 
 The phase skills are thin pointers to the phase docs in
 `.ai/agent/phases/`, so phase instructions stay in one place. The add-*
