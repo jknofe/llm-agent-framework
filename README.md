@@ -178,9 +178,11 @@ This section describes the **large** profile; the **small** profile creates the
 reduced set described under [Small projects](#small-projects).
 
 `init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold
-nodes), the `.ai/tickets/` inbox, `.ai/agent/phases/` (on-demand phase
-docs), `.ai/agent/tools/` (gen_index, check_stale), the canonical
-`AGENTS.md`, the skills above and, for Claude Code, the `CLAUDE.md`
+nodes), `.ai/notes.md` (running memory for operational gotchas and runbooks
+that don't warrant a curated node), the `.ai/tickets/` inbox,
+`.ai/agent/phases/` (on-demand phase docs), `.ai/agent/tools/` (gen_index,
+check_stale), the canonical `AGENTS.md`, the skills above and, for Claude
+Code, the `CLAUDE.md`
 pointer, the reviewer subagent, the hook scripts and
 `.claude/settings.json` with the hooks plus a read-only permission allow
 list (grep, find, ls, cat, awk, read-only git, `git -C .ai`, the two KB
@@ -206,4 +208,7 @@ host project via a `.gitignore` entry written by `init`. `init` makes the
 first commit; afterwards the agent commits `.ai` changes itself (a protocol
 rule in `AGENTS.md`, enforced by the Stop hook on the claude harness). Raw
 external material under `.ai/external/` stays out of that repo too
-(re-fetchable, would bloat history).
+(re-fetchable, would bloat history), as does `.ai/.current` — a gitignored
+task cursor (active ticket/change id, current task file, modified files) the
+agent reads at session start to resume work after a break, independent of
+session compaction.

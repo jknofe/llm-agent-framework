@@ -1,8 +1,9 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-06-24, v5.2 (size profiles: a stripped-down small profile for
-codebases ≤10k LOC, §13). v5.1: model choice fully delegated to user (§3);
-v5: standards + deterministic enforcement (§12).
+State: 2026-06-26, v5.3 (durable task cursor + running-memory notes.md in both
+profiles, backported from the legacy agents, §14). v5.2: size profiles, a
+stripped-down small profile for codebases ≤10k LOC, §13). v5.1: model choice
+fully delegated to user (§3); v5: standards + deterministic enforcement (§12).
 Language policy: two registers (§8): plain imperative English for normative
 docs, telegraphic English for KB content. English = best-trained model
 language + denser tokenization than German.
@@ -447,3 +448,58 @@ source faster than it can maintain a synced index, so the index's upkeep cost
 Private `.ai` repo model, AGENTS.md generated-section transport, the
 fresh-context review idea, two-register language, the right-sizing rule, and
 the single-interactive-scaffold CLI (now with one extra size prompt).
+
+## 14. Backport from legacy agents (2026-06-26, v5.3)
+
+Comparison against an earlier family of Copilot-style project agents (the
+direct conceptual ancestor: same private nested `.ai` repo, same
+ticket→task→implement pipeline) surfaced two things they did better, both now
+backported. Everything else they had — context rationing, drift/staleness,
+review gates, sub-agent isolation, single-source instructions — this framework
+already does better or equivalently, so only these two were taken.
+
+### 14.1 Durable task cursor (`.ai/.current`)
+
+Problem: resume across *new sessions*. v4 dropped an explicit session cursor as
+"not model-actionable", but that judgment was about an in-memory node cache, not
+a file. The legacy agents kept a dead-simple on-disk pointer (`.ai/tasks/.current`
+= JIRA id + task id) that survived session boundaries with zero machinery. The
+framework's only resume mechanism was a *compaction-preserve instruction* — a
+hint to the harness, lost on a cold start.
+
+Decision: a `.ai/.current` cursor file in both profiles, recording the active
+ticket/change id, the current task/spec file, the modified-files list, and the
+date. Read at session start (offer to resume); updated on task start/finish;
+deleted when the work item is done.
+
+- **Gitignored, not tracked.** It is per-checkout working state, not shared
+  knowledge: resuming always happens in the same working copy, so on-disk
+  persistence is enough, and tracking it would churn KB history and force a
+  commit on every cursor update. Added to `.ai/.gitignore` next to `external/`.
+- **Does not fight the Stop hook.** `ai_repo_clean` runs `git -C .ai status
+  --porcelain`; an ignored file never appears, so the hook stays quiet.
+- It is the on-disk backup of exactly what the compaction-preserve item asks
+  the harness to keep; the two are complementary, not redundant.
+
+### 14.2 Running memory for runbooks/gotchas (`.ai/notes.md`, large profile)
+
+Problem: the highest-value knowledge the mature legacy agents carried was
+*procedural/operational* — validation loops, CI failure modes (e.g. stale
+`workflow_dispatch` keys → HTTP 422), merge-order rules. The large profile's
+node taxonomy (architecture/conventions/domain/infra/decisions/references) has
+no natural home for this volatile, list-shaped knowledge; it would either bloat
+a curated node or be lost.
+
+Decision: give the large profile the same `.ai/notes.md` the small profile
+already had, rather than invent a new typed node category (the smaller change,
+and the graduation path already assumes `notes.md` exists). It is the **volatile
+layer**: read at session start, appended telegraphically as gotchas surface;
+anything durable and structural is **promoted into a curated node via
+kb-delta.yaml**. Curated nodes remain the single source of truth; `notes.md` is
+scratch/operational memory beside them. The stub text now names runbooks and CI
+quirks explicitly so the genre is obvious in both profiles.
+
+### Unchanged
+KB layout and protocol, manifest navigation, hot/cold tiers, kb-delta, drift
+and staleness model, ticket lifecycle + archive, review gates, two-register
+language, size profiles, single-interactive-scaffold CLI.

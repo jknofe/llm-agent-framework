@@ -40,6 +40,11 @@ Context layout:
                                phase pointers. Read natively by Copilot;
                                imported via CLAUDE.md for Claude Code
   CLAUDE.md (claude)           one-line pointer: @AGENTS.md
+  .ai/notes.md                 running memory (both profiles): gotchas,
+                               runbooks, unwritten rules; promote durable
+                               items into KB nodes (large profile)
+  .ai/.current                 gitignored task cursor: cross-session resume
+                               pointer (active ticket/change, task file, files)
   .ai/agent/phases/*.md        phase docs, single source of truth, loaded on
                                demand only when the phase runs
   .ai/agent/tools/*.py         deterministic helpers (gen_index, check_stale)
@@ -338,9 +343,19 @@ not pay ceremony that exceeds the task.
     its own repo with a short message, e.g.
     `git -C .ai add -A && git -C .ai commit -m "plan: JIRA-1234"`.
     Never commit `.ai` content to the host project repo.{hook_note}
-11. When compacting the session, always preserve: the current ticket id, the
+11. Running memory: `.ai/notes.md` holds operational gotchas, runbooks
+    (validation loops, CI quirks, merge-order rules), and unwritten rules too
+    volatile for a curated node. Read it at session start; append
+    telegraphically as you learn. Promote anything durable and structural into
+    a KB node via `kb-delta.yaml`; keep `notes.md` as the volatile layer.
+12. Task cursor: `.ai/.current` (gitignored working state) records the active
+    ticket id, the current task file, the modified-files list, and the date.
+    Read it at session start and offer to resume; update it when you start or
+    finish a task; delete it when the ticket is done. It is the durable resume
+    pointer across sessions, independent of compaction.
+13. When compacting the session, always preserve: the current ticket id, the
     current task file path, the list of modified files, and the build/test
-    commands.
+    commands (`.ai/.current` is the on-disk backup of exactly this).
 
 ## Ticket Layout
 
@@ -429,8 +444,9 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 ## Protocol
 1. Explore the codebase with native read/search tools (Read, Grep, Glob), not
    by loading everything. The source is the knowledge base.
-2. Durable knowledge (decisions, gotchas, domain terms, unwritten rules) goes
-   in `.ai/notes.md` (append, telegraphic). Read it at the start of a task.
+2. Durable knowledge (decisions, gotchas, domain terms, unwritten rules,
+   operational runbooks) goes in `.ai/notes.md` (append, telegraphic). Read it
+   at the start of a task.
 3. Non-trivial work: `/spec <id>` writes `.ai/changes/<id>/spec.md` (goal,
    acceptance criteria, task checklist); `/build <id>` implements it.
 4. Before declaring a change done, have the full diff reviewed in a fresh
@@ -442,8 +458,14 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 6. After changing files under `.ai/`, commit them in its own repo:
    `git -C .ai add -A && git -C .ai commit -m "<short summary>"`. Never commit
    `.ai` content to the host project repo.{hook_note}
-7. When compacting the session, preserve: the current change id, the spec file
-   path, the list of modified files, and the build/test commands.
+7. Task cursor: `.ai/.current` (gitignored working state) records the active
+   change id, the spec file path, the modified-files list, and the date. Read
+   it at session start and offer to resume; update it when you start or finish
+   a change; delete it when the change is done. It is the durable resume
+   pointer across sessions, independent of compaction.
+8. When compacting the session, preserve: the current change id, the spec file
+   path, the list of modified files, and the build/test commands
+   (`.ai/.current` is the on-disk backup of exactly this).
 
 ## Workflows
 | Command | What it does |
@@ -474,9 +496,10 @@ def render_notes_stub() -> str:
     return (
         "# Project Notes\n\n"
         "<!-- Running memory for the agent: durable decisions, gotchas, domain\n"
-        "terms, unwritten rules. Append, telegraphic. Read at the start of a\n"
-        "task. The code is the source of truth for structure; this file captures\n"
-        "what the code does not say. -->\n"
+        "terms, unwritten rules, and operational runbooks (validation loops, CI\n"
+        "quirks, merge-order rules) that do not fit a curated KB node. Append,\n"
+        "telegraphic. Read at the start of a task. The code is the source of\n"
+        "truth for structure; this file captures what the code does not say. -->\n"
     )
 
 
@@ -512,6 +535,9 @@ Read this before analyzing the project.
   Keep raw file dumps out of the synthesizing context.
 - Build KB nodes bottom-up: module nodes first, then the architecture
   overview.
+- Record operational gotchas and runbooks you hit (build quirks, test-setup
+  traps, CI requirements) in `.ai/notes.md`; reserve curated nodes for stable
+  architecture and conventions.
 - After node changes, update `manifest.yaml`, then regenerate the index:
   `python3 {TOOLS_DIR}/gen_index.py`. Never edit `INDEX.md` directly.
 - Regenerate the `GENERATED:project-context` section in AGENTS.md from the
@@ -618,6 +644,13 @@ Load only: `plan.md`, the single current task file, its pre-bound KB nodes,
 and the listed files. You may run at most 5 targeted searches beyond that.
 Never load the whole ticket folder.
 
+## Task cursor
+At the start of a task, write `.ai/.current` (gitignored) with the active
+ticket id, this task file, the modified-files list, and the date; refresh the
+modified-files list as you edit. On task completion, point it at the next task;
+when the ticket is done, delete it. A fresh session reads `.ai/.current` first
+to resume exactly where the last one stopped.
+
 ## Drift check (diff-aware)
 `plan.md` frontmatter records `kb-commit`, the `.ai` commit the plan was
 built against. Before starting a task, check each pre-bound node for drift:
@@ -662,6 +695,10 @@ the outcome in `plan.md` (`reviewed: <date>`).
   AGENTS.md.
 - After `manifest.yaml` changes, run `python3 {TOOLS_DIR}/gen_index.py`.
 - ADRs (`decisions/`) are append-only. Supersede via link, never edit.
+- Append operational gotchas and runbooks (validation loops, CI quirks,
+  merge-order rules) to `.ai/notes.md` as you hit them; promote durable
+  structural knowledge into a node via `kb-delta.yaml`. `notes.md` is the
+  volatile layer, curated nodes are the source of truth.
 - Staleness: `python3 {TOOLS_DIR}/check_stale.py` lists nodes whose `covers`
   globs match host-repo commits newer than the node. Run it after merges and
   at the start of operational sessions; refresh flagged nodes.
@@ -807,7 +844,8 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "finish",
             f"Implement a planned change. Id: {arg_ticket}\n\n"
             "1. Load `.ai/changes/<id>/spec.md`; set `status: in-progress`. Read\n"
-            "   `.ai/notes.md`.\n"
+            "   `.ai/notes.md`. Write `.ai/.current` (gitignored) with the change\n"
+            "   id, the spec path, and the date, so the work can be resumed.\n"
             "2. Work the task checklist in order. Explore the real code with\n"
             "   read/search tools as needed; do not load the whole tree.\n"
             "3. Keep tests and lint green.\n"
@@ -823,7 +861,8 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "5. Append any durable decision or gotcha to `.ai/notes.md`. If\n"
             "   conventions, commands, or the module map changed, update the\n"
             "   Project Context section of `AGENTS.md`.\n"
-            "6. Set `status: done` and commit `.ai` (`build: <id>`).\n\n"
+            "6. Set `status: done`, delete `.ai/.current`, and commit `.ai`\n"
+            "   (`build: <id>`).\n\n"
             "Escalate instead of improvising: on missing context, do bounded\n"
             "discovery then ask the user; if a test fails twice on the same task,\n"
             "stop and rethink the approach rather than make a third blind attempt.\n",
@@ -1313,19 +1352,22 @@ def ensure_gitignore(root: Path):
 
 
 def ensure_ai_gitignore(root: Path):
-    """Keep raw external copies out of .ai's own repo; they are re-fetchable
-    from their origin and would bloat the KB history."""
+    """Keep volatile working state out of .ai's own repo: raw external copies
+    (re-fetchable, would bloat KB history) and the `.current` task cursor
+    (per-checkout session state, not shared knowledge)."""
     ai_dir = root / ".ai"
     if not ai_dir.is_dir():
         return
     gi = ai_dir / ".gitignore"
     lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
-    if any(line.strip().rstrip("/") == "external" for line in lines):
+    have = {line.strip().rstrip("/") for line in lines}
+    add = [e for e in ("external/", ".current") if e.rstrip("/") not in have]
+    if not add:
         return
     content = "\n".join(lines).rstrip("\n")
-    content = (content + "\n" if content else "") + "external/\n"
+    content = (content + "\n" if content else "") + "\n".join(add) + "\n"
     gi.write_text(content, encoding="utf-8")
-    print(f"updated  .ai/.gitignore (+ external/)")
+    print(f"updated  .ai/.gitignore (+ {', '.join(add)})")
 
 
 def ai_commit(root: Path, message: str):
@@ -1405,6 +1447,8 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
     write_owned(kb / "manifest.yaml", render_manifest(name, desc),
                 created, skipped, preserved)
     write_owned(kb / "INDEX.md", render_index(name),
+                created, skipped, preserved)
+    write_owned(root / ".ai" / "notes.md", render_notes_stub(),
                 created, skipped, preserved)
 
     # Framework-owned files: force regenerates them.
