@@ -111,3 +111,19 @@ All 8 agents resolved Q&A from code evidence and recorded numbered assumptions i
 - The spec/ticket `Notes` section (autonomous assumptions) is the most valuable output for traceability — it captures the non-obvious decisions that future developers would otherwise have to rediscover.
 - The reviewer subagent was unavailable (agents are themselves subagents); self-reviews functioned as a substitute and caught the broken Makefile in opus-medium-small's first draft.
 - The `.ai` commit sequence (`init → explore → spec/ticket → [plan] → build/implement`) provides a clean audit trail of the agent's work separate from the host repo history.
+
+---
+
+## Framework Changes Derived from This Benchmark
+
+Three failure modes surfaced here were fixed in `init_agent.py` after the run. The report above describes the framework as it behaved *during* the benchmark; these commits change that behavior for future runs.
+
+| # | Finding in this report | Change | Commit |
+|---|---|---|---|
+| 1 | Large-profile agents died in the explore phase before implementing (§Key Findings 4); the "explore in sub-agents" optimization is unavailable when the runner is itself a sub-agent | `init.md`: added a no-sub-agent fallback and session-boundary guidance so explore is treated as a full session that hands off via committed KB + `.ai/.current` | `2f8343a` |
+| 2 | Session-limit death lost uncommitted explore work | `init.md`: mandate per-node KB commits during explore so a mid-explore stop is resumable | `2f8343a` |
+| 3 | opus-medium-small's broken Makefile (§Makefile Correctness) passed its own self-review even though `notes.md` had recorded the `ci-release` constraint | Review gates (`/build` skill, small `AGENTS.md` protocol, large ticket-review) now cross-check the diff against build/CI gotchas in `notes.md` / KB, not just acceptance criteria | `2f8343a` |
+| 4 | Every medium run produced installable but non-policy-compliant packages (§Effort analysis: wrong zsh path, license as raw asset) | `/spec` and large task-file templates now require ecosystem-correctness criteria naming the relevant linter/policy check (lintian, clippy, schema validator) | `5f8ec4f` |
+| 5 | Right-sizing example cited a `debian/` dir, which is wrong for a Cargo project (all 8 agents correctly used cargo-deb metadata instead) | `AGENTS.md` right-sizing example made language-neutral | `5f8ec4f` |
+
+**Confirmed working, left unchanged:** the reviewer-unavailable → self-review fallback (it caught the broken Makefile on a later pass), `probe.py` bootstrap, and small-profile sizing for this task class.
