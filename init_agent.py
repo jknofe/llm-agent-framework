@@ -456,8 +456,10 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 4. Before declaring a change done, have the full diff reviewed in a fresh
    context against the acceptance criteria: the `reviewer` sub-agent where
    available; in an autonomous run, a fresh general-purpose sub-agent or, if
-   none is reachable, a recorded clean-context self-review. Fix correctness
-   gaps; ignore style-only findings.
+   none is reachable, a recorded clean-context self-review. The review also
+   confirms the diff honors every build/CI gotcha recorded in `.ai/notes.md`,
+   not just the acceptance criteria. Fix correctness gaps; ignore style-only
+   findings.
 5. Tests and lint must pass. Done = checks green and review clean.
 6. After changing files under `.ai/`, commit them in its own repo:
    `git -C .ai add -A && git -C .ai commit -m "<short summary>"`. Never commit
@@ -543,8 +545,15 @@ Read this before analyzing the project.
 - Run exploration in isolated sub-agent contexts when the harness supports
   them. Each sub-agent returns a condensed summary of at most 2000 tokens.
   Keep raw file dumps out of the synthesizing context.
+- If you cannot spawn sub-agents (you are yourself a sub-agent, or a headless
+  run without them), every raw file read lands in this one context, so explore
+  is a full session on its own. Do not try to reach planning or implementation
+  in the same session: sample the highest-value modules, build the KB, commit,
+  and hand off. A fresh session resumes from the committed KB and `.ai/.current`.
 - Build KB nodes bottom-up: module nodes first, then the architecture
-  overview.
+  overview. Commit `.ai` after each node (or small batch), not once at the
+  end: exploration is where the session budget runs out, and a per-node commit
+  makes a mid-explore stop resumable instead of lost work.
 - Record operational gotchas and runbooks you hit (build quirks, test-setup
   traps, CI requirements) in `.ai/notes.md`; reserve curated nodes for stable
   architecture and conventions.
@@ -689,8 +698,12 @@ available, spawn a fresh general-purpose sub-agent given only the diff and the
 criteria; if no fresh context is reachable at all, do a clean-context
 self-review against those criteria and record that the `reviewer` sub-agent
 was unavailable. Never silently skip the gate. Fix gaps that affect
-correctness or the stated requirements; ignore style-only findings. Record
-the outcome in `plan.md` (`reviewed: <date>`).
+correctness or the stated requirements; ignore style-only findings. The gate
+also cross-checks captured constraints: for every build, CI, or packaging
+gotcha recorded in `.ai/notes.md` or the bound KB nodes, confirm the diff
+honors it. A change that ignores a known build side effect or feature flag is
+a correctness gap even when the acceptance criteria read as met. Record the
+outcome in `plan.md` (`reviewed: <date>`).
 
 ## Escalation (typed; never improvise around a blocker)
 - `missing-context`: use your bounded discovery first, then reload KB (1 hop,
@@ -925,6 +938,9 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   human is available, spawn a fresh general-purpose sub-agent given\n"
             "   only the diff and the criteria; failing that, do a clean-context\n"
             "   self-review and note that the `reviewer` sub-agent was unavailable.\n"
+            "   The review also cross-checks captured constraints: for each\n"
+            "   build, test, or CI gotcha in `.ai/notes.md`, confirm the diff\n"
+            "   honors it, not just that the acceptance criteria read as met.\n"
             "   Never skip the gate. Fix gaps that affect correctness or the\n"
             "   stated criteria; ignore style-only findings.\n"
             "5. Append any durable decision or gotcha to `.ai/notes.md`. If\n"
