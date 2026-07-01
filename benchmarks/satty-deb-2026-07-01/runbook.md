@@ -36,8 +36,11 @@ CHANGE_TITLE:  "add debian format to satty build"
 ```
 
 **Effort guidance (encode in agent prompt):**
-- `medium`: be efficient; make decisions from evidence directly; keep spec/ticket focused.
+- `low`: be minimal. Explore only `probe.py` + `Cargo.toml` + `Makefile`; write a terse spec (2-3 acceptance criteria, one-line assumptions); implement directly. Skip CI workflow and policy extras (`section`/`priority`, `extended-description`, `license-file` directive, `vendor-completions/` zsh path, version-pinned depends — `$auto` is fine). Goal: a minimal installable artifact. The load-bearing invariant still holds at this tier: `deb:` must depend on `build-release` and call `cargo deb --no-build`.
+- `medium`: be efficient; make decisions from evidence directly; keep spec/ticket focused. Policy extras optional if evident; no CI workflow required.
 - `high`: be thorough; explore all asset types, workflows, and edge cases; consider Debian policy details; verify all acceptance criteria explicitly.
+
+See [../haiku-sonnet-2026-07-01/report.md](../haiku-sonnet-2026-07-01/report.md) for a `low` vs `medium` × haiku vs sonnet run using this guidance.
 
 ---
 
