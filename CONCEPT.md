@@ -1,7 +1,10 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-06-26, v5.4 (/import-kb: transform an existing knowledge base of any
-structure into .ai, §15). v5.3: durable task cursor + running-memory notes.md in
+State: 2026-07-01, v5.5 (more determinism offloaded from the model to scripts/
+hooks: probe.py repo inventory, auto-regenerate INDEX on manifest write,
+check_stale at session start, §16). v5.4 (/import-kb: transform an existing
+knowledge base of any structure into .ai, §15). v5.3: durable task cursor +
+running-memory notes.md in
 both profiles, backported from the legacy agents (§14). v5.2: size profiles, a
 stripped-down small profile for codebases ≤10k LOC (§13). v5.1: model choice
 fully delegated to user (§3); v5: standards + deterministic enforcement (§12).
@@ -104,12 +107,15 @@ view.
 ## 2. Phases
 
 ### Phase 1: Initialization
+- Deterministic inventory first: `probe.py` (host SHA, language mix, detected
+  build/test/lint commands, module map + LOC, dep manifests, entry points) →
+  seed mechanical project-context fields free, sample by its map (§16)
 - Sampling, no full scan: per module entry points, public API, tests
 - Exploration in isolated sub-agent contexts where harness supports it; each
   returns condensed summary ≤2000 tokens to main context. Keeps raw file
   dumps out of the synthesizing context
-- Bottom-up: module nodes → overview → regenerate manifest, then INDEX via
-  `gen_index.py`
+- Bottom-up: module nodes → overview → update manifest; INDEX auto-regenerates
+  (PostToolUse hook runs `gen_index.py` on manifest write, §16)
 - Q&A for non-derivable knowledge (domain terms, unwritten rules)
 - Once build/test/lint commands known: offer project-specific Stop hook
   (lint/tests on turn end) → "done = checks pass" deterministic (claude)
@@ -296,8 +302,8 @@ what gets loaded. Phases are mutually exclusive per session → on-demand.
 9. Two-register language: plain instructions, telegraphic content
 10. Soft budgets with declared overruns; right-sizing: no ticket ceremony
     below ticket scale
-11. Deterministic tools + hooks over protocol prose (gen_index, check_stale,
-    PreToolUse/Stop hooks)
+11. Deterministic tools + hooks over protocol prose (probe inventory,
+    gen_index, check_stale; PreToolUse/PostToolUse/SessionStart/Stop hooks)
 
 ## 10. v4 revision notes (2026-06-11)
 
@@ -552,3 +558,38 @@ transformation. Code or upstream docs you only want to search later go through
 add-reference; a prior team's documentation you want to *become* your KB goes
 through import-kb. The skill body states this distinction so the agent chooses
 correctly.
+
+## 16. More determinism offloaded to scripts/hooks (2026-07-01, v5.5)
+
+Continues §12.6's "deterministic tools + hooks over protocol prose". Three
+mechanical jobs that were LLM-driven (or standing prose instructions the model
+had to remember) become scripts/hooks. Motive: save tokens on the most
+expensive work and make the outcome reproducible. `ai_repo_clean` stays
+unchanged — content commits keep model-written, meaningful messages (owner
+decision; auto-templated messages rejected).
+
+1. `probe.py` (`.ai/agent/tools/`, both profiles): read-only, stdlib-only repo
+   inventory. Uses `git ls-files` (gitignore-aware, deterministic; `os.walk`
+   fallback). Prints compact, stable-sorted Markdown to stdout: host commit
+   SHA, language mix, detected build/test/lint commands (package.json scripts,
+   Cargo/Go/Python/Ruby manifests, Makefile targets), module map with files +
+   LOC, dependency manifests, entry-point candidates. First step of Phase 1
+   (large) and `/explore` (small): the mechanical `project-context` fields are
+   seeded from it, not re-derived by the model, and its map drives sampling.
+   Biggest single lever — the initialization phase is the costliest.
+2. Auto-INDEX (PostToolUse hook `regen_index.py`, large only): runs
+   `gen_index.py` whenever `manifest.yaml` is written, always exit 0
+   (non-blocking; the write already succeeded). Replaces the standing prose
+   rule "after a manifest change, run gen_index". `protect_generated` (blocks
+   hand-edits of INDEX.md) stays. On non-claude harnesses (no hook) the phase
+   docs still tell the agent to run `gen_index.py`.
+3. check_stale at session start (SessionStart hook, large only): runs the
+   existing `check_stale.py` with `|| true` (neutralizes its CI exit code);
+   its stdout enters the session as context. Replaces the prose "run it at the
+   start of operational sessions". Manual run kept for after a merge / non-
+   claude harnesses.
+
+Not in scope (future iterations, tracked): `apply_delta.py` (declarative
+metadata/covers auto-apply), `drift.py` (bundle the per-node drift diffs),
+archive + ADR-number helpers. Node content, classification, planning, and the
+review gates stay with the model — that is genuine judgment, not mechanism.

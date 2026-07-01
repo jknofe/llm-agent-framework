@@ -527,6 +527,12 @@ beats an instruction the model may skip. Add it only with user consent.
 Read this before analyzing the project.
 
 ## Strategy
+- Run the deterministic inventory first: `python3 {TOOLS_DIR}/probe.py`. It
+  prints host commit, language mix, detected build/test/lint commands, a
+  module map (files + LOC), dependency manifests, and entry-point candidates.
+  Seed the mechanical `GENERATED:project-context` fields (stack, commands,
+  module map) straight from it, and use its map to decide what to sample.
+  Do not re-derive by hand what probe already reports.
 - If a project description was seeded at init (overview node summary and the
   Project Context section), treat it as a hint, not a fact: use it to pick
   what to sample first, then verify and refine it against the code.
@@ -542,8 +548,10 @@ Read this before analyzing the project.
 - Record operational gotchas and runbooks you hit (build quirks, test-setup
   traps, CI requirements) in `.ai/notes.md`; reserve curated nodes for stable
   architecture and conventions.
-- After node changes, update `manifest.yaml`, then regenerate the index:
-  `python3 {TOOLS_DIR}/gen_index.py`. Never edit `INDEX.md` directly.
+- After node changes, update `manifest.yaml`. `INDEX.md` regenerates
+  automatically: a PostToolUse hook runs `gen_index.py` on every manifest
+  write. Never edit `INDEX.md` directly. If no hook fires (non-claude
+  harness), run `python3 {TOOLS_DIR}/gen_index.py` yourself.
 - Regenerate the `GENERATED:project-context` section in AGENTS.md from the
   hot-tier nodes, condensed: project one-liner, tech stack, build/test/lint
   commands, top conventions, module map (one line per module plus cold-node
@@ -697,15 +705,19 @@ the outcome in `plan.md` (`reviewed: <date>`).
   Structural changes go through the review gate.
 - After hot-tier node updates, regenerate `GENERATED:project-context` in
   AGENTS.md.
-- After `manifest.yaml` changes, run `python3 {TOOLS_DIR}/gen_index.py`.
+- After `manifest.yaml` changes, `INDEX.md` regenerates automatically (a
+  PostToolUse hook runs `gen_index.py`); run it by hand only on a non-claude
+  harness. Never edit `INDEX.md` directly.
 - ADRs (`decisions/`) are append-only. Supersede via link, never edit.
 - Append operational gotchas and runbooks (validation loops, CI quirks,
   merge-order rules) to `.ai/notes.md` as you hit them; promote durable
   structural knowledge into a node via `kb-delta.yaml`. `notes.md` is the
   volatile layer, curated nodes are the source of truth.
-- Staleness: `python3 {TOOLS_DIR}/check_stale.py` lists nodes whose `covers`
-  globs match host-repo commits newer than the node. Run it after merges and
-  at the start of operational sessions; refresh flagged nodes.
+- Staleness: `check_stale.py` lists nodes whose `covers` globs match host-repo
+  commits newer than the node. A SessionStart hook runs it automatically; its
+  output at session start flags nodes to refresh. Run
+  `python3 {TOOLS_DIR}/check_stale.py` by hand after a merge or on a non-claude
+  harness.
 """
 
 
@@ -775,7 +787,8 @@ def command_specs(arg_focus: str, arg_ticket: str) -> list:
             "   `updated`, `origin`, `fetched: <today>`,\n"
             "   `pinned: <commit sha or n/a>`, `related: []`.\n"
             "   Body: local copy path, what the material answers, entry points.\n"
-            "4. Append the node to `manifest.yaml`, then run\n"
+            "4. Append the node to `manifest.yaml`. `INDEX.md` regenerates via a\n"
+            "   hook on the claude harness; on others run\n"
             f"   `python3 {TOOLS_DIR}/gen_index.py`.\n"
             '5. Commit the `.ai` repo (`add-reference: <name>`).\n\n'
             "Reminder: search raw copies with targeted queries; never bulk-load.\n",
@@ -813,7 +826,8 @@ def command_specs(arg_focus: str, arg_ticket: str) -> list:
             "   truth.\n"
             "4. Record provenance: note the source origin (path or URL) in each\n"
             "   created or updated node so the transform is auditable.\n"
-            "5. Update `manifest.yaml` for every new or changed node, then run\n"
+            "5. Update `manifest.yaml` for every new or changed node. `INDEX.md`\n"
+            "   regenerates via a hook on the claude harness; on others run\n"
             f"   `python3 {TOOLS_DIR}/gen_index.py`. Regenerate the\n"
             "   GENERATED:project-context section of AGENTS.md if hot-tier nodes\n"
             "   changed.\n"
@@ -847,6 +861,11 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "Explore the codebase and fill the AGENTS.md project context plus "
             ".ai/notes.md",
             "Explore this project to ground the agent.\n\n"
+            "- Run the deterministic inventory first: `python3\n"
+            f"  {TOOLS_DIR}/probe.py`. It prints host commit, language mix,\n"
+            "  detected build/test/lint commands, a module map (files + LOC),\n"
+            "  dependency manifests, and entry-point candidates. Seed the\n"
+            "  mechanical project-context fields from it; use its map to sample.\n"
             "- Sample the code with your read/search tools (Read, Grep, Glob); do\n"
             "  not load everything. Read entry points, each area's public API, and\n"
             "  the tests. At this size the source is the knowledge base.\n"
@@ -1094,6 +1113,41 @@ sys.exit(0)
 '''
 
 
+def render_hook_regen_index() -> str:
+    return '''#!/usr/bin/env python3
+"""PostToolUse hook: regenerate INDEX.md whenever manifest.yaml is written.
+
+INDEX.md is a build artifact of manifest.yaml. Regenerating it deterministically
+on every manifest write removes the "remember to run gen_index" instruction from
+the phase docs. Non-blocking: the manifest write already succeeded, so this only
+keeps the generated view in sync. Always exits 0.
+"""
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+
+path = str((data.get("tool_input") or {}).get("file_path", "")).replace("\\\\", "/")
+if not path.endswith(".ai/knowledgebase/manifest.yaml"):
+    sys.exit(0)
+
+gen = Path(".ai/agent/tools/gen_index.py")
+if not gen.exists():
+    sys.exit(0)
+
+r = subprocess.run([sys.executable, str(gen)], capture_output=True, text=True)
+msg = (r.stdout or r.stderr).strip()
+if msg:
+    print(f"INDEX.md regenerated from manifest.yaml: {msg}", file=sys.stderr)
+sys.exit(0)
+'''
+
+
 # Shared by gen_index.py and check_stale.py; manifest.yaml is regular enough
 # (generated by this script family) that a line parser beats a yaml dependency.
 _MANIFEST_PARSER = '''
@@ -1242,6 +1296,190 @@ if __name__ == "__main__":
 '''
 
 
+def render_tool_probe() -> str:
+    # Plain string (not f-string): the script is full of braces and its own
+    # f-strings; the tool path is hardcoded to keep it readable.
+    return r'''#!/usr/bin/env python3
+"""Deterministic repo inventory for Phase 1 (Initialization).
+
+Prints a compact, stable-sorted Markdown snapshot of the host project so the
+agent can seed the mechanical project-context fields (stack, build/test/lint
+commands, module map) without spending tokens on discovery, and sample the tree
+instead of scanning it. Read-only; stdlib only.
+
+Usage: python3 .ai/agent/tools/probe.py   (from anywhere)
+"""
+import json
+import re
+import subprocess
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2].parent  # host repo root (above .ai/)
+TOP_LANGS = 12
+TOP_DIRS = 20
+TOP_ENTRIES = 20
+
+LANGS = {
+    ".py": "Python", ".rs": "Rust", ".go": "Go", ".ts": "TypeScript",
+    ".tsx": "TypeScript", ".js": "JavaScript", ".jsx": "JavaScript",
+    ".mjs": "JavaScript", ".java": "Java", ".kt": "Kotlin", ".rb": "Ruby",
+    ".php": "PHP", ".c": "C", ".h": "C/C++ header", ".hpp": "C++ header",
+    ".cpp": "C++", ".cc": "C++", ".cs": "C#", ".swift": "Swift",
+    ".scala": "Scala", ".sh": "Shell", ".bash": "Shell", ".sql": "SQL",
+    ".md": "Markdown", ".yaml": "YAML", ".yml": "YAML", ".toml": "TOML",
+    ".json": "JSON", ".html": "HTML", ".css": "CSS", ".scss": "CSS",
+}
+DEP_MANIFESTS = [
+    "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "setup.cfg",
+    "setup.py", "requirements.txt", "tox.ini", "Gemfile", "Rakefile",
+    "pom.xml", "build.gradle", "composer.json", "Makefile", "CMakeLists.txt",
+]
+
+
+def run(args):
+    try:
+        r = subprocess.run(args, cwd=str(ROOT), capture_output=True, text=True)
+        return r.returncode, r.stdout, r.stderr
+    except OSError:
+        return 1, "", ""
+
+
+def tracked_files():
+    """git ls-files: deterministic + gitignore-aware. Fallback: os.walk."""
+    code, out, _ = run(["git", "ls-files"])
+    if code == 0 and out.strip():
+        return [ROOT / line for line in out.splitlines() if line.strip()]
+    files = []
+    for p in ROOT.rglob("*"):
+        if p.is_file() and "/.git/" not in str(p):
+            files.append(p)
+    return files
+
+
+def host_sha():
+    code, out, _ = run(["git", "rev-parse", "HEAD"])
+    return out.strip() if code == 0 and out.strip() else "n/a (not a git repo)"
+
+
+def loc(path):
+    try:
+        with path.open("rb") as fh:
+            return sum(1 for _ in fh)
+    except OSError:
+        return 0
+
+
+def read(name):
+    try:
+        return (ROOT / name).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def detect_commands(names):
+    out = []
+    if "package.json" in names:
+        try:
+            scripts = json.loads(read("package.json")).get("scripts", {})
+        except ValueError:
+            scripts = {}
+        if scripts:
+            out.append(("package.json scripts",
+                        ["npm run " + k for k in sorted(scripts)]))
+    if "Cargo.toml" in names:
+        out.append(("Cargo", ["cargo build", "cargo test", "cargo clippy"]))
+    if "go.mod" in names:
+        out.append(("Go", ["go build ./...", "go test ./..."]))
+    if names & {"pyproject.toml", "setup.cfg", "tox.ini", "setup.py"}:
+        out.append(("Python", ["(see pyproject.toml / tox.ini for test+lint)"]))
+    if names & {"Gemfile", "Rakefile"}:
+        out.append(("Ruby", ["rake", "rspec"]))
+    if "Makefile" in names:
+        targets = sorted(set(
+            re.findall(r"(?m)^([A-Za-z0-9_.-]+):(?!=)", read("Makefile"))))
+        targets = [t for t in targets if t.lower() != ".phony"]
+        if targets:
+            out.append(("Makefile targets",
+                        ["make " + t for t in targets[:15]]))
+    return out
+
+
+ENTRY_BASENAMES = ("main.", "index.", "app.", "__main__.py", "cli.")
+ENTRY_PREFIXES = ("cmd/", "bin/", "src/main", "src/bin/")
+
+
+def main():
+    files = tracked_files()
+    names_at_root = {p.name for p in files if p.parent == ROOT}
+    exts = Counter()
+    dir_files = defaultdict(int)
+    dir_loc = defaultdict(int)
+    entries = []
+    for p in files:
+        try:
+            rel = p.relative_to(ROOT)
+        except ValueError:
+            continue
+        rels = str(rel).replace("\\", "/")
+        seg = rel.parts[0] if len(rel.parts) > 1 else "(root)"
+        dir_files[seg] += 1
+        ext = p.suffix.lower()
+        if ext in LANGS:
+            exts[LANGS[ext]] += 1
+            dir_loc[seg] += loc(p)
+        base = p.name
+        if base.startswith(ENTRY_BASENAMES) or rels.startswith(ENTRY_PREFIXES):
+            entries.append(rels)
+
+    lines = ["# Repo inventory (probe.py)", ""]
+    lines.append("- Host commit: " + host_sha())
+    lines.append("- Tracked files: " + str(len(files)))
+    lines.append("")
+
+    lines += ["## Languages", "", "| Language | Files |", "|---|---|"]
+    for lang, n in exts.most_common(TOP_LANGS):
+        lines.append("| " + lang + " | " + str(n) + " |")
+    lines.append("")
+
+    cmds = detect_commands(names_at_root)
+    lines += ["## Build / test / lint (detected)", ""]
+    if cmds:
+        for tool, cs in cmds:
+            lines.append("- **" + tool + "**: " + "; ".join(cs))
+    else:
+        lines.append("- none detected (ask the user)")
+    lines.append("")
+
+    lines += ["## Module map (top-level, by LOC)", "",
+              "| Path | Files | LOC |", "|---|---|---|"]
+    ranked = sorted(dir_files, key=lambda d: (-dir_loc[d], d))[:TOP_DIRS]
+    for d in ranked:
+        lines.append("| " + d + " | " + str(dir_files[d]) + " | "
+                     + str(dir_loc[d]) + " |")
+    lines.append("")
+
+    deps = sorted(names_at_root & set(DEP_MANIFESTS))
+    lines += ["## Dependency manifests", "",
+              (", ".join(deps) if deps else "none at repo root"), ""]
+
+    lines += ["## Entry-point candidates", ""]
+    if entries:
+        for e in sorted(set(entries))[:TOP_ENTRIES]:
+            lines.append("- " + e)
+    else:
+        lines.append("- none matched (inspect the module map)")
+
+    print("\n".join(lines))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+
 def render_settings_json(small: bool = False) -> str:
     """Project settings (.claude/settings.json): a read-only permission allow
     list so exploration runs without a prompt per command, plus hooks that
@@ -1276,6 +1514,7 @@ def render_settings_json(small: bool = False) -> str:
         "Bash(git show:*)",
         "Bash(git branch:*)",
         "Bash(git -C .ai:*)",
+        f"Bash(python3 {TOOLS_DIR}/probe.py:*)",
     ]
     if not small:
         allow += [
@@ -1292,6 +1531,29 @@ def render_settings_json(small: bool = False) -> str:
                         "type": "command",
                         "command": 'python3 "$CLAUDE_PROJECT_DIR/'
                                    '.claude/hooks/protect_generated.py"',
+                    }
+                ],
+            }
+        ]
+        hooks["PostToolUse"] = [
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": 'python3 "$CLAUDE_PROJECT_DIR/'
+                                   '.claude/hooks/regen_index.py"',
+                    }
+                ],
+            }
+        ]
+        hooks["SessionStart"] = [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": 'python3 "$CLAUDE_PROJECT_DIR/'
+                                   f'{TOOLS_DIR}/check_stale.py" || true',
                     }
                 ],
             }
@@ -1538,6 +1800,7 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
     write(tools / "gen_index.py", render_tool_gen_index(), force, created, skipped)
     write(tools / "check_stale.py", render_tool_check_stale(),
           force, created, skipped)
+    write(tools / "probe.py", render_tool_probe(), force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section, which is
     # Phase 1 output: recover it (also from legacy CLAUDE.md scaffolds).
@@ -1555,6 +1818,8 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
               render_reviewer_agent(), force, created, skipped)
         hooks = root / ".claude" / "hooks"
         write(hooks / "protect_generated.py", render_hook_protect_generated(),
+              force, created, skipped)
+        write(hooks / "regen_index.py", render_hook_regen_index(),
               force, created, skipped)
         write(hooks / "ai_repo_clean.py", render_hook_ai_repo_clean(),
               force, created, skipped)
@@ -1600,6 +1865,11 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
     # Agent/user-owned content: never clobbered once hand-filled.
     write_owned(root / ".ai" / "notes.md", render_notes_stub(),
                 created, skipped, preserved)
+
+    # Deterministic repo inventory: the one KB tool that fits the small profile
+    # (no manifest dependency), used at the start of /explore.
+    write(root / TOOLS_DIR / "probe.py", render_tool_probe(),
+          force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section: recover it
     # (also from legacy CLAUDE.md scaffolds) so re-init never reverts /explore.

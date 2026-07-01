@@ -82,8 +82,10 @@ drops the rest:
   **`/import-kb <source>`** distills an existing knowledge base of any structure
   into the project-context section and `notes.md`. A change you can describe in
   one sentence skips the spec entirely.
-- Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, and the read-only
-  permission allow list. Dropped: the `INDEX.md`-protection hook.
+- Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, the read-only
+  permission allow list, and `probe.py` (the deterministic repo inventory has
+  no KB dependency, so it fits here too). Dropped: the `INDEX.md`-protection
+  hook.
 
 Dropped versus large (all of it exists to ration context in big codebases):
 the `manifest.yaml`/`INDEX.md` KB with hot/cold tiers and per-task token
@@ -132,6 +134,12 @@ extra file is needed there.
 Protocol rules that can be enforced mechanically are not left to model
 obedience:
 
+- `.ai/agent/tools/probe.py` prints a deterministic repo inventory (host
+  commit, language mix, detected build/test/lint commands, module map with
+  LOC, dependency manifests, entry points). The agent runs it first in
+  Phase 1 / `/explore` and seeds the mechanical project-context fields from
+  it instead of re-deriving them, then samples by its map. Present in both
+  size profiles.
 - `.ai/agent/tools/gen_index.py` regenerates `INDEX.md` from
   `manifest.yaml`. `INDEX.md` is never edited by hand or by the agent.
 - `.ai/agent/tools/check_stale.py` lists KB nodes whose `covers` globs
@@ -139,6 +147,12 @@ obedience:
   when stale, so it can run in CI).
 - `.claude/hooks/protect_generated.py` (PreToolUse) blocks direct writes
   to `INDEX.md` and points to `gen_index.py` instead.
+- `.claude/hooks/regen_index.py` (PostToolUse) regenerates `INDEX.md`
+  automatically whenever `manifest.yaml` is written, so the generated view
+  never drifts and the agent need not remember to run `gen_index.py`.
+- A SessionStart hook runs `check_stale.py` at the start of every session;
+  its output surfaces stale nodes without a standing "remember to run it"
+  instruction.
 - `.claude/hooks/ai_repo_clean.py` (Stop) blocks ending a turn while the
   `.ai` repo has uncommitted changes, so KB updates are never lost.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
@@ -183,8 +197,8 @@ reduced set described under [Small projects](#small-projects).
 `init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold
 nodes), `.ai/notes.md` (running memory for operational gotchas and runbooks
 that don't warrant a curated node), the `.ai/tickets/` inbox,
-`.ai/agent/phases/` (on-demand phase docs), `.ai/agent/tools/` (gen_index,
-check_stale), the canonical `AGENTS.md`, the skills above and, for Claude
+`.ai/agent/phases/` (on-demand phase docs), `.ai/agent/tools/` (probe,
+gen_index, check_stale), the canonical `AGENTS.md`, the skills above and, for Claude
 Code, the `CLAUDE.md`
 pointer, the reviewer subagent, the hook scripts and
 `.claude/settings.json` with the hooks plus a read-only permission allow
