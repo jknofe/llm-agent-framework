@@ -315,7 +315,8 @@ and commands verbatim.
 Right-sizing: a change you can describe in one sentence and that touches a
 single file needs no ticket. Do it directly, update the affected KB nodes,
 and commit `.ai`. Use the ticket pipeline for everything larger — but for a
-change confined to one self-contained area (e.g. adding a `debian/` dir), take
+change confined to one self-contained area (e.g. a packaging descriptor or a
+self-contained CLI subcommand), take
 planning.md's trivial path: one task file, one review gate, no Q&A rounds. Do
 not pay ceremony that exceeds the task.
 
@@ -632,7 +633,9 @@ with the recorded answers.
 ## Task file format (`NN-<slug>.md`)
 Frontmatter: `status: planned`, `depends: []`.
 Body, self-contained:
-- Goal and testable acceptance criteria
+- Goal and testable acceptance criteria that cover ecosystem correctness, not
+  just "it runs": where a linter or policy check exists (lintian, clippy, a
+  schema validator), name it and make passing it a criterion
 - Affected files with explicit paths
 - Pre-bound KB node ids
 - Expected signatures/interfaces
@@ -912,6 +915,10 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   ## Goal               one paragraph: what and why\n"
             "   ## Acceptance criteria\n"
             "   - [ ] testable criterion\n"
+            "   Cover ecosystem correctness, not just \"it runs\": where a linter\n"
+            "   or policy check would catch a wrong-but-working result (lintian,\n"
+            "   clippy, a schema validator), name it and make passing it a\n"
+            "   criterion.\n"
             "   ## Tasks\n"
             "   - [ ] task - files: <paths>\n"
             "   ## Notes              Q&A answers, decisions\n"
