@@ -1,6 +1,10 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-01, v5.5 (more determinism offloaded from the model to scripts/
+State: 2026-07-02, v5.6 (harness-mechanism pass after a best-practice review:
+skills locked to manual invocation, path-scoped rules generated from
+conventions nodes, parallel-ok task marking, /goal as middle verification
+tier, prune test in KB lint, §17). v5.5 (more determinism offloaded from the
+model to scripts/
 hooks: probe.py repo inventory, auto-regenerate INDEX on manifest write,
 check_stale at session start, §16). v5.4 (/import-kb: transform an existing
 knowledge base of any structure into .ai, §15). v5.3: durable task cursor +
@@ -212,7 +216,9 @@ docs.
   session start
 - Compaction job: enforce node cap, merge fragments, prune dead nodes
 - Ownership: automation flags, human decides. Named KB owner + fixed review
-  cadence (monthly lint: obsolete rationale, dead nodes, drifted `covers`).
+  cadence (monthly lint: obsolete rationale, dead nodes, drifted `covers`,
+  and the prune test — any rule the agent already follows unprompted gets
+  deleted; always-on instruction bloat is why real rules get ignored).
   Neglected KB = confident wrong context, worse than no KB
 - Telemetry: cut in v5. v4 specified two layers (token cost + outcomes)
   with no collection mechanism; spec without mechanism = dead weight.
@@ -285,7 +291,9 @@ what gets loaded. Phases are mutually exclusive per session → on-demand.
 - Exceptions kept verbatim everywhere: identifiers, paths, commands, code
   blocks, frontmatter keys
 - Validation path: A/B same ticket in both styles, compare escalation +
-  re-plan rates
+  re-plan rates. Runnable spec: `benchmarks/two-register-ab/runbook.md`
+  (added v5.6; a spec'd-but-never-run validation is the same dead weight
+  telemetry was culled for)
 
 ## 9. Token efficiency stack (summary)
 
@@ -593,3 +601,61 @@ Not in scope (future iterations, tracked): `apply_delta.py` (declarative
 metadata/covers auto-apply), `drift.py` (bundle the per-node drift diffs),
 archive + ADR-number helpers. Node content, classification, planning, and the
 review gates stay with the model — that is genuine judgment, not mechanism.
+
+## 17. Harness-mechanism pass (2026-07-02, v5.6)
+
+Web-research review of the concept against mid-2026 best practice (Anthropic
+context engineering, Claude Code best-practices docs, AGENTS.md/AAIF status,
+SDD field reports) confirmed the foundations and surfaced newer harness
+features the framework predated. Theme continues §16: replace protocol prose
+with harness mechanism as harnesses grow them. Copilot support is unchanged
+throughout — every claude-specific mechanism is additive, with the manifest
+protocol as the fallback on other harnesses.
+
+1. **Skills locked to manual invocation.** Every scaffolded skill is a
+   user-sequenced pipeline step with side effects (KB writes, code changes,
+   `.ai` commits); `disable-model-invocation: true` prevents the model from
+   auto-triggering them mid-conversation (e.g. starting /plan on sight of a
+   ticket). `argument-hint` added for discoverability. Copilot prompt files
+   have no such field and are unchanged.
+2. **Path-scoped rules as generated artifacts (claude, large).** Cold
+   `conventions/*` nodes with non-empty `covers` render to
+   `.claude/rules/<id>.md` with `paths:` frontmatter via `gen_rules.py`:
+   the harness now injects the convention deterministically when matching
+   files are touched, instead of the model remembering the manifest lookup.
+   Same pattern as the AGENTS.md generated section: node = source of truth,
+   rule = build artifact (marker line, stale-file cleanup). The
+   regen hook fires on conventions-node and manifest writes;
+   `protect_generated` blocks edits to marked rule files (hand-written
+   rules stay editable). Hot nodes excluded (already in the AGENTS.md
+   section — no duplication); nodes without `covers` stay manifest-loaded.
+3. **Parallel-ok task marking.** `/plan` sets `parallel: ok` on tasks with
+   no `depends` and no overlapping affected files; plan.md's table gains a
+   Parallel column. implementation.md defines the dispatch constraints:
+   one self-contained task file per session, `.ai` single-writer (only the
+   coordinating session commits), worktree caveat (gitignored `.ai/` is not
+   carried over), review gate stays serial on the combined diff. Zero
+   machinery — the self-contained task files already made this safe; the
+   protocol now says so. Harness-neutral.
+4. **/goal as middle verification tier (claude).** The Phase-1 verification
+   offer now names the session-scoped `/goal` condition as the lighter
+   alternative to the scaffolded lint/test Stop hook. Both profiles.
+5. **Prune test in KB lint.** Monthly lint + implementation.md gain the
+   canonical deletion criterion for standing instructions: if the agent
+   already behaves correctly without a rule, delete it (§5).
+6. **README corrections.** The `ai_repo_clean` "never lost" claim softened
+   (Claude Code overrides a Stop hook after repeated consecutive blocks;
+   protocol rule = backstop); auto permission mode noted as the
+   low-maintenance interactive alternative to the scaffolded allowlist.
+7. **Two-register A/B made runnable.** §8's validation path now has a
+   benchmark spec (`benchmarks/two-register-ab/runbook.md`) instead of a
+   standing intention.
+
+Rejected in this pass: subdirectory-CLAUDE.md pointers for module nodes
+(weaker duplicate of item 2), embedding retrieval (still wrong below ~200
+nodes), auto-migrating the allowlist to auto mode (allowlist stays default:
+deterministic, works headless).
+
+Unchanged: KB layout, manifest navigation, hot/cold tiers, kb-delta, drift
+and staleness model, ticket lifecycle + archive, review gates, two-register
+language, size profiles, model-agnosticism, single-interactive-scaffold CLI.

@@ -60,6 +60,13 @@ Code to plan on Opus and implement on Sonnet). The self-contained task
 files and the fresh-context review gates are what keep cheap execution
 safe. If you do split models, keep the direction: plan on the strong one.
 
+The same task-file property enables parallel execution: `/plan` marks tasks
+with no dependencies and no overlapping files as `parallel: ok`, and those
+may be worked by concurrent sessions (one task file each). The constraints
+— single writer for `.ai`, one serial review gate at the end, and the fact
+that git worktrees do not carry the gitignored `.ai/` — are spelled out in
+the implementation phase doc.
+
 ## Small projects
 
 Choosing **small** at the size prompt targets codebases up to roughly 10k LOC,
@@ -104,8 +111,11 @@ into KB nodes by hand.
 `init` scaffolds the workflow as Agent Skills, the open SKILL.md standard
 read by Claude Code and a growing set of other harnesses
 (`.claude/skills/<name>/SKILL.md`); the copilot harness gets the same
-content as VS Code prompt files (`.github/prompts/*.prompt.md`). Both are
-invoked the same way:
+content as VS Code prompt files (`.github/prompts/*.prompt.md`). All
+skills carry `disable-model-invocation: true`: they are pipeline steps
+with side effects (KB writes, code changes, `.ai` commits), so only an
+explicit `/name` from you triggers them, never the model mid-conversation.
+Both harnesses invoke them the same way:
 
 | Command | What it does |
 |---|---|
@@ -145,16 +155,29 @@ obedience:
 - `.ai/agent/tools/check_stale.py` lists KB nodes whose `covers` globs
   match host-repo commits newer than the node's `updated` date (exit 1
   when stale, so it can run in CI).
+- `.ai/agent/tools/gen_rules.py` (claude harness only) renders cold
+  `conventions/*` KB nodes that carry `covers` globs into path-scoped rule
+  files under `.claude/rules/` (`paths:` frontmatter). Claude Code then
+  injects the convention deterministically whenever matching files are
+  touched — the model no longer has to remember the manifest lookup for
+  conventions. The rule files are build artifacts (marked GENERATED, stale
+  ones auto-removed); the KB node stays the single source of truth. On
+  Copilot, conventions stay on the manifest protocol.
 - `.claude/hooks/protect_generated.py` (PreToolUse) blocks direct writes
-  to `INDEX.md` and points to `gen_index.py` instead.
+  to `INDEX.md` and to GENERATED rule files, pointing to `gen_index.py` /
+  `gen_rules.py` (hand-written files in `.claude/rules/` stay editable).
 - `.claude/hooks/regen_index.py` (PostToolUse) regenerates `INDEX.md`
-  automatically whenever `manifest.yaml` is written, so the generated view
-  never drifts and the agent need not remember to run `gen_index.py`.
+  whenever `manifest.yaml` is written and the path-scoped rules whenever
+  the manifest or a conventions node is written, so the generated views
+  never drift and the agent need not remember to run the `gen_*` tools.
 - A SessionStart hook runs `check_stale.py` at the start of every session;
   its output surfaces stale nodes without a standing "remember to run it"
   instruction.
 - `.claude/hooks/ai_repo_clean.py` (Stop) blocks ending a turn while the
-  `.ai` repo has uncommitted changes, so KB updates are never lost.
+  `.ai` repo has uncommitted changes, so KB updates are not silently
+  dropped. Not absolute: Claude Code overrides a Stop hook after repeated
+  consecutive blocks, so the protocol rule in `AGENTS.md` remains the
+  backstop.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
   reviewer used by the plan-review and ticket-review gates.
 
@@ -202,11 +225,14 @@ gen_index, check_stale), the canonical `AGENTS.md`, the skills above and, for Cl
 Code, the `CLAUDE.md`
 pointer, the reviewer subagent, the hook scripts and
 `.claude/settings.json` with the hooks plus a read-only permission allow
-list (grep, find, ls, cat, awk, read-only git, `git -C .ai`, the two KB
+list (grep, find, ls, cat, awk, read-only git, `git -C .ai`, the KB
 tools, ...) so exploration and `.ai` commits run without a confirmation
 prompt per command. Compound commands (`a && b`) only skip the prompt when
 every part of the chain is allowed, so common chain members like `cd`,
-`echo` and `pwd` are included. `AGENTS.md` and `.claude/` / `.github/`
+`echo` and `pwd` are included. If you work interactively, Claude Code's
+auto permission mode (a classifier reviews commands and blocks only risky
+ones) is a lower-maintenance alternative; the allowlist is what keeps
+headless and CI runs deterministic. `AGENTS.md` and `.claude/` / `.github/`
 belong to the host repo.
 
 The description prompted at init is seeded into the architecture overview

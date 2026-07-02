@@ -291,6 +291,11 @@ Copilot CLI, start a phase with its kickoff line:
                  "    the active Claude project directory; otherwise commit by\n"
                  "    hand and never assume the hook ran." if harness == "claude"
                  else "")
+    rules_note = (" Rule files under `.claude/rules/` marked\n"
+                  "   GENERATED are likewise build artifacts (of cold\n"
+                  "   `conventions/*` nodes): edit the node; a hook runs\n"
+                  f"   `{TOOLS_DIR}/gen_rules.py`." if harness == "claude"
+                  else "")
     entry_note = ("packaged as Agent Skills under `.claude/skills/`"
                   if harness == "claude"
                   else "exposed as prompt files under `.github/prompts/`")
@@ -337,7 +342,7 @@ not pay ceremony that exceeds the task.
 7. Invariants: single source of truth, never duplicate. Split a node over
    ~1500 tokens and cross-link the parts.
 8. `INDEX.md` is generated. To change it, edit `manifest.yaml` and run
-   `python3 {TOOLS_DIR}/gen_index.py`. Never edit `INDEX.md` directly.
+   `python3 {TOOLS_DIR}/gen_index.py`. Never edit `INDEX.md` directly.{rules_note}
 9. External references: nodes under `references/` describe material in
    `.ai/external/` (other repos, docs, example code). Load the node first,
    then search the raw copy with targeted queries (in a sub-agent when
@@ -524,7 +529,19 @@ Once the build, test, and lint commands are known, offer the user a Stop
 hook in `.claude/settings.json` that runs lint (and fast tests if cheap)
 when the agent finishes a turn with code changes. A deterministic check
 beats an instruction the model may skip. Add it only with user consent.
+Mention the lighter alternative too: a session-scoped `/goal` condition
+(e.g. "tests and lint pass") that an evaluator re-checks each turn — good
+for a single unattended run without touching settings.
 """
+    rules_line = ""
+    if harness == "claude":
+        rules_line = (
+            "- Cold `conventions/*` nodes with `covers` globs also render to\n"
+            "  path-scoped rule files under `.claude/rules/` (loaded by the\n"
+            "  harness when matching files are touched). The same PostToolUse\n"
+            "  hook regenerates them on every conventions-node or manifest\n"
+            "  write. Never edit the rule files; edit the node.\n"
+        )
     return f"""# Phase 1: Initialization
 
 Read this before analyzing the project.
@@ -562,7 +579,7 @@ Read this before analyzing the project.
   automatically: a PostToolUse hook runs `gen_index.py` on every manifest
   write. Never edit `INDEX.md` directly. If no hook fires (non-claude
   harness), run `python3 {TOOLS_DIR}/gen_index.py` yourself.
-- Regenerate the `GENERATED:project-context` section in AGENTS.md from the
+{rules_line}- Regenerate the `GENERATED:project-context` section in AGENTS.md from the
   hot-tier nodes, condensed: project one-liner, tech stack, build/test/lint
   commands, top conventions, module map (one line per module plus cold-node
   ref), core glossary terms. Cap: 1500 tokens.
@@ -631,7 +648,11 @@ Body: the original ticket description, then a `## Q&A (Planning)` section
 with the recorded answers.
 
 ## Task file format (`NN-<slug>.md`)
-Frontmatter: `status: planned`, `depends: []`.
+Frontmatter: `status: planned`, `depends: []`, `parallel: ok|no`.
+Set `parallel: ok` only when the task has no `depends` entries and its
+affected files overlap with no other task's; such tasks may be dispatched to
+concurrent sessions (see implementation.md, Parallel dispatch). When in
+doubt, `no`.
 Body, self-contained:
 - Goal and testable acceptance criteria that cover ecosystem correctness, not
   just "it runs": where a linter or policy check exists (lintian, clippy, a
@@ -650,7 +671,7 @@ Frontmatter: `ticket: <id>`, `status: planned`,
 `read-first: {PHASES_DIR}/implementation.md`,
 `kb-commit: <output of git -C .ai rev-parse HEAD>`, `updated: <date>`.
 Body: index only, a task table
-`| # | Task file | Depends on | Status |`.
+`| # | Task file | Depends on | Parallel | Status |`.
 `kb-commit` records the KB state the plan was built against; the
 implementation phase diffs against it to detect drift. The `read-first`
 pointer forces the implementing session to load its phase doc. Do not
@@ -658,7 +679,17 @@ remove either.
 """
 
 
-def render_phase_implementation() -> str:
+def render_phase_implementation(harness: str = "claude") -> str:
+    rules_bullet = ""
+    if harness == "claude":
+        rules_bullet = (
+            "- Path-scoped rules under `.claude/rules/` are generated from cold\n"
+            "  `conventions/*` nodes; the PostToolUse hook regenerates them on\n"
+            "  conventions-node and manifest writes. Never edit a GENERATED rule\n"
+            "  file; edit the node (run `python3 "
+            f"{TOOLS_DIR}/gen_rules.py` by hand\n"
+            "  only if no hook fired).\n"
+        )
     return f"""# Phase 3: Implementation
 
 Read this before executing any task.
@@ -708,6 +739,20 @@ honors it. A change that ignores a known build side effect or feature flag is
 a correctness gap even when the acceptance criteria read as met. Record the
 outcome in `plan.md` (`reviewed: <date>`).
 
+## Parallel dispatch (optional)
+Tasks marked `parallel: ok` in their frontmatter may be worked by concurrent
+sessions, one task file per session. Constraints:
+- Each session gets only its self-contained task file plus this doc; never
+  share working context between parallel sessions.
+- `.ai` stays single-writer: only the coordinating session updates `plan.md`
+  status, `kb-delta.yaml`, `.ai/.current`, and makes `.ai` commits. Parallel
+  workers report their result and proposed KB patch back instead of writing.
+- Git worktrees of the host repo do not contain the gitignored `.ai/`; run
+  parallel sessions in the same checkout (parallel-ok tasks touch disjoint
+  files by definition) or copy `.ai/` into the worktree.
+- The ticket review gate stays serial: one fresh-context review of the
+  combined diff after the last task, never per worker.
+
 ## Escalation (typed; never improvise around a blocker)
 - `missing-context`: use your bounded discovery first, then reload KB (1 hop,
   in a sub-agent when available). Still blocked: ask the user.
@@ -724,7 +769,10 @@ outcome in `plan.md` (`reviewed: <date>`).
 - After `manifest.yaml` changes, `INDEX.md` regenerates automatically (a
   PostToolUse hook runs `gen_index.py`); run it by hand only on a non-claude
   harness. Never edit `INDEX.md` directly.
-- ADRs (`decisions/`) are append-only. Supersede via link, never edit.
+{rules_bullet}- ADRs (`decisions/`) are append-only. Supersede via link, never edit.
+- Prune test (for every standing rule or instruction you maintain): if the
+  agent already behaves correctly without it, delete it. Always-on
+  instruction bloat is why real rules get ignored.
 - Append operational gotchas and runbooks (validation loops, CI quirks,
   merge-order rules) to `.ai/notes.md` as you hit them; promote durable
   structural knowledge into a node via `kb-delta.yaml`. `notes.md` is the
@@ -869,7 +917,9 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "- Once the build/test/lint commands are known, offer the user a Stop\n"
             "  hook in `.claude/settings.json` that runs lint (and fast tests if\n"
             "  cheap) on turn end, so \"done = checks pass\" is a hard gate. Add it\n"
-            "  only with consent.\n"
+            "  only with consent; mention the lighter session-scoped alternative,\n"
+            "  a `/goal` condition (e.g. \"tests and lint pass\") re-checked each\n"
+            "  turn without touching settings.\n"
         )
     return [
         (
@@ -987,17 +1037,37 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
     ]
 
 
+# Shown by the harness next to /name completion; also documents the expected
+# arguments for each skill.
+ARG_HINTS = {
+    "explore": "[focus]",
+    "add-ticket": "<id> <title...>",
+    "plan": "<ticket-id>",
+    "implement": "<ticket-id>",
+    "add-reference": "<name> <origin>",
+    "import-kb": "<source>",
+    "spec": "<id> <title...>",
+    "build": "<id>",
+}
+
+
 def render_skills(specs) -> dict:
     """Agent Skills (SKILL.md, open standard): .claude/skills/<name>/SKILL.md.
-    Read by Claude Code and other SKILL.md-compatible harnesses; descriptions
-    enable model invocation, /name invokes directly. `specs` is a command_specs
-    list (full or small profile)."""
+    Read by Claude Code and other SKILL.md-compatible harnesses. Every skill is
+    a user-sequenced pipeline step with side effects (KB writes, code changes,
+    `.ai` commits), so `disable-model-invocation: true` keeps the model from
+    auto-triggering them mid-conversation; only an explicit /name invokes them.
+    `specs` is a command_specs list (full or small profile)."""
     out = {}
     for name, desc, body in specs:
+        hint = ARG_HINTS.get(name)
+        hint_line = f"argument-hint: \"{hint}\"\n" if hint else ""
         out[f"{name}/SKILL.md"] = (
             "---\n"
             f"name: {name}\n"
             f'description: "{desc}"\n'
+            f"{hint_line}"
+            "disable-model-invocation: true\n"
             "---\n"
             f"{body}"
         )
@@ -1072,27 +1142,46 @@ sound, say so plainly; do not invent findings to have something to report.
 
 def render_hook_protect_generated() -> str:
     return f'''#!/usr/bin/env python3
-"""PreToolUse hook: block direct writes to generated KB files.
+"""PreToolUse hook: block direct writes to generated files.
 
-INDEX.md is generated from manifest.yaml; direct edits would silently
-diverge. Exit 2 blocks the tool call and tells the agent the fix.
+INDEX.md is generated from manifest.yaml, and marked rule files under
+.claude/rules/ are generated from conventions KB nodes; direct edits would
+silently diverge. Hand-written rule files (no marker) stay editable. Exit 2
+blocks the tool call and tells the agent the fix.
 """
 import json
 import sys
+from pathlib import Path
+
+MARKER = "{RULES_MARKER}"
 
 try:
     data = json.load(sys.stdin)
 except Exception:
     sys.exit(0)
 
-path = str((data.get("tool_input") or {{}}).get("file_path", ""))
-if path.replace("\\\\", "/").endswith(".ai/knowledgebase/INDEX.md"):
+path = str((data.get("tool_input") or {{}}).get("file_path", "")).replace("\\\\", "/")
+if path.endswith(".ai/knowledgebase/INDEX.md"):
     print(
         "INDEX.md is generated. Edit .ai/knowledgebase/manifest.yaml, then "
         "run: python3 {TOOLS_DIR}/gen_index.py",
         file=sys.stderr,
     )
     sys.exit(2)
+if "/.claude/rules/" in f"/{{path}}" and path.endswith(".md"):
+    try:
+        existing = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        existing = ""
+    if MARKER in existing:
+        print(
+            "This rule file is generated from a conventions KB node. Edit "
+            "the node under .ai/knowledgebase/conventions/, then run: "
+            "python3 {TOOLS_DIR}/gen_rules.py (a hook also does this "
+            "automatically).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 sys.exit(0)
 '''
 
@@ -1138,12 +1227,15 @@ sys.exit(0)
 
 def render_hook_regen_index() -> str:
     return '''#!/usr/bin/env python3
-"""PostToolUse hook: regenerate INDEX.md whenever manifest.yaml is written.
+"""PostToolUse hook: keep generated KB artifacts in sync.
 
-INDEX.md is a build artifact of manifest.yaml. Regenerating it deterministically
-on every manifest write removes the "remember to run gen_index" instruction from
-the phase docs. Non-blocking: the manifest write already succeeded, so this only
-keeps the generated view in sync. Always exits 0.
+- manifest.yaml written  -> regenerate INDEX.md (gen_index.py) and the
+  path-scoped rules (gen_rules.py; covers/tier live in the manifest)
+- conventions node written -> regenerate the path-scoped rules only
+
+Regenerating deterministically removes the "remember to run gen_*"
+instructions from the phase docs. Non-blocking: the triggering write already
+succeeded, so this only keeps the generated views in sync. Always exits 0.
 """
 import json
 import subprocess
@@ -1156,17 +1248,24 @@ except Exception:
     sys.exit(0)
 
 path = str((data.get("tool_input") or {}).get("file_path", "")).replace("\\\\", "/")
-if not path.endswith(".ai/knowledgebase/manifest.yaml"):
+is_manifest = path.endswith(".ai/knowledgebase/manifest.yaml")
+is_convention = (".ai/knowledgebase/conventions/" in path
+                 and path.endswith(".md"))
+if not (is_manifest or is_convention):
     sys.exit(0)
 
-gen = Path(".ai/agent/tools/gen_index.py")
-if not gen.exists():
-    sys.exit(0)
+jobs = []
+if is_manifest:
+    jobs.append(("INDEX.md", Path(".ai/agent/tools/gen_index.py")))
+jobs.append((".claude/rules", Path(".ai/agent/tools/gen_rules.py")))
 
-r = subprocess.run([sys.executable, str(gen)], capture_output=True, text=True)
-msg = (r.stdout or r.stderr).strip()
-if msg:
-    print(f"INDEX.md regenerated from manifest.yaml: {msg}", file=sys.stderr)
+for label, gen in jobs:
+    if not gen.exists():
+        continue
+    r = subprocess.run([sys.executable, str(gen)], capture_output=True, text=True)
+    msg = (r.stdout or r.stderr).strip()
+    if msg:
+        print(f"{label} regenerated: {msg}", file=sys.stderr)
 sys.exit(0)
 '''
 
@@ -1312,6 +1411,92 @@ def main() -> int:
         print(f"STALE {{node_id}} (updated {{updated}}): {{sample}}")
     print(f"{{len(stale)}} stale node(s). Refresh them and bump `updated`.")
     return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+
+RULES_MARKER = "by gen_rules.py. Edit the source node, not this file."
+
+
+def render_tool_gen_rules() -> str:
+    return f'''#!/usr/bin/env python3
+"""Regenerate path-scoped Claude Code rules from conventions KB nodes.
+
+Cold `conventions/*` nodes with non-empty `covers` globs render to
+`.claude/rules/<id>.md` with `paths:` frontmatter, so the harness injects the
+convention deterministically whenever matching files are touched — no manifest
+lookup by the model needed. Hot nodes are excluded (already embedded in the
+AGENTS.md project-context section); nodes without `covers` cannot be
+path-scoped and stay on the manifest protocol.
+
+The rule files are build artifacts: a marker line tags them, stale ones are
+deleted on regeneration, and a PreToolUse hook blocks direct edits. Claude
+harness only; on others the manifest protocol covers conventions.
+
+Usage: python3 {TOOLS_DIR}/gen_rules.py
+"""
+import sys
+from pathlib import Path
+
+AI = Path(__file__).resolve().parents[2]
+KB = AI / "knowledgebase"
+RULES = AI.parent / ".claude" / "rules"
+MARKER = "{RULES_MARKER}"
+
+{_MANIFEST_PARSER}
+
+def node_body(path: Path) -> str:
+    """Node content without its frontmatter block."""
+    text = path.read_text(encoding="utf-8")
+    if text.startswith("---"):
+        end = text.find("\\n---", 3)
+        if end != -1:
+            return text[end + 4:].lstrip("\\n")
+    return text
+
+
+def main() -> int:
+    manifest = KB / "manifest.yaml"
+    if not manifest.exists():
+        print(f"not found: {{manifest}}", file=sys.stderr)
+        return 1
+    _, nodes = parse_manifest(manifest.read_text(encoding="utf-8"))
+    written = set()
+    for n in nodes:
+        node_id = n.get("id", "")
+        covers = parse_yaml_list(n.get("covers", ""))
+        if (not node_id.startswith("conventions/")
+                or n.get("tier") != "cold" or not covers):
+            continue
+        src = KB / n.get("path", "")
+        if not src.exists():
+            continue
+        name = node_id.replace("/", "-") + ".md"
+        paths = ", ".join(f'"{{g}}"' for g in covers)
+        RULES.mkdir(parents=True, exist_ok=True)
+        (RULES / name).write_text(
+            "---\\n"
+            f"paths: [{{paths}}]\\n"
+            "---\\n"
+            f"<!-- GENERATED from .ai/knowledgebase/{{n.get('path', '')}} "
+            f"{{MARKER}} -->\\n\\n"
+            + node_body(src),
+            encoding="utf-8",
+        )
+        written.add(name)
+        print(f"wrote {{RULES / name}}")
+    # Remove generated rules whose node vanished or lost its covers/cold tier.
+    if RULES.is_dir():
+        for f in RULES.glob("*.md"):
+            if f.name not in written and MARKER in f.read_text(encoding="utf-8"):
+                f.unlink()
+                print(f"removed stale {{f}}")
+    if not written:
+        print("no cold conventions nodes with covers; nothing to render")
+    return 0
 
 
 if __name__ == "__main__":
@@ -1543,6 +1728,7 @@ def render_settings_json(small: bool = False) -> str:
         allow += [
             f"Bash(python3 {TOOLS_DIR}/gen_index.py:*)",
             f"Bash(python3 {TOOLS_DIR}/check_stale.py:*)",
+            f"Bash(python3 {TOOLS_DIR}/gen_rules.py:*)",
         ]
     hooks = {}
     if not small:
@@ -1816,7 +2002,7 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
     write(phases / "init.md", render_phase_init(harness),
           force, created, skipped)
     write(phases / "planning.md", render_phase_planning(), force, created, skipped)
-    write(phases / "implementation.md", render_phase_implementation(),
+    write(phases / "implementation.md", render_phase_implementation(harness),
           force, created, skipped)
 
     tools = root / TOOLS_DIR
@@ -1824,6 +2010,12 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
     write(tools / "check_stale.py", render_tool_check_stale(),
           force, created, skipped)
     write(tools / "probe.py", render_tool_probe(), force, created, skipped)
+    if harness == "claude":
+        # Path-scoped rules are a Claude Code mechanism; on other harnesses
+        # conventions stay on the manifest protocol, so the tool is not
+        # scaffolded there.
+        write(tools / "gen_rules.py", render_tool_gen_rules(),
+              force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section, which is
     # Phase 1 output: recover it (also from legacy CLAUDE.md scaffolds).
