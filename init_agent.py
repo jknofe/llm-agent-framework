@@ -768,8 +768,9 @@ sessions, one task file per session. Constraints:
   AGENTS.md. Before declaring the ticket done, run the project-context
   refresh so the always-loaded digest cannot silently drift: re-run
   `python3 {TOOLS_DIR}/probe.py` and compare its build/test/lint commands and
-  module map against that section; refresh it only if this ticket moved
-  either. This is a bounded diff check, not a re-explore.
+  module map against that section. Refresh only for a changed command or a
+  new/removed/renamed module; a bare LOC delta on an existing module is not
+  actionable, leave it. This is a bounded diff check, not a re-explore.
 - After `manifest.yaml` changes, `INDEX.md` regenerates automatically (a
   PostToolUse hook runs `gen_index.py`); run it by hand only on a non-claude
   harness. Never edit `INDEX.md` directly.
@@ -1009,9 +1010,10 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   cannot silently drift: re-run `python3\n"
             f"   {TOOLS_DIR}/probe.py` and compare its build/test/lint commands\n"
             "   and module map against the `GENERATED:project-context` section\n"
-            "   of `AGENTS.md`. If this change moved either, update that section\n"
-            "   (keep it under ~1500 tokens); otherwise leave it untouched. This\n"
-            "   is a bounded diff check, not a re-explore.\n"
+            "   of `AGENTS.md`. Update that section only for a changed command or\n"
+            "   a new/removed/renamed module; a bare LOC delta on an existing\n"
+            "   module is not actionable, leave it. Keep it under ~1500 tokens.\n"
+            "   This is a bounded diff check, not a re-explore.\n"
             "6. Set `status: done`, delete `.ai/.current`, and commit `.ai`\n"
             "   (`build: <id>`).\n\n"
             "Escalate instead of improvising: on missing context, do bounded\n"
