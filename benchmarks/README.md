@@ -10,6 +10,13 @@ concrete change, then validates the produced artifact in a container.
 |---|---|---|---|---|---|
 | [satty-deb-2026-07-01](satty-deb-2026-07-01/report.md) | 2026-07-01 | [Satty](https://github.com/Satty-org/Satty.git) | Add Debian packaging (`[package.metadata.deb]` + `deb:` target) | opus/sonnet × medium/high × small/large (8 runs) | 8/8 built a valid `.deb` |
 | [haiku-sonnet-2026-07-01](haiku-sonnet-2026-07-01/report.md) | 2026-07-01 | [Satty](https://github.com/Satty-org/Satty.git) | Same Debian-packaging task | haiku/sonnet × low/medium × small (4 runs) | 4/4 built a valid `.deb` |
+| [sonnet5-2026-07-02](sonnet5-2026-07-02/report.md) | 2026-07-02 | [Satty](https://github.com/Satty-org/Satty.git) | Same Debian-packaging task, on the v5.6 framework | sonnet-5 × medium/high × small (2 runs) | 2/2 built a valid `.deb`; high matched the opus-high policy bar |
+
+## Planned
+
+| Run | Purpose | Spec |
+|---|---|---|
+| two-register-ab | Validate CONCEPT.md §8 (plain normative docs + telegraphic KB content) against plain-only and telegraphic-only variants: escalation/re-plan rates, process fidelity, tokens | [two-register-ab/runbook.md](two-register-ab/runbook.md) |
 
 ## Shared runbook
 
@@ -37,6 +44,12 @@ section, and spawn. Effort tiers `low`, `medium`, and `high` are defined there.
 - **The framework fixes from the first run held in the second.** The load-bearing `deb: build-release`
   invariant, fig-completion inclusion, and lintian-aware spec criteria (commits `2f8343a`, `5f8ec4f`)
   all carried through with no regressions.
+- **A stronger model raises the effort tier's floor, not its ceiling.** Sonnet 5 at medium
+  (2026-07-02) added policy details prior mediums missed (`section`/`priority`,
+  `extended-description`) and stated its remaining deviations as explicit assumptions, but the
+  tier-defining details (zsh `vendor-completions/`, `license-file`) still required high — the
+  effort axis kept its shape. At high, the reviewer began verifying empirically (real build +
+  `.deb` content diff), a new behavior.
 
 ## Adding a run
 
