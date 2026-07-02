@@ -51,22 +51,14 @@ encoding it into a template; a wrong fact here ships into every scaffold.
 
 ## Testing
 
-No unit-test suite. Validate mechanically:
+Full procedure: **[TESTING.md](TESTING.md)**. The short version:
 
-1. Syntax: `python3 -c "import ast; ast.parse(open('init_agent.py').read())"`
-2. Scaffold into a throwaway dir (init writes to CWD) and inspect:
-   ```
-   d=$(mktemp -d); ( cd "$d" && python3 /path/init_agent.py \
-     --name t --description d --size small --harness claude -y )
-   ```
-   Run for both `--size small|large` and both `--harness claude|copilot`.
-3. Grep the generated files to confirm your template change rendered, and that
-   any referenced tool path actually exists and runs (e.g. `probe.py` ships in
-   both profiles). A dangling path in a template is a silent break.
-4. Re-init preservation: scaffold, hand-edit a KB/notes/project-context file,
-   re-run init, confirm it reports `preserved` and did not revert.
-5. End-to-end: the `benchmarks/` runs are the real regression harness. A
-   behavior change worth shipping is worth a benchmark cell (small profile,
-   Satty debian-pkg task) before and after.
+- Layer 1 (every change): syntax check, scaffold all four size/harness
+  variants into a temp dir, grep the render, verify referenced tool paths run,
+  check re-init preservation, sweep for benchmark-term leakage.
+- Layer 2 (behavior changes): run a benchmark cell before and after; runbooks
+  and the run index live under `benchmarks/`. Smoke = small profile,
+  sonnet + medium, Satty debian-pkg task.
 
-Always scaffold into a temp dir, never into this repo root.
+Non-negotiables: never scaffold into this repo root; PASS/FAIL comes from the
+deterministic container gate only; generated artifacts stay ecosystem-neutral.
