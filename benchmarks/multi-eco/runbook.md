@@ -60,15 +60,15 @@ below, so later rounds compare like against like. Selection protocol per type:
   or split a module/helper with zero behavior change. The existing test suite
   is the invariant: it must pass unmodified (test files untouched in the diff).
 
-### Pinned briefs (fill at first run)
+### Pinned briefs (pinned 2026-07-02)
 
 | Cell | Pinned SHA | Brief | Notes |
 |---|---|---|---|
-| py-bugfix-small | _tbd_ | _tbd_ | reverted commit: _tbd_ |
-| py-feature-small | _tbd_ | _tbd_ | |
-| sh-refactor-small | _tbd_ | _tbd_ | |
-| ros-plan-large | _tbd_ | _tbd_ | |
-| ros-refactor-large | _tbd_ | _tbd_ | |
+| py-bugfix-small | sqlite-utils `79117b9` | "The test `tests/test_fts.py::test_enable_fts_replace_handles_legacy_bracket_quoted_content_table` fails. Find the root cause and fix it." | Seed: revert the `sqlite_utils/db.py` hunk of `1a28416` (detect_fts `content=[...]` vs `content="..."` LIKE pattern), keep the test. Symptom is `table "books_fts" already exists` — root cause is two hops away in `detect_fts`. Verified failing 2026-07-02 (1 failed, 46 passed). |
+| py-feature-small | sqlite-utils `79117b9` | "Add a `rename-column` CLI command and a `Table.rename_column(old, new)` API method, mirroring the existing `rename-table` command / `rename_table()` pattern. Include tests and doc updates." | Gap verified: `rename-table` exists (`cli.py:1681`, `db.py:1233`), no column equivalent. May delegate to `transform()`. |
+| sh-refactor-small | bats-core `5a7db7a` | "The function `abort()` is defined identically in `libexec/bats-core/bats`, `bats-exec-suite`, and `bats-gather-tests`. Deduplicate it into `lib/bats-core/common.bash` with zero behavior change. The existing test suite must pass unmodified." | Leave the per-formatter `bats_tap_stream_*` trio alone (callback interface, not duplication). |
+| ros-plan-large | navigation `f44bb1f` (noetic-devel) | "Plan a new recovery-behavior package `back_up_recovery` (drives the robot straight back a configurable distance), mirroring the `rotate_recovery` package structure: plugin class, pluginlib export XML, package.xml, CMakeLists, and how move_base users enable it." | Plan-only; `rotate_recovery` (1 header + 1 cpp) is the in-repo template. |
+| ros-refactor-large | navigation `f44bb1f` | "In `map_server`, extract the `MapServer` node class from `src/main.cpp` into a header + separate translation unit with zero behavior change. The existing rostest suite (`test/rtest.cpp`) must pass unmodified." | Single-package; catkin build + rostest is the invariant. |
 
 ## Validation (deterministic, per cell)
 
@@ -93,9 +93,10 @@ EOF
 
 Per-cell gates (all run with the work dir mounted at `/workspace`):
 
-- **py-bugfix-small:** `pip install -e '.[test]' && pytest` — the previously
-  failing test now passes AND the full suite is green. Extra check outside the
-  container: `git diff --stat` touches no test file.
+- **py-bugfix-small:** `pip install -e . pytest hypothesis && python -m pytest`
+  (sqlite-utils uses PEP 735 dependency-groups, not a `[test]` extra) — the
+  previously failing test now passes AND the full suite is green. Extra check
+  outside the container: `git diff --stat` touches no test file.
 - **py-feature-small:** full suite green including the agent's new tests;
   the repo's own lint config (whatever `pyproject.toml`/CI defines) is clean.
 - **sh-refactor-small:** `bin/bats test` green AND
