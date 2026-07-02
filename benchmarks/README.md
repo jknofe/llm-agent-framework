@@ -18,6 +18,7 @@ concrete change, then validates the produced artifact in a container.
 | Run | Purpose | Spec |
 |---|---|---|
 | two-register-ab | Validate CONCEPT.md §8 (plain normative docs + telegraphic KB content) against plain-only and telegraphic-only variants: escalation/re-plan rates, process fidelity, tokens | [two-register-ab/runbook.md](two-register-ab/runbook.md) |
+| multi-eco | Empirical counterpart to the 2026-07-02 overfitting audit: 5 cells across Python (sqlite-utils), Shell (bats-core), C++/ROS (navigation) x bugfix/cross-file-feature/refactor task types, deterministic container gates, no packaging task | [multi-eco/runbook.md](multi-eco/runbook.md) |
 
 ## Shared runbook
 
