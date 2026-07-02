@@ -765,7 +765,11 @@ sessions, one task file per session. Constraints:
 - `kb-delta.yaml` auto-apply covers metadata and `covers` changes only.
   Structural changes go through the review gate.
 - After hot-tier node updates, regenerate `GENERATED:project-context` in
-  AGENTS.md.
+  AGENTS.md. Before declaring the ticket done, run the project-context
+  refresh so the always-loaded digest cannot silently drift: re-run
+  `python3 {TOOLS_DIR}/probe.py` and compare its build/test/lint commands and
+  module map against that section; refresh it only if this ticket moved
+  either. This is a bounded diff check, not a re-explore.
 - After `manifest.yaml` changes, `INDEX.md` regenerates automatically (a
   PostToolUse hook runs `gen_index.py`); run it by hand only on a non-claude
   harness. Never edit `INDEX.md` directly.
@@ -1000,9 +1004,14 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   honors it, not just that the acceptance criteria read as met.\n"
             "   Never skip the gate. Fix gaps that affect correctness or the\n"
             "   stated criteria; ignore style-only findings.\n"
-            "5. Append any durable decision or gotcha to `.ai/notes.md`. If\n"
-            "   conventions, commands, or the module map changed, update the\n"
-            "   Project Context section of `AGENTS.md`.\n"
+            "5. Append any durable decision or gotcha to `.ai/notes.md`. Then\n"
+            "   run the project-context refresh so the always-loaded digest\n"
+            "   cannot silently drift: re-run `python3\n"
+            f"   {TOOLS_DIR}/probe.py` and compare its build/test/lint commands\n"
+            "   and module map against the `GENERATED:project-context` section\n"
+            "   of `AGENTS.md`. If this change moved either, update that section\n"
+            "   (keep it under ~1500 tokens); otherwise leave it untouched. This\n"
+            "   is a bounded diff check, not a re-explore.\n"
             "6. Set `status: done`, delete `.ai/.current`, and commit `.ai`\n"
             "   (`build: <id>`).\n\n"
             "Escalate instead of improvising: on missing context, do bounded\n"
