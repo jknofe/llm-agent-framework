@@ -655,8 +655,9 @@ concurrent sessions (see implementation.md, Parallel dispatch). When in
 doubt, `no`.
 Body, self-contained:
 - Goal and testable acceptance criteria that cover ecosystem correctness, not
-  just "it runs": where a linter or policy check exists (lintian, clippy, a
-  schema validator), name it and make passing it a criterion
+  just "it runs": where a linter or policy check exists for the ecosystem you
+  touch (eslint, mypy/ruff, clippy, shellcheck, lintian, a schema validator),
+  name it and make passing it a criterion
 - Affected files with explicit paths
 - Pre-bound KB node ids
 - Expected signatures/interfaces
@@ -971,8 +972,9 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   ## Acceptance criteria\n"
             "   - [ ] testable criterion\n"
             "   Cover ecosystem correctness, not just \"it runs\": where a linter\n"
-            "   or policy check would catch a wrong-but-working result (lintian,\n"
-            "   clippy, a schema validator), name it and make passing it a\n"
+            "   or policy check for the ecosystem you touch would catch a\n"
+            "   wrong-but-working result (eslint, mypy/ruff, clippy, shellcheck,\n"
+            "   lintian, a schema validator), name it and make passing it a\n"
             "   criterion.\n"
             "   ## Tasks\n"
             "   - [ ] task - files: <paths>\n"
