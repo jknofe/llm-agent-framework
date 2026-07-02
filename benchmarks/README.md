@@ -11,6 +11,7 @@ concrete change, then validates the produced artifact in a container.
 | [satty-deb-2026-07-01](satty-deb-2026-07-01/report.md) | 2026-07-01 | [Satty](https://github.com/Satty-org/Satty.git) | Add Debian packaging (`[package.metadata.deb]` + `deb:` target) | opus/sonnet × medium/high × small/large (8 runs) | 8/8 built a valid `.deb` |
 | [haiku-sonnet-2026-07-01](haiku-sonnet-2026-07-01/report.md) | 2026-07-01 | [Satty](https://github.com/Satty-org/Satty.git) | Same Debian-packaging task | haiku/sonnet × low/medium × small (4 runs) | 4/4 built a valid `.deb` |
 | [sonnet5-2026-07-02](sonnet5-2026-07-02/report.md) | 2026-07-02 | [Satty](https://github.com/Satty-org/Satty.git) | Same Debian-packaging task, on the v5.6 framework | sonnet-5 × medium/high × small (2 runs) | 2/2 built a valid `.deb`; high matched the opus-high policy bar |
+| [ua-plan-2026-07-02](ua-plan-2026-07-02/report.md) | 2026-07-02 | [Understand-Anything](https://github.com/Egonex-AI/Understand-Anything.git) | Add Angular detection to the framework registry (`FrameworkConfig` + registration + test) | sonnet-5 × medium/high × large, **explore + plan only** (2 runs) | 2/2 produced schema-valid, implementable plans; effort axis held (breadth + assumption quality), no source touched |
 
 ## Planned
 
