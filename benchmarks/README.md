@@ -24,6 +24,15 @@ _Round 1 of multi-eco ran in parallel on ROS 1 noetic. The [multi-eco runbook](m
 |---|---|---|
 | two-register-ab | Validate CONCEPT.md §8 (plain normative docs + telegraphic KB content) against plain-only and telegraphic-only variants: escalation/re-plan rates, process fidelity, tokens | [two-register-ab/runbook.md](two-register-ab/runbook.md) |
 
+## Fixed reproducible runbook
+
+For a repeatable round where **the only user inputs are MODEL and EFFORT**, use
+[fixed-runbook.md](fixed-runbook.md). Every target repo, exact commit SHA, seed,
+scaffold command, size profile, Docker image, deterministic gate, and PASS rule
+is a pinned constant, so re-running it later with the same MODEL/EFFORT
+reproduces the same cells against the same code. It consolidates the cells from
+the two runbooks below.
+
 ## Shared runbook
 
 Both runs use the small/large-profile procedure in
