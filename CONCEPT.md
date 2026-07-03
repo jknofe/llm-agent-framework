@@ -298,9 +298,9 @@ what gets loaded. Phases are mutually exclusive per session → on-demand.
 - Exceptions kept verbatim everywhere: identifiers, paths, commands, code
   blocks, frontmatter keys
 - Validation path: A/B same ticket in both styles, compare escalation +
-  re-plan rates. Runnable spec: `benchmarks/two-register-ab/runbook.md`
-  (added v5.6; a spec'd-but-never-run validation is the same dead weight
-  telemetry was culled for)
+  re-plan rates (a two-register A/B spec was drafted for v5.6 but never run; a
+  spec'd-but-never-run validation is the same dead weight telemetry was culled
+  for)
 
 ## 9. Token efficiency stack (summary)
 
@@ -654,9 +654,9 @@ protocol as the fallback on other harnesses.
    (Claude Code overrides a Stop hook after repeated consecutive blocks;
    protocol rule = backstop); auto permission mode noted as the
    low-maintenance interactive alternative to the scaffolded allowlist.
-7. **Two-register A/B made runnable.** §8's validation path now has a
-   benchmark spec (`benchmarks/two-register-ab/runbook.md`) instead of a
-   standing intention.
+7. **Two-register A/B made runnable.** §8's validation path was given a
+   benchmark spec instead of a standing intention (later removed unrun when the
+   benchmarks were consolidated to a single fixed runbook).
 
 Rejected in this pass: subdirectory-CLAUDE.md pointers for module nodes
 (weaker duplicate of item 2), embedding retrieval (still wrong below ~200
@@ -701,7 +701,8 @@ machinery; both harden existing behavior.
 
 The multi-eco round (Python/Shell/C++-ROS × bugfix/feature/refactor) found no
 framework defects; the harness-side fixes it did surface (container image,
-brief premise, parallel-orchestration) live in `benchmarks/`, not here.
+brief premise, parallel-orchestration) were benchmark-harness details, not
+framework changes.
 
 ## 19. Small-profile notes hub (2026-07-03, v5.8)
 
@@ -734,10 +735,9 @@ Design choices:
   staleness-guarded memory has outgrown small — re-init as large (carries the
   digest over).
 
-Validated by a controlled A/B (`benchmarks/notes-hub-2026-07-03/`, sonnet-5
-medium, same repo + task, notes size the only variable): a seeded 84-line
-notes.md split correctly (hub + leaf, links in sync); a fresh 43-line notes.md
-correctly stayed flat. Both code gates green.
+Validated by a controlled A/B (sonnet-5 medium, same repo + task, notes size the
+only variable): a seeded 84-line notes.md split correctly (hub + leaf, links in
+sync); a fresh 43-line notes.md correctly stayed flat. Both code gates green.
 
 ## 20. Automatic profile selection (2026-07-03, v5.9)
 
