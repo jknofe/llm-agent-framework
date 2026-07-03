@@ -66,7 +66,7 @@ below, so later rounds compare like against like. Selection protocol per type:
 |---|---|---|---|
 | py-bugfix-small | sqlite-utils `79117b9` | "The test `tests/test_fts.py::test_enable_fts_replace_handles_legacy_bracket_quoted_content_table` fails. Find the root cause and fix it." | Seed: revert the `sqlite_utils/db.py` hunk of `1a28416` (detect_fts `content=[...]` vs `content="..."` LIKE pattern), keep the test. Symptom is `table "books_fts" already exists` — root cause is two hops away in `detect_fts`. Verified failing 2026-07-02 (1 failed, 46 passed). |
 | py-feature-small | sqlite-utils `79117b9` | "Add a `rename-column` CLI command and a `Table.rename_column(old, new)` API method, mirroring the existing `rename-table` command / `rename_table()` pattern. Include tests and doc updates." | Gap verified: `rename-table` exists (`cli.py:1681`, `db.py:1233`), no column equivalent. May delegate to `transform()`. |
-| sh-refactor-small | bats-core `5a7db7a` | "The function `abort()` is defined identically in `libexec/bats-core/bats`, `bats-exec-suite`, and `bats-gather-tests`. Deduplicate it into `lib/bats-core/common.bash` with zero behavior change. The existing test suite must pass unmodified." | Leave the per-formatter `bats_tap_stream_*` trio alone (callback interface, not duplication). |
+| sh-refactor-small | bats-core `5a7db7a` | "The function `abort()` is defined identically in `libexec/bats-core/bats`, `bats-exec-suite`, and `bats-gather-tests`. Deduplicate it into `lib/bats-core/common.bash` with zero behavior change. The existing test suite must pass unmodified." | Leave the per-formatter `bats_tap_stream_*` trio alone (callback interface, not duplication). **Round-1 correction:** only `bats` and `bats-exec-suite` are true duplicates; `bats-gather-tests`'s `abort()` has a different printf contract (same-name coincidence). The brief is kept verbatim as a deliberate wrong-premise probe: the round-1 agent detected and recorded the discrepancy, which is the desired behavior. |
 | ros-plan-large | navigation `f44bb1f` (noetic-devel) | "Plan a new recovery-behavior package `back_up_recovery` (drives the robot straight back a configurable distance), mirroring the `rotate_recovery` package structure: plugin class, pluginlib export XML, package.xml, CMakeLists, and how move_base users enable it." | Plan-only; `rotate_recovery` (1 header + 1 cpp) is the in-repo template. |
 | ros-refactor-large | navigation `f44bb1f` | "In `map_server`, extract the `MapServer` node class from `src/main.cpp` into a header + separate translation unit with zero behavior change. The existing rostest suite (`test/rtest.cpp`) must pass unmodified." | Single-package; catkin build + rostest is the invariant. |
 
@@ -84,12 +84,19 @@ EOF
 
 docker build -t ros-nav-builder - <<'EOF'
 FROM ros:noetic
+# Dev deps found missing at CMake-configure time in round 1 (map_server needs
+# tf2/Bullet/SDL/yaml-cpp); bake them in so validation does not install per-run.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-catkin-tools python3-rosdep build-essential \
+    ros-noetic-tf2-ros ros-noetic-tf2-geometry-msgs libbullet-dev \
+    libsdl1.2-dev libsdl-image1.2-dev libyaml-cpp-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace
 EOF
 ```
+
+Noetic is EOL: any `rosdep update` inside the container needs
+`--include-eol-distros` (round-1 finding).
 
 Per-cell gates (all run with the work dir mounted at `/workspace`):
 
@@ -121,6 +128,16 @@ Per-cell gates (all run with the work dir mounted at `/workspace`):
 | Does the large profile's KB/budget machinery pay off on a genuinely large C++ codebase (vs the ~7k-LOC Satty where it did not)? | ros-* |
 | Does `parallel: ok` marking appear only where files are truly disjoint? | ros-plan-large |
 | Does the project-context refresh step stay quiet when commands/module map did not move (LOC-only drift)? | all small cells |
+
+## Orchestration: session limits with parallel cells
+
+A cell that stalls on a session limit is not dead: it may resume after the
+reset. Resume the stalled agent (its context and work dir are intact); never
+launch a fresh duplicate into the same work dir. In round 1 a duplicate
+relaunch collided with the resumed original on py-bugfix - both agents
+detected the foreign edits and converged, but do not rely on that. The
+small-profile resume path (`.ai/.current` + committed `.ai` state) was
+validated by four real interruptions in round 1.
 
 ## Quality dimensions (recorded, not gating)
 
