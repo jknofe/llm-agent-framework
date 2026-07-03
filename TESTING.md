@@ -31,8 +31,9 @@ templates, so the tests are "does it render, does it run, does an agent behave".
    `preserved` and nothing reverted to a stub.
 6. **Leakage sweep** (after changing normative text): grep the scaffolds for
    terms specific to any benchmark target (satty, debian, cargo deb, angular,
-   sqlite-utils, bats, ros, ...). Generated artifacts must stay
-   ecosystem-neutral; named linters are allowed only as diverse example lists.
+   sqlite-utils, bats, ros, nav2, navigation2, colcon, ...). Generated
+   artifacts must stay ecosystem-neutral; named linters are allowed only as
+   diverse example lists.
 
 ## Layer 2: Benchmark runs (behavior changes)
 
@@ -41,6 +42,13 @@ through the framework phases (init -> explore -> spec/ticket -> [plan] ->
 build/implement), then gate the produced artifact deterministically in Docker.
 Rule of thumb: a behavior change worth shipping is worth one benchmark cell
 before and after.
+
+**Run cells sequentially, one at a time** — never dispatch a multi-cell round
+in parallel. Parallel cells burn the usage window several times faster and
+strand each other on session limits (round 1's lesson). Wait for a cell's
+results file + gate verdict before starting the next; if a cell stalls on a
+limit, resume that same agent after the reset rather than launching a
+duplicate. Details and cell order: the multi-eco runbook's Execution section.
 
 All procedure lives under `benchmarks/`:
 
