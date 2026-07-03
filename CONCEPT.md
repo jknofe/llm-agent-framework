@@ -1,9 +1,11 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-02, v5.6 (harness-mechanism pass after a best-practice review:
-skills locked to manual invocation, path-scoped rules generated from
-conventions nodes, parallel-ok task marking, /goal as middle verification
-tier, prune test in KB lint, §17). v5.5 (more determinism offloaded from the
+State: 2026-07-03, v5.7 (project-context freshness: end-of-change refresh of the
+AGENTS.md generated digest via probe.py, LOC-only drift excluded; ecosystem-
+neutral correctness-criteria examples; §18). v5.6 (harness-mechanism pass after
+a best-practice review: skills locked to manual invocation, path-scoped rules
+generated from conventions nodes, parallel-ok task marking, /goal as middle
+verification tier, prune test in KB lint, §17). v5.5 (more determinism offloaded from the
 model to scripts/
 hooks: probe.py repo inventory, auto-regenerate INDEX on manifest write,
 check_stale at session start, §16). v5.4 (/import-kb: transform an existing
@@ -659,3 +661,39 @@ deterministic, works headless).
 Unchanged: KB layout, manifest navigation, hot/cold tiers, kb-delta, drift
 and staleness model, ticket lifecycle + archive, review gates, two-register
 language, size profiles, model-agnosticism, single-interactive-scaffold CLI.
+
+## 18. Project-context freshness + ecosystem-neutral criteria (2026-07-02, v5.7)
+
+Two small refinements after v5.6, both surfaced and then validated by benchmark
+runs (the multi-eco set and the sonnet5-medium regression cell). No new
+machinery; both harden existing behavior.
+
+1. **End-of-change project-context refresh.** The always-loaded AGENTS.md
+   `GENERATED:project-context` digest had no regenerator outside `/explore` and
+   re-init: INDEX.md and path-scoped rules auto-regenerate via hooks (§16.2,
+   §17.2), but the digest could silently drift once implementation changed a
+   build command or the module map. Fix: a bounded step at the end of small
+   `/build` and large implementation.md — re-run `probe.py`, compare its
+   build/test/lint commands and module map against the digest, and refresh the
+   section only for a changed command or a new/removed/renamed module. A bare
+   LOC delta on an existing module is explicitly **not** actionable (that
+   exclusion came from the sonnet5-medium run, where a +26-line file tripped a
+   false rewrite). Deliberately a model-run step, not a hook: `probe.py` output
+   is the mechanical input, but deciding whether the curated human-readable
+   digest needs an edit is judgment. Validated: fired and caught a real
+   new-`make deb`-target drift in the sonnet5-medium-small-v2 cell, and fired
+   5/5 in the multi-eco round while correctly staying quiet on LOC-only drift.
+2. **Ecosystem-neutral correctness criteria.** The `/spec` skill and large
+   task-file format ask for acceptance criteria that name the relevant
+   linter/policy check (§12, ecosystem correctness). The example list named
+   only `lintian` and `clippy` — the two ecosystems benchmarked at the time
+   (Debian packaging, Rust) — biasing agents on other stacks toward
+   benchmark-flavored criteria. Diversified to `eslint, mypy/ruff, clippy,
+   shellcheck, lintian, schema validators` with "for the ecosystem you touch"
+   framing. Found by a static overfitting audit; confirmed by the multi-eco
+   run, where agents named their repos' own gates unprompted (pytest, mypy,
+   flake8, shellcheck) with no lintian/clippy reflex.
+
+The multi-eco round (Python/Shell/C++-ROS × bugfix/feature/refactor) found no
+framework defects; the harness-side fixes it did surface (container image,
+brief premise, parallel-orchestration) live in `benchmarks/`, not here.
