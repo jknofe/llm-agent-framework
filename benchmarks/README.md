@@ -14,7 +14,7 @@ concrete change, then validates the produced artifact in a container.
 | [ua-plan-2026-07-02](ua-plan-2026-07-02/report.md) | 2026-07-02 | [Understand-Anything](https://github.com/Egonex-AI/Understand-Anything.git) | Add Angular detection to the framework registry (`FrameworkConfig` + registration + test) | sonnet-5 × medium/high × large, **explore + plan only** (2 runs) | 2/2 produced schema-valid, implementable plans; effort axis held (breadth + assumption quality), no source touched |
 | [multi-eco](multi-eco/report.md) | 2026-07-02/03 | sqlite-utils (Python), bats-core (Shell), navigation ROS 1 (C++) | Bugfix-from-failing-test, cross-file feature, refactor-with-invariants (no packaging) | sonnet-5 × medium × 5 cells (3 small, 2 large), **run in parallel** | **5/5 PASS**; no overfitting to prior scenarios; review gates caught 3 real defects; resume-after-interruption validated 4× |
 
-_Round 1 above ran in parallel on ROS 1 noetic. The [multi-eco runbook](multi-eco/runbook.md) has since been reworked for **sequential** execution and **ROS 2 Jazzy / navigation2 (colcon)**; future rounds use that._
+_Round 1 above ran in parallel on ROS 1 noetic. The [multi-eco runbook](multi-eco/runbook.md) has since been reworked for **sequential** execution and **ROS 2 Jazzy / navigation2 (colcon)**, and now folds the two original reference scenarios (Satty Rust-packaging, Understand-Anything Angular plan) in as cells — a single 7-cell cross-ecosystem set (Python, Shell, Rust, TS/Angular, C++/ROS 2). Future rounds use that._
 
 ## Planned
 

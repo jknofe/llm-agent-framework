@@ -15,14 +15,21 @@ This file defines only what differs: targets, task briefs, and validation.
 
 ## Design
 
-- **Matrix:** 5 cells, one model per round (focused profile: fits ~1-2 h wall
-  time, cheap enough to run per framework change).
-- **New axes vs prior runs:** ecosystem (Python, Shell, C++/ROS 2) and task type
-  (bugfix-from-failing-test, cross-file feature, refactor-with-invariants).
-  No packaging task in this set on purpose.
-- **Pass/fail anchor:** deterministic container checks only. A cell PASSes when
-  its validation script exits 0 inside the named Docker image. Rubric-style
-  quality dimensions are recorded but never decide PASS/FAIL.
+- **Matrix:** 7 cells, one model per round. Five **anti-overfitting** cells
+  (Python, Shell, C++/ROS 2 × bugfix/feature/refactor) plus the two original
+  **reference scenarios** folded in — Satty (Rust packaging) and
+  Understand-Anything (TypeScript/Angular plan-only) — so this one list spans
+  every ecosystem and task type the framework has been benchmarked on.
+- **Ecosystems:** Python, Shell, Rust, TypeScript/Angular, C++/ROS 2.
+  **Task types:** bugfix-from-failing-test, cross-file feature, refactor-with-
+  invariants, packaging.
+- **The anti-overfitting claim rests on the five non-reference cells** (no
+  packaging, not Rust or Angular): the two reference cells are included for
+  regression coverage and cross-scenario comparison, not to prove versatility.
+- **Pass/fail anchor:** deterministic container checks only (plan-only cells use
+  static plan checks). A cell PASSes when its validation script exits 0 inside
+  the named Docker image. Rubric-style quality dimensions are recorded but never
+  decide PASS/FAIL.
 - **Execution: strictly sequential.** Run one cell at a time; never dispatch
   cells in parallel (see [Execution](#execution-sequential-one-cell-at-a-time)).
 
@@ -46,18 +53,21 @@ Procedure:
 4. Record the result, then proceed to the next cell.
 
 Recommended order (cheapest/fastest first, so a limited window still yields
-results; heaviest ROS 2 cells last):
+results; heaviest cells last):
 
 1. `sh-refactor-small` (fast, no package install)
-2. `py-bugfix-small`
-3. `py-feature-small`
-4. `ros-refactor-large` (colcon build + test)
-5. `ros-plan-large` (plan-only; heaviest explore, but no build of agent code)
+2. `rust-package-small` (small; cargo-deb on a mock binary, quick)
+3. `py-bugfix-small`
+4. `py-feature-small`
+5. `ros-refactor-large` (colcon build + test)
+6. `ng-plan-large` (plan-only; TS/pnpm monorepo explore)
+7. `ros-plan-large` (plan-only; heaviest explore, but no build of agent code)
 
-Budget: at sonnet-5 medium a small cell is ~10-20 min and a large ROS 2 cell
-~30-60 min including the colcon build, so a full serial round is roughly
-2-3 h of wall time. If the window is tight, stop after any completed cell; a
-partial round is still valid (report the cells that ran).
+Budget: at sonnet-5 medium a small cell is ~10-20 min and a large cell
+~20-60 min (ROS 2 includes the colcon build), so a full 7-cell serial round is
+roughly 3-4 h of wall time. If the window is tight, stop after any completed
+cell; a partial round is still valid (report the cells that ran). To run only
+the anti-overfitting core, skip cells 2 and 6.
 
 ## Matrix
 
@@ -68,6 +78,16 @@ partial round is still valid (report the cells that ran).
 | sh-refactor-small | [bats-core](https://github.com/bats-core/bats-core.git) | small | medium | refactor with invariants | `bats-eco-builder` |
 | ros-plan-large | [navigation2](https://github.com/ros-navigation/navigation2.git) (`jazzy`) | large | high | cross-file feature, explore+plan only | `ros2-nav2-builder` |
 | ros-refactor-large | navigation2 (`jazzy`) | large | medium | refactor with invariants, single package | `ros2-nav2-builder` |
+| rust-package-small _(reference)_ | [Satty](https://github.com/Satty-org/Satty.git) | small | medium | packaging (cargo-deb) | `satty-deb-builder` |
+| ng-plan-large _(reference)_ | [Understand-Anything](https://github.com/Egonex-AI/Understand-Anything.git) | large | medium | cross-file feature, explore+plan only | none (plan-only) |
+
+The two `(reference)` cells reproduce the original scenarios (see
+[../satty-deb-2026-07-01/report.md](../satty-deb-2026-07-01/report.md) and
+[../ua-plan-2026-07-02/report.md](../ua-plan-2026-07-02/report.md)); their
+agent-prompt structure is the small/large template from the
+[satty runbook](../satty-deb-2026-07-01/runbook.md). They are the packaging and
+Angular scenarios the anti-overfitting cells were designed to *not* resemble, so
+running them alongside gives a same-round cross-ecosystem baseline.
 
 The ROS cells target **ROS 2 Jazzy** and the `navigation2` (Nav2) stack, built
 with **colcon + ament** (not ROS 1 catkin — round 1 used `ros-planning/navigation`
@@ -99,6 +119,17 @@ below, so later rounds compare like against like. Selection protocol per type:
 - **Refactor with invariants (sh-refactor-small, ros-refactor-large):** extract
   or split a module/helper with zero behavior change. The existing test suite
   is the invariant: it must pass unmodified (test files untouched in the diff).
+- **Packaging (rust-package-small, reference):** the Satty Debian-packaging task
+  verbatim from the [satty runbook](../satty-deb-2026-07-01/runbook.md) — add
+  `[package.metadata.deb]` + a `deb: build-release` Makefile target, gated by
+  `cargo deb --no-build --no-strip` in Docker. No re-pinning; it is the fixed
+  reference scenario.
+- **Plan-only feature (ng-plan-large, reference):** the Understand-Anything
+  UA-1 task verbatim — add an Angular `FrameworkConfig` to
+  `@understand-anything/core`'s framework registry (the config, its three-place
+  registration, and a registry test), verified statically against
+  `FrameworkConfigSchema` and the existing `framework-registry.test.ts`. Fixed
+  reference scenario; confirm the repo SHA at run.
 
 ### Pinned briefs (pinned 2026-07-02)
 
@@ -109,6 +140,8 @@ below, so later rounds compare like against like. Selection protocol per type:
 | sh-refactor-small | bats-core `5a7db7a` | "The function `abort()` is defined identically in `libexec/bats-core/bats`, `bats-exec-suite`, and `bats-gather-tests`. Deduplicate it into `lib/bats-core/common.bash` with zero behavior change. The existing test suite must pass unmodified." | Leave the per-formatter `bats_tap_stream_*` trio alone (callback interface, not duplication). **Round-1 correction:** only `bats` and `bats-exec-suite` are true duplicates; `bats-gather-tests`'s `abort()` has a different printf contract (same-name coincidence). The brief is kept verbatim as a deliberate wrong-premise probe: the round-1 agent detected and recorded the discrepancy, which is the desired behavior. |
 | ros-plan-large | navigation2 `jazzy` (candidate `60e82db`; confirm SHA at run) | "Plan a new `nav2_behaviors` behavior plugin (a simple time-based motion, e.g. a fixed-duration `Wait`-style or `Spin`-style variant that does not already exist in `nav2_behaviors/plugins/`), mirroring an existing behavior: a class deriving `nav2_core::Behavior` via `TimedBehavior<ActionT>`, the `behavior_plugin.xml` pluginlib export, the corresponding `nav2_msgs` action if needed, `package.xml`/`CMakeLists.txt` wiring, and a `nav2_bringup` params entry enabling it." | Plan-only. Template: `nav2_behaviors/plugins/wait.{hpp,cpp}` (~127 LOC) + `behavior_plugin.xml`. **Pin at run:** verify the chosen behavior name is absent from `nav2_behaviors/plugins/` (existing: back_up, spin, wait, drive_on_heading, assisted_teleop). |
 | ros-refactor-large | navigation2 `jazzy` (candidate `60e82db`; confirm SHA at run) | "In `nav2_velocity_smoother`, extract a self-contained helper (e.g. the per-axis velocity clamping / deadband math) out of the node class into its own free-function header + translation unit, with zero behavior change. The package's existing tests must pass unmodified (nothing under `nav2_velocity_smoother/test/` changes)." | Single-package; colcon build + `colcon test` of `nav2_velocity_smoother` is the invariant (2 test files). Pick the exact helper from the source at run. |
+| rust-package-small _(reference)_ | Satty (pin at run; round 1 used `0.21.1`) | Verbatim Satty debian-pkg brief: `[package.metadata.deb]` with assets mirroring the Makefile `install` target + a `deb: build-release` target calling `cargo deb --no-build`. | Fixed reference scenario, unchanged. Full step-by-step in the [satty runbook](../satty-deb-2026-07-01/runbook.md) small profile. |
+| ng-plan-large _(reference)_ | Understand-Anything (confirm SHA at run) | "Add Angular detection to `@understand-anything/core`'s framework registry: a new `FrameworkConfig` plus its three-place registration and a registry test." Plan-only. | Fixed reference scenario. Template: existing `FrameworkConfig` entries + `framework-registry.test.ts`; validate against `FrameworkConfigSchema`. |
 
 ## Validation (deterministic, per cell)
 
@@ -140,6 +173,10 @@ The ROS 2 cells build only the touched package and its dependencies with
 package's deps first with
 `rosdep install --from-paths src --ignore-src -y --rosdistro jazzy`.
 
+`rust-package-small` reuses the **`satty-deb-builder`** image from the
+[satty runbook](../satty-deb-2026-07-01/runbook.md) (build it once from there);
+`ng-plan-large` needs no image (plan-only).
+
 Per-cell gates (all run with the work dir mounted at `/workspace`):
 
 - **py-bugfix-small:** `pip install -e . pytest hypothesis && python -m pytest`
@@ -161,6 +198,15 @@ Per-cell gates (all run with the work dir mounted at `/workspace`):
   succeeds AND `colcon test --packages-select nav2_velocity_smoother` passes
   (`colcon test-result --verbose`) AND test sources untouched
   (`git diff` shows nothing under `nav2_velocity_smoother/test/`).
+- **rust-package-small (reference):** `cargo deb --no-build --no-strip` in
+  `satty-deb-builder` produces a `.deb` and `dpkg-deb --contents` lists every
+  asset from the Makefile `install` target (binary, `.desktop`, icon, all
+  completions, man page). Same gate as the satty runbook.
+- **ng-plan-large (reference):** no container gate (plan-only). Static checks:
+  plan.md schema-valid; every task file self-contained; affected files exist at
+  the pinned SHA; the planned `FrameworkConfig` validates against
+  `FrameworkConfigSchema`; the three registration sites named in the plan exist
+  in the repo.
 
 ## What this set measures that the prior sets could not
 
@@ -170,8 +216,10 @@ Per-cell gates (all run with the work dir mounted at `/workspace`):
 | Does explore->spec find a root cause, or does the agent patch symptoms? | py-bugfix-small |
 | Does the review gate catch behavior drift when the criteria say "no behavior change"? | sh-refactor-small, ros-refactor-large |
 | Does the large profile's KB/budget machinery pay off on a genuinely large C++ codebase (vs the ~7k-LOC Satty where it did not)? | ros-* |
-| Does `parallel: ok` marking appear only where files are truly disjoint? | ros-plan-large |
+| Does `parallel: ok` marking appear only where files are truly disjoint? | ros-plan-large, ng-plan-large |
 | Does the project-context refresh step stay quiet when commands/module map did not move (LOC-only drift)? | all small cells |
+| Reference: does the packaging scenario still produce a policy-correct `.deb` (no regression vs prior Satty runs)? | rust-package-small |
+| Reference: does the TS/Angular plan stay schema-valid and implementable on a ~39k-LOC monorepo? | ng-plan-large |
 
 ## Orchestration: session limits and resume
 
