@@ -32,6 +32,17 @@ content, notes, and specs are always preserved, never reverted to stubs.
 profile; for **small**, see [Small projects](#small-projects). Everything
 after init is done by the agent through skills and folder conventions:
 
+**Updating an existing project to a newer framework:** run `init-agent -u`
+(`--update`) in the project root. It auto-detects the scaffold's size,
+harness, and name, pulls the latest framework, and regenerates the
+framework-owned files (skills, phase docs, `.ai/agent/tools/`, hooks,
+settings, the AGENTS.md protocol) while preserving everything you filled in
+(KB nodes, `notes.md`, specs, and the generated project-context section).
+Commit `.ai` first so you can diff the change; pass `--size` to switch
+profile at the same time (e.g. small → large). Without `-u`, a plain
+re-run only regenerates framework files if you confirm the overwrite prompt
+(or pass `-y`).
+
 1. **Build the knowledge base**: run `/explore`. The agent samples the
    codebase, fills the KB nodes and asks you about non-derivable knowledge
    (domain terms, unwritten rules).

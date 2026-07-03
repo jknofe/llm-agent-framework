@@ -73,8 +73,12 @@ content (node summaries, tickets) telegraphic. Identifiers verbatim.
 Usage:
   python init_agent.py        (or: init-agent)            interactive
   python init_agent.py --size small --name foo --desc "…" non-interactive
+  python init_agent.py --update  (or: init-agent -u)      update in place
   Flags: --name, --description/--desc, --size {large,small}, --harness
-  {claude,copilot}, -y/--yes (overwrite framework files without prompting).
+  {claude,copilot}, -y/--yes (overwrite framework files without prompting),
+  -u/--update (update an existing scaffold to the latest framework:
+  auto-detects size/harness/name, regenerates framework files, preserves
+  hand-filled KB/notes/specs/project-context; pass --size to switch profile).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 """
 
@@ -1977,8 +1981,60 @@ def ai_commit(root: Path, message: str):
 
 # --------------------------------------------------------------------- init
 
+def detect_scaffold(root: Path):
+    """Inspect an existing scaffold and return (size, harness, name), or None
+    if this directory has none. Used by --update so the caller need not
+    remember the original flags.
+
+    size: 'large' when the KB manifest exists, else 'small' when AGENTS.md does.
+    harness: 'claude' when `.claude/` exists, else 'copilot' when
+             `.github/prompts/` exists, else 'claude'.
+    name: parsed from the AGENTS.md '# Agent: <name>' title, else the dir name.
+    """
+    agents = root / "AGENTS.md"
+    if (root / ".ai" / "knowledgebase" / "manifest.yaml").exists():
+        size = "large"
+    elif agents.exists():
+        size = "small"
+    else:
+        return None
+    if (root / ".claude").exists():
+        harness = "claude"
+    elif (root / ".github" / "prompts").exists():
+        harness = "copilot"
+    else:
+        harness = "claude"
+    name = root.name
+    if agents.exists():
+        for line in agents.read_text(encoding="utf-8",
+                                     errors="replace").splitlines()[:3]:
+            if line.startswith("# Agent:"):
+                name = line.split(":", 1)[1].strip() or name
+                break
+    return size, harness, name
+
+
 def cmd_init(args=None) -> int:
     root = Path.cwd()
+
+    if args and getattr(args, "update", False):
+        detected = detect_scaffold(root)
+        if detected is None:
+            print("No existing scaffold found here (no AGENTS.md / KB "
+                  "manifest). Run init-agent without --update to create one.",
+                  file=sys.stderr)
+            return 1
+        size, harness, name = detected
+        size = args.size or size            # allow an explicit profile switch
+        harness = args.harness or harness
+        name = args.name if args.name is not None else name
+        desc = args.description if args.description is not None else ""
+        print(f"Updating {size} scaffold ({harness}) for '{name}' to the "
+              "latest framework. Framework files are regenerated; hand-filled "
+              "content (KB, notes, specs, project-context) is preserved.")
+        if size == "small":
+            return scaffold_small(root, name, desc, harness, True)
+        return scaffold_large(root, name, desc, harness, True)
 
     name = (args.name if args and args.name is not None
             else ask("Project name", root.name))
@@ -2177,6 +2233,11 @@ def main() -> int:
                     help="target harness (skip the prompt); default claude")
     ap.add_argument("-y", "--yes", action="store_true",
                     help="overwrite framework files without prompting")
+    ap.add_argument("-u", "--update", action="store_true",
+                    help="update an existing scaffold in place to the latest "
+                         "framework: auto-detects size/harness/name, "
+                         "regenerates framework files, preserves your "
+                         "KB/notes/specs/project-context")
     return cmd_init(ap.parse_args())
 
 
