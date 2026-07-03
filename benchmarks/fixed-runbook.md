@@ -7,10 +7,9 @@ PASS criteria, and results format — is a fixed constant defined here. Re-runni
 this file at a later date with the same MODEL and EFFORT must reproduce the same
 cells against the same code.
 
-This consolidates and pins the cells from
-[multi-eco/runbook.md](multi-eco/runbook.md) and
-[satty-deb-2026-07-01/runbook.md](satty-deb-2026-07-01/runbook.md); those remain
-the design/history references. This file is the one to execute.
+This is the single self-contained runbook to execute. It consolidates and pins
+the cross-ecosystem cells the framework has been benchmarked on (Python, Shell,
+Rust, TypeScript/Angular, C++/ROS 2); the design history lives in the git log.
 
 ---
 
@@ -383,10 +382,9 @@ round, verify every cell against this checklist:
 [ ] results file written in the fixed format
 ```
 
-To record a round in the repo (per [README.md](README.md) "Adding a run"):
-create `benchmarks/<run>/report.md` + copy raw results under `<run>/results/`,
-add a row to the runs table. Report PASS/FAIL from the deterministic gate only;
-rubric-style quality notes are recorded, never gating.
+To record a round in the repo: create `benchmarks/<run>/report.md` and copy the
+raw per-cell results under `benchmarks/<run>/results/`. Report PASS/FAIL from the
+deterministic gate only; rubric-style quality notes are recorded, never gating.
 
 ## Determinism guarantees
 

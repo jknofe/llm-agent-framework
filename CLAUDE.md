@@ -14,7 +14,8 @@ functions, never by editing a generated file (those live in target projects).
 - `CONCEPT.md` versioned design spec, source of truth (currently v5.6)
 - `README.md` user-facing docs
 - `install.sh` shell-function installer
-- `benchmarks/` empirical validation runs (see its README)
+- `benchmarks/fixed-runbook.md` fully-pinned reproducible benchmark (only
+  MODEL/EFFORT are user-set); recorded runs land in `benchmarks/<run>/`
 
 ## Feature development
 
@@ -56,9 +57,9 @@ Full procedure: **[TESTING.md](TESTING.md)**. The short version:
 - Layer 1 (every change): syntax check, scaffold all four size/harness
   variants into a temp dir, grep the render, verify referenced tool paths run,
   check re-init preservation, sweep for benchmark-term leakage.
-- Layer 2 (behavior changes): run a benchmark cell before and after; runbooks
-  and the run index live under `benchmarks/`. Smoke = small profile,
-  sonnet + medium, Satty debian-pkg task.
+- Layer 2 (behavior changes): run a benchmark cell before and after; the
+  fully-pinned procedure is `benchmarks/fixed-runbook.md`. Smoke = small
+  profile, sonnet + medium (fixed-runbook cell 1, sh-refactor).
 
 Non-negotiables: never scaffold into this repo root; PASS/FAIL comes from the
 deterministic container gate only; generated artifacts stay ecosystem-neutral.

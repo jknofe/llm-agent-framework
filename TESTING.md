@@ -48,27 +48,26 @@ in parallel. Parallel cells burn the usage window several times faster and
 strand each other on session limits (round 1's lesson). Wait for a cell's
 results file + gate verdict before starting the next; if a cell stalls on a
 limit, resume that same agent after the reset rather than launching a
-duplicate. Details and cell order: the multi-eco runbook's Execution section.
+duplicate. Details and cell order: the fixed runbook's Execution section.
 
-All procedure lives under `benchmarks/`:
+All procedure lives in one self-contained, fully-pinned runbook:
+[benchmarks/fixed-runbook.md](benchmarks/fixed-runbook.md). It defines the
+7-cell cross-ecosystem set (Python, Shell, Rust, TS/Angular, C++/ROS 2) with
+exact repo SHAs, seeds, scaffold commands, Docker images, deterministic gates,
+the agent-prompt template, and the results format. The only inputs are MODEL and
+EFFORT (tiers low/medium/high defined there).
 
-| Doc | What it holds |
-|---|---|
-| [benchmarks/README.md](benchmarks/README.md) | Run index, cross-run conclusions, how to add a run |
-| [benchmarks/satty-deb-2026-07-01/runbook.md](benchmarks/satty-deb-2026-07-01/runbook.md) | Shared template: agent-prompt skeletons (small/large), effort tiers (low/medium/high), results format, session-limit handling |
-| [benchmarks/multi-eco/runbook.md](benchmarks/multi-eco/runbook.md) | Multi-ecosystem set: Python/Shell/C++-ROS x bugfix/feature/refactor, container gates, anti-overfitting checks |
-| [benchmarks/two-register-ab/runbook.md](benchmarks/two-register-ab/runbook.md) | A/B of the two-register language policy (CONCEPT.md section 8) |
-
-### Which run to use
+### Which cell to use
 
 - **Smoke (default for framework changes):** one small-profile cell,
-  sonnet + medium, Satty debian-pkg task. ~10 min, exercises
-  explore/spec/build, the review gate, and the Docker gate end to end.
-- **Anti-overfitting / new normative text:** multi-eco cells, because they
-  check ecosystem-correctness outside Rust/Debian (right linter named
-  unprompted, refactor invariants, root-cause bugfixing).
-- **Large-profile / KB changes:** a large-profile cell (ros-* in multi-eco,
-  or the satty large profile), because small-profile smoke never touches
+  sonnet + medium — fixed-runbook cell 1 (`sh-refactor`, no package install,
+  ~10-20 min) or cell 2 (`rust-package`). Exercises explore/spec/build, the
+  review gate, and the Docker gate end to end.
+- **Anti-overfitting / new normative text:** the Python/Shell cells (1, 3, 4),
+  because they check ecosystem-correctness outside Rust/Debian (right linter
+  named unprompted, refactor invariants, root-cause bugfixing).
+- **Large-profile / KB changes:** a large-profile cell (the `ros-*` cells 5-6),
+  because small-profile smoke never touches
   manifest/INDEX/kb-delta/drift-check machinery.
 
 ### Invariants every run must satisfy
@@ -78,8 +77,7 @@ All procedure lives under `benchmarks/`:
 - PASS/FAIL decided only by the deterministic container gate, never by
   impressions; quality dimensions are recorded separately.
 - Raw per-cell results preserved under `benchmarks/<run>/results/`
-  (the `/tmp` working copies are ephemeral), plus a `report.md` and a row in
-  the benchmarks README table.
+  (the `/tmp` working copies are ephemeral), plus a `report.md`.
 - Findings feed back: a failure mode fixed in `init_agent.py` gets its commit
   hash cited in the report, and the next run confirms no regression.
 
