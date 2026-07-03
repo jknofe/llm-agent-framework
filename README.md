@@ -1,10 +1,12 @@
 # llm-agent-framework
 
 Universal, project-configurable LLM agent for software projects of any size.
-At init you pick a size profile: **large** (the full knowledge-base framework,
-for big codebases where context must be rationed) or **small** (a stripped-down
-profile for codebases up to ~10k LOC, see [Small projects](#small-projects)).
-Concept: CONCEPT.md. All agent docs: telegraphic English, token-optimized.
+Init picks a size profile automatically from your codebase: **large** (the full
+knowledge-base framework, for big codebases where context must be rationed) or
+**small** (a stripped-down profile for codebases up to ~10k LOC, see
+[Small projects](#small-projects)). It counts source lines of code and applies
+the ~10k-LOC boundary; you can override with `--size`. Concept: CONCEPT.md. All
+agent docs: telegraphic English, token-optimized.
 
 ## Install
 
@@ -24,8 +26,11 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, project size, claude or copilot); Enter accepts the defaults
-(size **large**). If a scaffold already exists it asks before regenerating
+description, project size, claude or copilot); Enter accepts the defaults.
+The size prompt is pre-filled with the profile auto-detected from your
+codebase LOC, so Enter accepts the recommendation; `--size auto` selects it
+without prompting and `--size large|small` forces a profile. If a scaffold
+already exists it asks before regenerating
 framework files (instructions, skills, hooks, settings); hand-filled KB
 content, notes, and specs are always preserved, never reverted to stubs.
 `init-agent -h` shows help. The numbered steps below describe the **large**

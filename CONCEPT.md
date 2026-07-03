@@ -1,6 +1,9 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-03, v5.8 (small-profile notes hub: .ai/notes.md may become a
+State: 2026-07-03, v5.9 (automatic profile selection: init-agent counts source
+LOC and applies the ~10k boundary to pick small vs large when --size is omitted
+or 'auto'; explicit --size still wins, --update keeps the detected profile,
+§20). v5.8 (small-profile notes hub: .ai/notes.md may become a
 linked index with .ai/notes/<topic>.md leaves once it grows past ~1-2 screens,
 guidance-only, §19). v5.7 (project-context freshness: end-of-change refresh of
 the AGENTS.md generated digest via probe.py, LOC-only drift excluded; ecosystem-
@@ -735,3 +738,32 @@ Validated by a controlled A/B (`benchmarks/notes-hub-2026-07-03/`, sonnet-5
 medium, same repo + task, notes size the only variable): a seeded 84-line
 notes.md split correctly (hub + leaf, links in sync); a fresh 43-line notes.md
 correctly stayed flat. Both code gates green.
+
+## 20. Automatic profile selection (2026-07-03, v5.9)
+
+`init-agent` now picks the size profile from the codebase itself instead of
+defaulting to large. When `--size` is omitted (or given as `auto`), it counts
+lines of code across the host repo's source files and applies the §13 boundary:
+`<=10k LOC` -> small, above -> large.
+
+- **LOC estimate (`estimate_loc`).** Reuses probe.py's file-discovery model:
+  `git ls-files` when the target is a git repo (deterministic, gitignore-aware
+  so lockfiles/vendored trees don't count), else an `os.walk` fallback that
+  skips `.git`, `.ai`, and common vendor/build dirs. Counts only code
+  extensions (`CODE_EXTS`) — docs, data, and markup (`.md`, `.json`, `.yaml`,
+  `.toml`, `.html`, `.css`) are excluded so the number reflects code the agent
+  must reason about, not prose or generated files. Threshold is the single
+  constant `SIZE_LOC_THRESHOLD = 10000`, matching §13's ~10k boundary.
+- **Interaction.** `--size auto` (explicit) selects silently. `--size
+  large|small` still forces that profile — an explicit flag always wins. With
+  no flag and a TTY, the auto pick becomes the *default* of the existing size
+  prompt, so the estimate is shown and the user can veto it; with no flag and
+  no TTY (scripted), the auto pick is used directly. `--update` keeps the
+  detected profile and ignores `--size auto` (graduation stays a deliberate
+  re-init, per §13, not a side effect of an update).
+
+Validated on real and synthetic repos: ha-core (2.29M LOC) -> large,
+network-status (30 LOC) -> small; a synthetic 12.6k-LOC git project scaffolds
+large and a 90-LOC one scaffolds small, with explicit-override, non-git
+fallback, and `--update --size auto` edge cases all correct. Scaffold path only
+(no explore run).

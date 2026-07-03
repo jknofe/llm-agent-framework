@@ -19,15 +19,18 @@ the agent through skills and folder conventions:
                          ticket; the rules live in AGENTS.md
 
 Prompts: project name, one-line description, project size (large/small),
-harness (claude/copilot). Enter accepts the default. Non-TTY runs use all
-defaults (size large) unless overridden by the flags below. If a scaffold
+harness (claude/copilot). Enter accepts the default. The size default is the
+profile auto-detected from the codebase LOC (small <=10k, large above), so
+Enter accepts the recommendation; --size auto selects it without prompting and
+--size large|small forces a profile. Non-TTY runs use the auto-detected size
+(and the other defaults) unless overridden by the flags below. If a scaffold
 already exists, init asks before
 overwriting framework files; hand-filled content (KB nodes, manifest, INDEX,
 notes, specs, the generated project-context section) is always preserved,
 never reverted to stubs.
 
-Size profiles:
-  large (default)  Full framework: KB (manifest, hot/cold nodes, INDEX),
+Size profiles (auto-selected from codebase LOC when --size is omitted or auto):
+  large            Full framework: KB (manifest, hot/cold nodes, INDEX),
                    on-demand phase docs, deterministic KB tools, ticket
                    pipeline. For large codebases where context must be rationed.
   small            For codebases up to ~10k LOC, where the source is small
@@ -72,9 +75,10 @@ content (node summaries, tickets) telegraphic. Identifiers verbatim.
 
 Usage:
   python init_agent.py        (or: init-agent)            interactive
-  python init_agent.py --size small --name foo --desc "…" non-interactive
+  python init_agent.py --size auto  --name foo --desc "…"  auto-pick profile
+  python init_agent.py --size small --name foo --desc "…" force small profile
   python init_agent.py --update  (or: init-agent -u)      update in place
-  Flags: --name, --description/--desc, --size {large,small}, --harness
+  Flags: --name, --description/--desc, --size {large,small,auto}, --harness
   {claude,copilot}, -y/--yes (overwrite framework files without prompting),
   -u/--update (update an existing scaffold to the latest framework:
   auto-detects size/harness/name, regenerates framework files, preserves
@@ -1981,6 +1985,69 @@ def ai_commit(root: Path, message: str):
 
 # --------------------------------------------------------------------- init
 
+# ------------------------------------------------------------- auto-sizing
+
+# Source extensions counted toward the codebase LOC estimate that drives
+# automatic profile selection. Deliberately code-only: docs, data, and markup
+# (.md, .json, .yaml, .toml, .html, .css) are excluded so the number reflects
+# code the agent must reason about, not prose or generated lockfiles.
+CODE_EXTS = {
+    ".py", ".rs", ".go", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".java",
+    ".kt", ".rb", ".php", ".c", ".h", ".hpp", ".cpp", ".cc", ".cs",
+    ".swift", ".scala", ".sh", ".bash", ".sql",
+}
+
+# Directories skipped by the os.walk fallback (git ls-files already excludes
+# gitignored paths, so these only matter when root is not a git repo).
+SKIP_DIRS = {
+    ".git", ".ai", "node_modules", "vendor", "target", "dist", "build",
+    ".venv", "venv", "__pycache__", ".mypy_cache", ".tox", ".next", "out",
+}
+
+# Codebases at or below this many lines of code get the small profile; larger
+# ones get the full large profile. Matches CONCEPT.md's ~10k-LOC boundary.
+SIZE_LOC_THRESHOLD = 10000
+
+
+def source_files(root: Path):
+    """Files to weigh for sizing. Prefers `git ls-files` (deterministic,
+    gitignore-aware) when root is a git repo; else walks the tree, skipping
+    SKIP_DIRS. Returns absolute paths."""
+    r = run_git(["ls-files"], root)
+    if r.returncode == 0 and r.stdout.strip():
+        return [root / line for line in r.stdout.splitlines() if line.strip()]
+    files = []
+    for p in root.rglob("*"):
+        if not p.is_file():
+            continue
+        if any(part in SKIP_DIRS for part in p.relative_to(root).parts):
+            continue
+        files.append(p)
+    return files
+
+
+def estimate_loc(root: Path) -> int:
+    """Recursively count lines across the host repo's source files (CODE_EXTS
+    only), so the count reflects code rather than docs/data/lockfiles. Binary
+    or unreadable files are skipped."""
+    total = 0
+    for p in source_files(root):
+        if p.suffix.lower() not in CODE_EXTS:
+            continue
+        try:
+            with p.open("rb") as fh:
+                total += sum(1 for _ in fh)
+        except OSError:
+            continue
+    return total
+
+
+def choose_size(loc: int) -> str:
+    """Pick the profile from a codebase LOC estimate: small at or below the
+    threshold (source is cheap to re-read on demand), large above it."""
+    return "small" if loc <= SIZE_LOC_THRESHOLD else "large"
+
+
 def detect_scaffold(root: Path):
     """Inspect an existing scaffold and return (size, harness, name), or None
     if this directory has none. Used by --update so the caller need not
@@ -2025,7 +2092,8 @@ def cmd_init(args=None) -> int:
                   file=sys.stderr)
             return 1
         size, harness, name = detected
-        size = args.size or size            # allow an explicit profile switch
+        if args.size and args.size != "auto":   # allow an explicit switch
+            size = args.size
         harness = args.harness or harness
         name = args.name if args.name is not None else name
         desc = args.description if args.description is not None else ""
@@ -2044,8 +2112,17 @@ def cmd_init(args=None) -> int:
             else ask("Project name", root.name))
     desc = (args.description if args and args.description is not None
             else ask("Project description, one line"))
-    size = (args.size if args and args.size
-            else ask_choice("Project size", ["large", "small"], "large"))
+    requested = args.size if args and args.size else None
+    if requested and requested != "auto":
+        size = requested
+    else:
+        # No profile given, or "auto": weigh the codebase and recommend one.
+        est = estimate_loc(root)
+        size = choose_size(est)
+        print(f"auto-size: {est} lines of code across source files "
+              f"-> {size} profile")
+        if requested != "auto":     # unspecified + interactive: let user vet it
+            size = ask_choice("Project size", ["large", "small"], size)
     harness = (args.harness if args and args.harness
                else ask_choice("Harness", ["claude", "copilot"], "claude"))
 
@@ -2231,8 +2308,10 @@ def main() -> int:
     ap.add_argument("--name", help="project name (skip the prompt)")
     ap.add_argument("--description", "--desc", dest="description",
                     help="one-line project description (skip the prompt)")
-    ap.add_argument("--size", choices=["large", "small"],
-                    help="size profile (skip the prompt); default large")
+    ap.add_argument("--size", choices=["large", "small", "auto"],
+                    help="size profile (skip the prompt). Omit or use 'auto' "
+                         "to pick automatically from the codebase LOC "
+                         "(small <=10k, large above)")
     ap.add_argument("--harness", choices=["claude", "copilot"],
                     help="target harness (skip the prompt); default claude")
     ap.add_argument("-y", "--yes", action="store_true",
