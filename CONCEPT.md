@@ -1,7 +1,9 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-03, v5.7 (project-context freshness: end-of-change refresh of the
-AGENTS.md generated digest via probe.py, LOC-only drift excluded; ecosystem-
+State: 2026-07-03, v5.8 (small-profile notes hub: .ai/notes.md may become a
+linked index with .ai/notes/<topic>.md leaves once it grows past ~1-2 screens,
+guidance-only, §19). v5.7 (project-context freshness: end-of-change refresh of
+the AGENTS.md generated digest via probe.py, LOC-only drift excluded; ecosystem-
 neutral correctness-criteria examples; §18). v5.6 (harness-mechanism pass after
 a best-practice review: skills locked to manual invocation, path-scoped rules
 generated from conventions nodes, parallel-ok task marking, /goal as middle
@@ -697,3 +699,39 @@ machinery; both harden existing behavior.
 The multi-eco round (Python/Shell/C++-ROS × bugfix/feature/refactor) found no
 framework defects; the harness-side fixes it did surface (container image,
 brief premise, parallel-orchestration) live in `benchmarks/`, not here.
+
+## 19. Small-profile notes hub (2026-07-03, v5.8)
+
+The small profile stored durable knowledge in a single flat `.ai/notes.md` plus
+the curated project-context digest. Flat is right while notes are small (the
+whole file is cheap to read whole), but on a long-lived small project the log
+grows and every session re-reads all of it. Fix: `notes.md` may become a
+hub-and-spoke — a linked index whose detail lives in `.ai/notes/<topic>.md`
+leaves, so a session reads the compact hub and opens only the leaves a task
+needs. This is the large profile's manifest→node retrieval principle done with
+plain markdown links and none of its machinery (no manifest, no generated
+INDEX, no hot/cold tiers, no budgets, no kb-delta). Same shape as this repo's
+own auto-memory (`MEMORY.md` index + one-file-per-fact leaves).
+
+Design choices:
+- **Progressive, threshold-triggered.** Start flat; once `notes.md` passes ~1-2
+  screens, move topic clusters (largest first) into leaves until the hub is back
+  under ~1 screen. Never split while notes stay short — the index-plus-leaf read
+  is strictly more expensive than one small file. (The "largest cluster only,
+  once" wording of the first draft under-split a mature project — hub stayed
+  over threshold, ~14% read reduction; corrected to split-until-under-threshold
+  after the A/B below.)
+- **Guidance only, no tooling.** Lives in the AGENTS.md protocol, the notes.md
+  stub, `/explore` (read hub first), and `/build` step 5 (split + keep links in
+  sync). The link-integrity check (every leaf linked, every pointer resolves)
+  rides the existing end-of-build project-context refresh — no new hook.
+- **No staleness guard, by design.** Small dropped `check_stale.py`; the hub is
+  the volatile notes layer (not curated architecture) and the source is read
+  JIT, so a stale leaf is low-cost. A project that needs `covers`-addressable,
+  staleness-guarded memory has outgrown small — re-init as large (carries the
+  digest over).
+
+Validated by a controlled A/B (`benchmarks/notes-hub-2026-07-03/`, sonnet-5
+medium, same repo + task, notes size the only variable): a seeded 84-line
+notes.md split correctly (hub + leaf, links in sync); a fresh 43-line notes.md
+correctly stayed flat. Both code gates green.

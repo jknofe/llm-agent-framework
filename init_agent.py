@@ -456,7 +456,13 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
    by loading everything. The source is the knowledge base.
 2. Durable knowledge (decisions, gotchas, domain terms, unwritten rules,
    operational runbooks) goes in `.ai/notes.md` (append, telegraphic). Read it
-   at the start of a task.
+   at the start of a task. `notes.md` may grow into a hub: once it passes ~1-2
+   screens, move topic clusters (largest first) into `.ai/notes/<topic>.md`,
+   each leaving a one-line linked pointer (`- [topic](notes/<topic>.md) - hook`)
+   behind, until the hub is back under ~1 screen. Then read the hub first and
+   open only the leaves a task needs; keep the pointer list in sync (add on
+   split, remove on delete). Do not split while notes stay short - one file is
+   cheaper to read whole than an index plus a leaf.
 3. Non-trivial work: `/spec <id>` writes `.ai/changes/<id>/spec.md` (goal,
    acceptance criteria, task checklist); `/build <id>` implements it.
 4. Before declaring a change done, have the full diff reviewed in a fresh
@@ -490,7 +496,8 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 ```
 .ai/changes/<id>/spec.md   # goal, acceptance criteria, task checklist, notes
 .ai/changes/_archive/      # finished changes; never load
-.ai/notes.md               # running memory: decisions, gotchas, domain terms
+.ai/notes.md               # running memory hub: decisions, gotchas, domain terms
+.ai/notes/<topic>.md       # optional leaves, linked from notes.md once it grows
 ```
 Status lives in the spec frontmatter (`planned|in-progress|done`), never in
 folder names. Archive only when the user asks: verify `status: done`, move
@@ -511,7 +518,11 @@ def render_notes_stub() -> str:
         "terms, unwritten rules, and operational runbooks (validation loops, CI\n"
         "quirks, merge-order rules) that do not fit a curated KB node. Append,\n"
         "telegraphic. Read at the start of a task. The code is the source of\n"
-        "truth for structure; this file captures what the code does not say. -->\n"
+        "truth for structure; this file captures what the code does not say.\n"
+        "Once this file passes ~1-2 screens, become a hub: move topic clusters\n"
+        "(largest first) into .ai/notes/<topic>.md, each leaving a linked\n"
+        "one-line pointer here, until the hub is back under ~1 screen. Read the\n"
+        "hub first, open only the leaves a task needs. -->\n"
     )
 
 
@@ -946,7 +957,9 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "  build/test/lint commands (highest priority), top conventions, a\n"
             "  one-line-per-area module map, and core glossary terms.\n"
             "- Ask the user about non-derivable knowledge (domain terms, unwritten\n"
-            "  rules, ownership); record the answers in `.ai/notes.md`.\n"
+            "  rules, ownership); record the answers in `.ai/notes.md` (if it is\n"
+            "  already a hub with `.ai/notes/` leaves, read the hub first and\n"
+            "  update the matching leaf).\n"
             f"{hook_offer}"
             "- Commit `.ai` (`explore: project context`).\n\n"
             f"{arg_focus}\n",
@@ -1007,15 +1020,24 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   honors it, not just that the acceptance criteria read as met.\n"
             "   Never skip the gate. Fix gaps that affect correctness or the\n"
             "   stated criteria; ignore style-only findings.\n"
-            "5. Append any durable decision or gotcha to `.ai/notes.md`. Then\n"
-            "   run the project-context refresh so the always-loaded digest\n"
-            "   cannot silently drift: re-run `python3\n"
+            "5. Append any durable decision or gotcha to `.ai/notes.md`. If\n"
+            "   `notes.md` has grown past ~1-2 screens, move topic clusters\n"
+            "   (largest first) into `.ai/notes/<topic>.md`, each leaving a\n"
+            "   linked one-line pointer (`- [topic](notes/<topic>.md) - hook`),\n"
+            "   until the hub is back under ~1 screen, so later sessions read the\n"
+            "   hub first and open only the leaves they need; do not split while\n"
+            "   notes stay short. Then run the\n"
+            "   project-context refresh so the always-loaded digest cannot\n"
+            "   silently drift: re-run `python3\n"
             f"   {TOOLS_DIR}/probe.py` and compare its build/test/lint commands\n"
             "   and module map against the `GENERATED:project-context` section\n"
             "   of `AGENTS.md`. Update that section only for a changed command or\n"
             "   a new/removed/renamed module; a bare LOC delta on an existing\n"
             "   module is not actionable, leave it. Keep it under ~1500 tokens.\n"
-            "   This is a bounded diff check, not a re-explore.\n"
+            "   This is a bounded diff check, not a re-explore. Last, if a\n"
+            "   `.ai/notes/` hub exists, confirm every leaf is linked from\n"
+            "   `notes.md` and every pointer resolves (no orphaned or dangling\n"
+            "   leaves).\n"
             "6. Set `status: done`, delete `.ai/.current`, and commit `.ai`\n"
             "   (`build: <id>`).\n\n"
             "Escalate instead of improvising: on missing context, do bounded\n"
