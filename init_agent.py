@@ -2032,9 +2032,13 @@ def cmd_init(args=None) -> int:
         print(f"Updating {size} scaffold ({harness}) for '{name}' to the "
               "latest framework. Framework files are regenerated; hand-filled "
               "content (KB, notes, specs, project-context) is preserved.")
+        # Snapshot the current .ai in its own repo first, so the regeneration
+        # is a clean, revertable diff (no-op if .ai has nothing pending).
+        ai_commit(root, "pre-update: .ai snapshot before framework update")
+        msg = f"update: regenerate {size}-profile framework files ({name})"
         if size == "small":
-            return scaffold_small(root, name, desc, harness, True)
-        return scaffold_large(root, name, desc, harness, True)
+            return scaffold_small(root, name, desc, harness, True, msg)
+        return scaffold_large(root, name, desc, harness, True, msg)
 
     name = (args.name if args and args.name is not None
             else ask("Project name", root.name))
@@ -2061,7 +2065,7 @@ def cmd_init(args=None) -> int:
 
 
 def scaffold_large(root: Path, name: str, desc: str, harness: str,
-                   force: bool) -> int:
+                   force: bool, commit_message: str = None) -> int:
     kb = root / ".ai" / "knowledgebase"
     if desc:
         seed_description(desc)
@@ -2139,7 +2143,7 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
-    ai_commit(root, f"init: scaffold KB + phase docs ({name})")
+    ai_commit(root, commit_message or f"init: scaffold KB + phase docs ({name})")
 
     report(root, created, skipped, preserved)
     print(f"\nKB: {kb.relative_to(root)}  |  phases: {PHASES_DIR}"
@@ -2156,7 +2160,7 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
 
 
 def scaffold_small(root: Path, name: str, desc: str, harness: str,
-                   force: bool) -> int:
+                   force: bool, commit_message: str = None) -> int:
     """Small profile: dense AGENTS.md + running notes + per-change specs, no KB
     manifest, phase docs, or deterministic KB tools. `.ai/` is still a private
     nested repo (notes + specs); AGENTS.md and .claude/.github live in the host
@@ -2205,7 +2209,7 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
-    ai_commit(root, f"init: small-profile scaffold ({name})")
+    ai_commit(root, commit_message or f"init: small-profile scaffold ({name})")
 
     report(root, created, skipped, preserved)
     entry = ".claude" if harness == "claude" else ".github/prompts"
