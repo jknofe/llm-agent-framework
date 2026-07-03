@@ -72,6 +72,78 @@ Each cell embeds a deliberate trap. Haiku at high caught all four.
   `rename_column()` and `transform(rename=)` coexist without data loss, mirroring
   the existing `rename-table` pattern for the CLI command and API method.
 
+## Quality assessment (rubric, non-gating)
+
+The gate is binary; it says nothing about whether a passing solution is minimal,
+idiomatic, or robust. This section rates each agent's solution from its actual
+diff (read against the pinned base, not from the agent's self-report). Scores are
+1-5 per dimension and do not affect PASS/FAIL.
+
+Dimensions: **Corr** = correctness and robustness beyond the gate (edge cases,
+safety); **Min** = scope discipline / minimalism (no unrelated changes);
+**Idiom** = fit with surrounding conventions and readability; **Probe** = how
+well the cell's deliberate trap was handled; **T&D** = tests and docs.
+
+| Cell | Corr | Min | Idiom | Probe | T&D | Overall |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|
+| 1 sh-refactor | 5 | 5 | 5 | 5 | 5 | **A (exemplary)** |
+| 2 rust-package | 4.5 | 4 | 5 | 5 | 4.5 | **A-** |
+| 3 py-bugfix | 5 | 4.5 | 4.5 | 5 | 4.5 | **A-** |
+| 4 py-feature | 4.5 | 4.5 | 5 | 4 | 5 | **B+/A-** |
+
+**Cell 1 sh-refactor (A, exemplary).** Merged only the two genuinely identical
+`abort()` definitions into `common.bash` and preserved behavior exactly: because
+`bats-exec-suite`'s original `abort` never called `usage`, the agent passed
+`--no-print-usage` at all three of its call sites so the shared function is a
+byte-for-byte behavioral match. It kept `bats-gather-tests`'s different contract
+separate and, beyond the brief, caught that the script transitively re-sources
+`common.bash` (which would silently clobber a same-named local function),
+renaming it to `bats_gather_tests_abort` with a comment explaining both the
+collision and the differing contract. Minimal, idiomatic, self-documenting.
+Nothing to fault.
+
+**Cell 2 rust-package (A-).** Every high-effort policy item is present and
+correct: full asset set at the right Debian paths, zsh `vendor-completions/`,
+`section`/`priority`/`extended-description`/`license-file`, and a working
+`deb: build-release` target. Two small deductions: (a) the diff also strips
+trailing whitespace from the unrelated `package` target lines in the Makefile
+(a harmless but unrequested edit, minor scope creep); (b) the `depends` version
+pins (`libgtk-4-1 (>= 4.0.0)`, `libadwaita-1-0 (>= 1.0.0)`, `fontconfig (>=
+2.13.0)`) are plausible but not derived from a verified runtime requirement, so
+they read as reasonable guesses rather than checked minimums.
+
+**Cell 3 py-bugfix (A-).** Root-cause fix in `detect_fts`, not a symptom
+patch, and it restores the correct two-pattern logic (`like` = bracket-quoted
+`content=[...]`, `like2` = double-quoted `content="..."`). The net difference
+between the final code and the canonical upstream fix is a single cosmetic quote
+character on the `like` line, i.e. the agent independently re-derived
+essentially the real fix. No test file touched. The only nit is that trivial
+quote-style residue (double to single) which adds a tiny stylistic inconsistency
+with no functional effect.
+
+**Cell 4 py-feature (B+/A-).** The most complete deliverable: CLI command + API
+method mirroring `rename-table`, `--ignore` + `load_extension` options, RST docs,
+and three tests (API, CLI, and the collision regression). Identifiers are passed
+through `quote_identifier`, so it is injection-safe. The judgment call is the
+probe: the runbook hint anticipated the agent delegating to `transform()` and
+needing an `AlterError` guard against the `transform(rename=)` silent-data-loss
+collision. Instead the agent implemented a direct `ALTER TABLE RENAME COLUMN`,
+which sidesteps the collision entirely rather than guarding it, and proved
+coexistence with a regression test. That is a defensible (arguably simpler and
+safer) design, but it is not the guard the hint literally called for, so the
+probe is handled by avoidance rather than by the expected mechanism. Minor edge:
+`rename-column --ignore` also swallows a "new name already exists" error, which
+is slightly broader than the mirrored `rename-table` semantics.
+
+## Aggregate
+
+All four solutions are production-plausible; none merely games the gate. Mean
+overall lands around A-/A. The floor is high (cell 4's B+) and the ceiling is a
+clean exemplary pass (cell 1). The recurring haiku-x-high signature: correct and
+well-tested, with the small deductions coming from minor scope creep (cell 2),
+cosmetic residue (cell 3), or a defensible-but-literal-hint-missing design choice
+(cell 4) rather than from any correctness gap.
+
 ## Observations
 
 - **Fast core is clean at the smallest model when effort is high.** 4/4 gates
