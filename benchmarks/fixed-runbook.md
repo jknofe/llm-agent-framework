@@ -264,14 +264,25 @@ session that commits the KB, then plan/implement in a second session.)*
 ```bash
 docker run --rm -v "$WORK_DIR":/workspace ros2-nav2-builder bash -c '
   cd /workspace && . /opt/ros/jazzy/setup.sh
-  rosdep install --from-paths src --ignore-src -y --rosdistro jazzy
-  colcon build --packages-up-to nav2_velocity_smoother
+  apt-get update -qq                                   # image strips apt lists
+  rosdep install --from-paths . --ignore-src -y --rosdistro jazzy  # SEED clones to root, no src/
+  apt-get install -y ros-jazzy-bondcpp ros-jazzy-geographic-msgs   # rosdep misses these; needed at test/configure
+  colcon build --packages-up-to nav2_velocity_smoother --executor sequential  # parallel executor races on nav2_behavior_tree
+  . install/setup.sh                                   # overlay so the gtest finds libbondcpp.so
   colcon test --packages-select nav2_velocity_smoother
   colcon test-result --verbose; echo "EXIT: $?"'
 # + git -C "$WORK_DIR" diff --stat -- '*/nav2_velocity_smoother/test/*'  is EMPTY
 ```
-PASS = build succeeds AND `colcon test` passes AND no test source under
+PASS = build succeeds AND `colcon test` passes (0 errors, 0 failures; the
+unmodified baseline is 46 tests / 6 skipped) AND no test source under
 `nav2_velocity_smoother/test/` changed.
+
+*Gate environment notes (validated 2026-07-04): the four inline corrections above
+are required for the gate to build against the pinned SEED/image at all
+(`--from-paths .` not `src`; `apt-get update` before rosdep; explicit
+`bondcpp`/`geographic_msgs` since rosdep does not pull them and exits 0 anyway;
+`--executor sequential` to avoid a parallel race that fails `nav2_behavior_tree`).
+Do not "simplify" them back.*
 
 ### Cell 6 — ros-plan (navigation2, large, plan-only)
 
@@ -285,13 +296,23 @@ a `nav2_bringup` params entry enabling it." *Plan-only — stop at the plan-revi
 gate.* Existing behaviors to avoid duplicating: back_up, spin, wait,
 drive_on_heading, assisted_teleop.
 
-**GATE** (no container; deterministic static checks, all must hold):
+**GATE** (deterministic static checks, all must hold):
 plan.md schema-valid (frontmatter keys + kb-commit present); every task file
 self-contained per the task-file format; every affected file exists at the
 pinned SHA; the chosen behavior name is absent from `nav2_behaviors/plugins/`;
-and one control build of the UNMODIFIED workspace succeeds
-(`colcon build --packages-up-to nav2_behaviors` in `ros2-nav2-builder`) to prove
-the environment is real. PASS = all true.
+and one control build of the UNMODIFIED workspace succeeds to prove the
+environment is real, using the same corrected setup as cell 5's gate:
+```bash
+docker run --rm -v "$WORK_DIR":/workspace ros2-nav2-builder bash -c '
+  cd /workspace && . /opt/ros/jazzy/setup.sh
+  apt-get update -qq
+  rosdep install --from-paths . --ignore-src -y --rosdistro jazzy
+  apt-get install -y ros-jazzy-bondcpp ros-jazzy-geographic-msgs
+  colcon build --packages-up-to nav2_behaviors --executor sequential; echo "EXIT: $?"'
+```
+PASS = all true. (See cell 5's gate environment notes; the same four corrections
+apply. `--executor sequential` matters most here: the parallel executor
+intermittently fails `nav2_behavior_tree`.)
 
 ### Cell 7 — ng-plan (Understand-Anything, large, plan-only)
 
