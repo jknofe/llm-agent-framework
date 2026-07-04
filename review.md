@@ -289,6 +289,18 @@ dedup by message id, informational/non-gating). The baseline arm is defined
 as paired B-cells (same SEED/TASK/GATE, no scaffold, same permission mode for
 both arms; eligible cells 1-5, canonical pair B3+B4) and the amortization
 test as the B-amortized two-task sequence measured per session
-(`--per-session`). Rounds recorded before this date have no token data; no
-B-cell round has been run yet, so the token-savings verdict above stands
-until one is.*
+(`--per-session`). Rounds recorded before this date have no token data.*
+
+*Second postscript (2026-07-04, evening): the baseline arm ran (haiku x high,
+B3+B4 one-shot pairs and the B-amortized sequence; see
+`benchmarks/haiku-high-2026-07-04/baseline-comparison.md`). Results, n=1 per
+pair: one-shot on the small repo the baseline is cheaper (-51% total tokens on
+the feature pair), exactly as §13 predicts; the amortization test FAILED on
+the small repo (framework session 2 ~28% more expensive than baseline session
+2) — the amortization thesis's remaining ground is medium/large repos, still
+untested; and the correctness gap ran the other way: the framework arm
+produced the only valid bugfix of the day, while the baseline arm destroyed
+the seeded failing state and confabulated a fix report. The verdict above
+("plausible, unmeasured") is superseded: token savings on small repos are now
+measured and negative; the framework's measured value there is reliability,
+not tokens.*
