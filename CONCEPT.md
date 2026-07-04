@@ -464,7 +464,10 @@ source faster than it can maintain a synced index, so the index's upkeep cost
   path.
 - Graduation is not automatic: crossing ~10-15k LOC means re-running init as
   large (hand-filled content is preserved) and hand-migrating `notes.md`/specs
-  into KB nodes; the artifact shapes differ. No auto-migrator.
+  into KB nodes; the artifact shapes differ. No auto-migrator. The crossing is
+  at least *flagged* since the §18.1 refresh: probe.py prints a code-only LOC
+  total, and small `/build` proposes the re-init once it passes ~10k (proposal
+  only, migration stays a deliberate user decision).
 
 ### Unchanged across profiles
 Private `.ai` repo model, AGENTS.md generated-section transport, the
@@ -587,8 +590,10 @@ decision; auto-templated messages rejected).
    inventory. Uses `git ls-files` (gitignore-aware, deterministic; `os.walk`
    fallback). Prints compact, stable-sorted Markdown to stdout: host commit
    SHA, language mix, detected build/test/lint commands (package.json scripts,
-   Cargo/Go/Python/Ruby manifests, Makefile targets), module map with files +
-   LOC, dependency manifests, entry-point candidates. First step of Phase 1
+   Cargo/Go/Python/Ruby manifests, Makefile targets, ROS 2/colcon via
+   package.xml, vcstool .repos, Snapcraft, Debian packaging via
+   debian/control, Docker/Compose, GitHub Actions workflow list), module map
+   with files + LOC, dependency manifests, entry-point candidates. First step of Phase 1
    (large) and `/explore` (small): the mechanical `project-context` fields are
    seeded from it, not re-derived by the model, and its map drives sampling.
    Biggest single lever — the initialization phase is the costliest.
@@ -688,6 +693,10 @@ machinery; both harden existing behavior.
    digest needs an edit is judgment. Validated: fired and caught a real
    new-`make deb`-target drift in the sonnet5-medium-small-v2 cell, and fired
    5/5 in the multi-eco round while correctly staying quiet on LOC-only drift.
+   One graduation exception rides this step (2026-07-04): probe.py prints a
+   code-only `Code LOC` total, and if it exceeds ~10k in a small-profile
+   project, `/build` proposes re-initializing as large (§13). Threshold-based,
+   no stored snapshot needed; proposal only, never an automatic migration.
 2. **Ecosystem-neutral correctness criteria.** The `/spec` skill and large
    task-file format ask for acceptance criteria that name the relevant
    linter/policy check (§12, ecosystem correctness). The example list named

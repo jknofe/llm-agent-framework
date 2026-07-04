@@ -1042,7 +1042,11 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   of `AGENTS.md`. Update that section only for a changed command or\n"
             "   a new/removed/renamed module; a bare LOC delta on an existing\n"
             "   module is not actionable, leave it. Keep it under ~1500 tokens.\n"
-            "   This is a bounded diff check, not a re-explore. Last, if a\n"
+            "   This is a bounded diff check, not a re-explore. One exception on\n"
+            "   the LOC rule: if probe's `Code LOC` line exceeds ~10k, tell the\n"
+            "   user this project has outgrown the small profile and propose\n"
+            "   re-initializing as large (hand-filled content is preserved);\n"
+            "   propose only, never migrate on your own. Last, if a\n"
             "   `.ai/notes/` hub exists, confirm every leaf is linked from\n"
             "   `notes.md` and every pointer resolves (no orphaned or dangling\n"
             "   leaves).\n"
@@ -1586,7 +1590,11 @@ DEP_MANIFESTS = [
     "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "setup.cfg",
     "setup.py", "requirements.txt", "tox.ini", "Gemfile", "Rakefile",
     "pom.xml", "build.gradle", "composer.json", "Makefile", "CMakeLists.txt",
+    "snapcraft.yaml", "package.xml", "Dockerfile", "docker-compose.yml",
+    "docker-compose.yaml", "compose.yml", "compose.yaml",
 ]
+# Manifests that live below the repo root (checked against relative paths).
+NESTED_MANIFESTS = ["snap/snapcraft.yaml", "debian/control"]
 
 
 def run(args):
@@ -1629,7 +1637,9 @@ def read(name):
         return ""
 
 
-def detect_commands(names):
+def detect_commands(names, rels):
+    """names = basenames at repo root; rels = all tracked paths, relative,
+    forward-slashed (for manifests that live below the root)."""
     out = []
     if "package.json" in names:
         try:
@@ -1654,19 +1664,60 @@ def detect_commands(names):
         if targets:
             out.append(("Makefile targets",
                         ["make " + t for t in targets[:15]]))
+    ros_pkgs = sorted(r for r in rels
+                      if r == "package.xml" or r.endswith("/package.xml"))
+    if ros_pkgs and any(k in read(r) for r in ros_pkgs[:5]
+                        for k in ("ament", "catkin")):
+        out.append(("ROS 2 / colcon", [
+            "rosdep install --from-paths . --ignore-src -y",
+            "colcon build", "colcon test", "colcon test-result --verbose"]))
+    repos_files = sorted(r for r in rels if r.endswith(".repos"))
+    if repos_files:
+        out.append(("vcstool", ["vcs import < " + f
+                                for f in repos_files[:3]] + ["vcs pull"]))
+    if "snapcraft.yaml" in names or "snap/snapcraft.yaml" in rels:
+        out.append(("Snapcraft", ["snapcraft pack"]))
+    if "debian/control" in rels or "debian/rules" in rels:
+        out.append(("Debian packaging",
+                    ["dpkg-buildpackage -us -uc -b", "lintian"]))
+    dockerfiles = sorted(r for r in rels
+                         if r == "Dockerfile" or r.endswith("/Dockerfile"))
+    if dockerfiles:
+        out.append(("Docker", [
+            "docker build " + (f[:-len("Dockerfile")] or ".")
+            for f in dockerfiles[:3]]))
+    if names & {"docker-compose.yml", "docker-compose.yaml",
+                "compose.yml", "compose.yaml"}:
+        out.append(("Docker Compose",
+                    ["docker compose build", "docker compose up -d"]))
+    workflows = sorted(r for r in rels
+                       if r.startswith(".github/workflows/")
+                       and r.endswith((".yml", ".yaml")))
+    if workflows:
+        shown = workflows[:5]
+        if len(workflows) > 5:
+            shown.append("+" + str(len(workflows) - 5) + " more")
+        out.append(("GitHub Actions (CI gates)", shown))
     return out
 
 
 ENTRY_BASENAMES = ("main.", "index.", "app.", "__main__.py", "cli.")
 ENTRY_PREFIXES = ("cmd/", "bin/", "src/main", "src/bin/")
 
+# Code-only subset of LANGS for the total-LOC line: docs, data, and markup are
+# excluded so the number matches the size-profile boundary (~10k LOC).
+NON_CODE_EXTS = {".md", ".yaml", ".yml", ".toml", ".json",
+                 ".html", ".css", ".scss"}
+
 
 def main():
     files = tracked_files()
     names_at_root = {p.name for p in files if p.parent == ROOT}
+    rel_paths = set()
     exts = Counter()
     dir_files = defaultdict(int)
     dir_loc = defaultdict(int)
+    code_loc = 0
     entries = []
     for p in files:
         try:
@@ -1674,12 +1725,16 @@ def main():
         except ValueError:
             continue
         rels = str(rel).replace("\\", "/")
+        rel_paths.add(rels)
         seg = rel.parts[0] if len(rel.parts) > 1 else "(root)"
         dir_files[seg] += 1
         ext = p.suffix.lower()
         if ext in LANGS:
             exts[LANGS[ext]] += 1
-            dir_loc[seg] += loc(p)
+            n = loc(p)
+            dir_loc[seg] += n
+            if ext not in NON_CODE_EXTS:
+                code_loc += n
         base = p.name
         if base.startswith(ENTRY_BASENAMES) or rels.startswith(ENTRY_PREFIXES):
             entries.append(rels)
@@ -1687,6 +1742,8 @@ def main():
     lines = ["# Repo inventory (probe.py)", ""]
     lines.append("- Host commit: " + host_sha())
     lines.append("- Tracked files: " + str(len(files)))
+    lines.append("- Code LOC (docs/data/markup excluded): " + str(code_loc)
+                 + " (size-profile boundary ~10k)")
     lines.append("")
 
     lines += ["## Languages", "", "| Language | Files |", "|---|---|"]
@@ -1694,7 +1751,7 @@ def main():
         lines.append("| " + lang + " | " + str(n) + " |")
     lines.append("")
 
-    cmds = detect_commands(names_at_root)
+    cmds = detect_commands(names_at_root, rel_paths)
     lines += ["## Build / test / lint (detected)", ""]
     if cmds:
         for tool, cs in cmds:
@@ -1712,6 +1769,7 @@ def main():
     lines.append("")
 
     deps = sorted(names_at_root & set(DEP_MANIFESTS))
+    deps += [m for m in NESTED_MANIFESTS if m in rel_paths]
     lines += ["## Dependency manifests", "",
               (", ".join(deps) if deps else "none at repo root"), ""]
 
@@ -2081,6 +2139,25 @@ def detect_scaffold(root: Path):
     return size, harness, name
 
 
+def write_debug_probe(root: Path) -> None:
+    """--debug-probe: run the freshly scaffolded probe.py and drop its report
+    as PROBE.md in the current directory, so the inventory can be inspected
+    without running /explore. Plain debug artifact, not a scaffold file."""
+    probe = root / TOOLS_DIR / "probe.py"
+    try:
+        r = subprocess.run([sys.executable, str(probe)],
+                           capture_output=True, text=True, cwd=str(root))
+    except OSError as e:
+        print(f"warning: --debug-probe failed to run probe.py: {e}")
+        return
+    if r.returncode != 0 or not r.stdout.strip():
+        print("warning: --debug-probe: probe.py failed: "
+              + (r.stderr.strip() or f"exit {r.returncode}"))
+        return
+    (root / "PROBE.md").write_text(r.stdout, encoding="utf-8")
+    print("wrote PROBE.md (debug inventory; delete or gitignore it)")
+
+
 def cmd_init(args=None) -> int:
     root = Path.cwd()
 
@@ -2105,8 +2182,12 @@ def cmd_init(args=None) -> int:
         ai_commit(root, "pre-update: .ai snapshot before framework update")
         msg = f"update: regenerate {size}-profile framework files ({name})"
         if size == "small":
-            return scaffold_small(root, name, desc, harness, True, msg)
-        return scaffold_large(root, name, desc, harness, True, msg)
+            rc = scaffold_small(root, name, desc, harness, True, msg)
+        else:
+            rc = scaffold_large(root, name, desc, harness, True, msg)
+        if rc == 0 and getattr(args, "debug_probe", False):
+            write_debug_probe(root)
+        return rc
 
     name = (args.name if args and args.name is not None
             else ask("Project name", root.name))
@@ -2137,8 +2218,12 @@ def cmd_init(args=None) -> int:
         force = answer.lower() in ("y", "yes")
 
     if size == "small":
-        return scaffold_small(root, name, desc, harness, force)
-    return scaffold_large(root, name, desc, harness, force)
+        rc = scaffold_small(root, name, desc, harness, force)
+    else:
+        rc = scaffold_large(root, name, desc, harness, force)
+    if rc == 0 and args and getattr(args, "debug_probe", False):
+        write_debug_probe(root)
+    return rc
 
 
 def scaffold_large(root: Path, name: str, desc: str, harness: str,
@@ -2321,6 +2406,11 @@ def main() -> int:
                          "framework: auto-detects size/harness/name, "
                          "regenerates framework files, preserves your "
                          "KB/notes/specs/project-context")
+    ap.add_argument("--debug-probe", action="store_true",
+                    help="after scaffolding, run the generated probe.py and "
+                         "write its report to PROBE.md in the current "
+                         "directory (inspection aid, not part of the "
+                         "scaffold; delete or gitignore it)")
     return cmd_init(ap.parse_args())
 
 
