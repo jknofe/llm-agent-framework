@@ -279,3 +279,11 @@ suite contains no token data and no unscaffolded baseline, so the savings
 claim currently rests on mechanism analysis, not results. The single highest
 value next step for the benchmark suite is a baseline arm plus per-cell token
 capture.
+
+---
+
+*Postscript (2026-07-04): recommendation 2 was implemented the same day. The
+runbook now mandates per-cell token capture as an orchestrator duty
+(`benchmarks/tools/count_tokens.py`, sums transcript API usage per model,
+dedup by message id, informational/non-gating). Rounds recorded before this
+date have no token data. The baseline (no-scaffold) arm remains open.*

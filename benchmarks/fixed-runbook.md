@@ -66,6 +66,7 @@ is valid (report the cells that ran).
 ```bash
 mkdir -p /tmp/benchmark/{runs,results}
 FRAMEWORK=/path/to/llm-agent-framework/init_agent.py   # set once, not a knob
+TOKENS=/path/to/llm-agent-framework/benchmarks/tools/count_tokens.py  # token counter
 
 # Image for cell 1 (bats-core): shellcheck + bash
 docker build -t bats-eco-builder - <<'EOF'
@@ -110,6 +111,22 @@ the same work dir. Parallel dispatch is prohibited (it burns the usage window
 For each cell, spawn the agent with the [shared agent prompt](#shared-agent-prompt)
 below, substituting only `{MODEL}` and `{EFFORT}` (your two inputs) and the
 cell's fixed constants from the matrix and the per-cell blocks.
+
+**Token count (mandatory, orchestrator duty).** After a cell's agent finishes
+(and before starting the next cell), count the tokens the run consumed and
+append the tool's Markdown block to the cell's results file:
+
+```bash
+python3 "$TOKENS" "$WORK_DIR" >> /tmp/benchmark/results/$RUN_ID.md
+```
+
+The counter sums API usage (input, cache write, cache read, output; per model
+and total) from the Claude Code session transcripts of the work dir,
+deduplicated by message id; multiple sessions (resume-after-limit) and
+sub-agent usage are included. Run it from the orchestrator, not the agent: an
+agent cannot see its own final turn, and self-reported numbers are not
+trusted anyway (same rule as the gates). Token counts are recorded for every
+run and are informational, never gating.
 
 ---
 
@@ -400,6 +417,7 @@ round, verify every cell against this checklist:
      large: init -> explore -> ticket -> plan [-> implement]
 [ ] gate ran exactly as written and recorded PASS/FAIL (plan cells: all static checks)
 [ ] refactor cells: no test files modified
+[ ] token usage appended by the orchestrator (count_tokens.py block present)
 [ ] results file written in the fixed format
 ```
 
@@ -413,8 +431,10 @@ deterministic gate only; rubric-style quality notes are recorded, never gating.
   command, size profile, Docker image (by inline Dockerfile), gate command, and
   PASS rule are constants in this file.
 - **User-set:** MODEL and EFFORT only.
-- **Expected to drift, non-gating:** wall-clock duration, exact prose the agent
-  writes, and any upstream-image package versions (`rust:latest`, `ros:jazzy`,
-  `python:3.12` float; pin the image tags too if byte-for-byte gate reproduction
-  is required). The code under test does not drift because targets are pinned to
+- **Expected to drift, non-gating:** wall-clock duration, token usage (recorded
+  every run via `count_tokens.py`, orchestrator duty; comparable within a round,
+  drifts across models/dates), exact prose the agent writes, and any
+  upstream-image package versions (`rust:latest`, `ros:jazzy`, `python:3.12`
+  float; pin the image tags too if byte-for-byte gate reproduction is
+  required). The code under test does not drift because targets are pinned to
   SHAs, not branches.
