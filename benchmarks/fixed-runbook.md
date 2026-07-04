@@ -57,7 +57,9 @@ that expectation is recorded, never gating.
 **Fast core = cells 1-4** (no heavy compile; ~10-20 min each at medium).
 **Full set = 1-7** (adds two ROS 2 colcon builds and two plan-only cells;
 ~3-4 h at medium). Run the fast core when the window is tight; a partial round
-is valid (report the cells that ran).
+is valid (report the cells that ran). A round may additionally include the
+[baseline arm](#baseline-arm-b-cells-no-scaffold-optional-fixed) (B-cells:
+same cells without the scaffold, for the token-economy comparison).
 
 ---
 
@@ -404,6 +406,109 @@ duration. Do not sanitize failures.
 
 ---
 
+## Baseline arm (B-cells, no scaffold; optional, fixed)
+
+Answers the token-economy question: what does the same task cost the same
+model WITHOUT the framework? A B-cell is the paired twin of a numbered cell:
+**identical SEED (same SHA, same revert), identical TASK text, identical GATE
+and image, same MODEL x EFFORT, run in the same round directly after its
+framework twin.** The only difference: the SCAFFOLD step is skipped entirely
+(no `init_agent.py`, no `.ai`, no AGENTS.md, no skills).
+`RUN_ID = <cell>-baseline-<date>`; own work dir
+`/tmp/benchmark/runs/$RUN_ID/<repo>` (separate transcript dir, so
+`count_tokens.py` separates the arms automatically).
+
+- **Eligible: cells 1-5** (target-repo-state gates, scaffold-agnostic).
+  **Not eligible: cells 6-7** — their gates check plan.md schema and task-file
+  format, i.e. framework artifacts a bare agent does not produce.
+- **Canonical pair: B3 + B4** (cheap, fast, shared SHA). B1/B2/B5 optional;
+  B5 is the expensive large-repo data point where the amortization thesis
+  actually lives.
+- **Permission mode (fixed):** any round that includes B-cells dispatches
+  BOTH arms in the harness's bypass-permissions mode. The framework arm's
+  scaffolded allowlist must not be a hidden advantage; otherwise the round
+  measures prompt friction, not token economy.
+- **Reviewer cost stays in.** The framework arm's reviewer sub-agent tokens
+  are part of the framework's price; report them inside its total, never
+  "corrected" out.
+
+### Baseline agent prompt (fixed; replaces the shared prompt for B-cells)
+
+> Copy verbatim. Fill ONLY `{MODEL}` and `{EFFORT}`. The premise-verification
+> sentence stays wordwise identical to the framework prompt: it tests the
+> model, not the framework, and must be constant across arms.
+
+```
+You are benchmark agent {RUN_ID} (BASELINE arm, no framework).
+Model: {MODEL} | Effort: {EFFORT}
+
+AUTONOMOUS RUN. No human is available. Resolve every question from code
+evidence, record numbered assumptions in $WORK_DIR/../BASELINE-NOTES.md (not
+inside the target repo), and proceed without blocking. There is no prescribed
+workflow, no required artifacts, and no framework: work directly on the task
+in whatever way you consider best.
+EFFORT semantics: {paste the matching low/medium/high tier text}.
+
+Record start: date '+%Y-%m-%dT%H:%M:%S'
+
+STEP 1 — SETUP: run the cell's SEED commands (no scaffold), then cd $WORK_DIR.
+
+STEP 2 — TASK: solve the cell's TASK. Verify any premise in the TASK against
+the code before acting; record findings as numbered assumptions.
+
+STEP 3 — GATE: run the cell's GATE commands exactly. Record full output and
+the PASS/FAIL per the cell's rule. Do not modify the target to make the gate
+pass in a way the TASK forbids (e.g. editing tests in a refactor cell).
+
+STEP 4 — RESULTS: write /tmp/benchmark/results/{RUN_ID}.md with: Configuration
+table (Run ID, Cell, Arm=baseline, Model, Effort, Start, End, Duration, Gate
+PASS/FAIL); target diff (git diff --stat HEAD + full diff); any
+premise-verification finding; full gate output; 3-5 observations.
+
+Report back a concise summary: gate PASS/FAIL per check, premise findings,
+duration. Do not sanitize failures.
+```
+
+Token counting is the same orchestrator duty as for numbered cells
+(`python3 "$TOKENS" "$WORK_DIR" >> .../results/$RUN_ID.md`).
+
+### B-amortized (fixed sequence; tests the amortization thesis)
+
+The framework's claimed win is the SECOND task in the same repo. Cells 3 and 4
+share the sqlite-utils SHA, so:
+
+- `py-seq-<date>` (framework arm): ONE work dir, cell 3's SEED (with revert),
+  scaffold once. Session 1: explore + cell 3's TASK to done. Session 2 (fresh
+  session, same work dir): cell 4's TASK to done. Both gates as written.
+- `py-seq-baseline-<date>` (baseline arm): ONE work dir, same SEED, no
+  scaffold. Session 1: cell 3's TASK. Session 2 (fresh session, no memory):
+  cell 4's TASK. Both gates as written.
+
+Measure with `count_tokens.py --per-session`: the comparison number is the
+**marginal cost of session 2** per arm. If the framework's session 2 is not
+clearly cheaper than the baseline's, the amortization thesis failed the test;
+say so in the report.
+
+### Comparison table (fixed report format, informational, never gating)
+
+```
+| Pair | Arm | Gate | Probe caught | Output tokens | Total tokens | Duration |
+|---|---|---|---|---|---|---|
+| 3 py-bugfix | framework | ... | ... | ... | ... | ... |
+| 3 py-bugfix | baseline  | ... | ... | ... | ... | ... |
+```
+
+Report output tokens separately: cache reads dominate totals and the two arms
+have very different cache profiles. Interpretation guardrails: n=1 per pair
+has high agentic variance; treat deltas under ~30-40% as noise, repeat the
+cheap B-cells before concluding anything from a close result. Expected shape
+(the concept's own prediction, §13/§9): baseline wins or ties one-shot cells
+on small repos; framework must win the B-amortized session 2 and the large-
+repo pair. A baseline loss on one-shot small cells is NOT a framework defect;
+a framework loss on B-amortized session 2 is.
+
+---
+
 ## Results and evaluation (fixed format)
 
 Each cell writes `/tmp/benchmark/results/<RUN_ID>.md` (structure above). After a
@@ -419,6 +524,9 @@ round, verify every cell against this checklist:
 [ ] refactor cells: no test files modified
 [ ] token usage appended by the orchestrator (count_tokens.py block present)
 [ ] results file written in the fixed format
+[ ] B-cells only: same SEED/TASK/GATE as the twin, no scaffold, both arms in
+    bypass-permissions mode, comparison table in the report
+[ ] B-amortized only: per-session token split recorded (--per-session)
 ```
 
 To record a round in the repo: create `benchmarks/<run>/report.md` and copy the

@@ -282,8 +282,13 @@ capture.
 
 ---
 
-*Postscript (2026-07-04): recommendation 2 was implemented the same day. The
-runbook now mandates per-cell token capture as an orchestrator duty
+*Postscript (2026-07-04): recommendations 1-3 were specified in the runbook
+the same day. Per-cell token capture is now a mandatory orchestrator duty
 (`benchmarks/tools/count_tokens.py`, sums transcript API usage per model,
-dedup by message id, informational/non-gating). Rounds recorded before this
-date have no token data. The baseline (no-scaffold) arm remains open.*
+dedup by message id, informational/non-gating). The baseline arm is defined
+as paired B-cells (same SEED/TASK/GATE, no scaffold, same permission mode for
+both arms; eligible cells 1-5, canonical pair B3+B4) and the amortization
+test as the B-amortized two-task sequence measured per session
+(`--per-session`). Rounds recorded before this date have no token data; no
+B-cell round has been run yet, so the token-savings verdict above stands
+until one is.*

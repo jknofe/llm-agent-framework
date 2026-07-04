@@ -48,12 +48,17 @@ def candidate_dirs(work_dir: str):
 
 
 def collect(project_dir: Path):
-    """Return (per_model_totals, api_calls, sessions, skipped_dup_lines)."""
+    """Return (per_model_totals, per_session_totals, api_calls, sessions,
+    skipped_dup_lines). Files are walked oldest-first so a resume-forked
+    session's copied history stays attributed to the original session."""
     totals = defaultdict(lambda: defaultdict(int))
+    per_session = []
     seen_ids = set()
-    files = sorted(project_dir.glob("*.jsonl"))
+    files = sorted(project_dir.glob("*.jsonl"),
+                   key=lambda f: f.stat().st_mtime)
     dups = 0
     for f in files:
+        sess = defaultdict(int)
         for line in f.open(encoding="utf-8", errors="replace"):
             try:
                 d = json.loads(line)
@@ -70,8 +75,11 @@ def collect(project_dir: Path):
             seen_ids.add(mid)
             model = msg.get("model") or "unknown"
             for k in USAGE_KEYS:
-                totals[model][k] += int(usage.get(k) or 0)
-    return totals, len(seen_ids), len(files), dups
+                n = int(usage.get(k) or 0)
+                totals[model][k] += n
+                sess[k] += n
+        per_session.append((f.stem, sess))
+    return totals, per_session, len(seen_ids), len(files), dups
 
 
 def main() -> int:
@@ -81,6 +89,10 @@ def main() -> int:
     ap.add_argument("--projects-dir",
                     help="explicit ~/.claude/projects/<name> dir (overrides "
                          "work_dir lookup)")
+    ap.add_argument("--per-session", action="store_true",
+                    help="also print one row per session file (oldest first; "
+                         "for marginal-cost comparisons, e.g. the baseline "
+                         "arm's B-amortized sequence)")
     args = ap.parse_args()
     if not args.work_dir and not args.projects_dir:
         ap.error("give WORK_DIR or --projects-dir")
@@ -98,7 +110,7 @@ def main() -> int:
                 print("  " + str(c), file=sys.stderr)
             return 1
 
-    totals, calls, sessions, dups = collect(pdir)
+    totals, per_session, calls, sessions, dups = collect(pdir)
     if not totals:
         print("no assistant usage entries in " + str(pdir), file=sys.stderr)
         return 1
@@ -124,6 +136,16 @@ def main() -> int:
     lines.append("| **all** | "
                  + " | ".join(str(grand[k]) for k in USAGE_KEYS)
                  + " | " + str(sum(grand.values())) + " |")
+    if args.per_session:
+        lines += ["", "| Session (oldest first) | Input | Cache write "
+                  "| Cache read | Output | Total |", "|" + "---|" * 6]
+        for stem, u in per_session:
+            row_total = sum(u[k] for k in USAGE_KEYS)
+            if row_total == 0:
+                continue
+            lines.append("| " + stem + " | "
+                         + " | ".join(str(u[k]) for k in USAGE_KEYS)
+                         + " | " + str(row_total) + " |")
     print("\n".join(lines))
     return 0
 
