@@ -18,12 +18,13 @@ the agent through skills and folder conventions:
   archive                no command: ask the agent to archive a finished
                          ticket; the rules live in AGENTS.md
 
-Prompts: project name, one-line description, project size (large/small),
-harness (claude/copilot). Enter accepts the default. The size default is the
-profile auto-detected from the codebase LOC (small <=10k, large above), so
-Enter accepts the recommendation; --size auto selects it without prompting and
---size large|small forces a profile. Non-TTY runs use the auto-detected size
-(and the other defaults) unless overridden by the flags below. If a scaffold
+Prompts: project name, one-line description, project size (auto/large/small),
+harness (claude/copilot). Enter accepts the default. The size prompt defaults
+to auto: the profile auto-detected from the codebase LOC (small <=10k, large
+above); pick large or small to override. --size auto selects it without
+prompting and --size large|small forces a profile. Non-TTY runs use the
+auto-detected size (and the other defaults) unless overridden by the flags
+below. If a scaffold
 already exists, init asks before
 overwriting framework files; hand-filled content (KB nodes, manifest, INDEX,
 notes, specs, the generated project-context section) is always preserved,
@@ -461,16 +462,25 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 
 ## Protocol
 1. Explore the codebase with native read/search tools (Read, Grep, Glob), not
-   by loading everything. The source is the knowledge base.
+   by loading everything. The source is the knowledge base. Check the Project
+   Context section below first: if it still holds only the seed one-liner (or
+   the raw `<!-- Populated by /explore -->` marker) with no module map or
+   build/test/lint commands, `/explore` was never run. Run it before non-trivial
+   work — a stale or missing digest costs more discovery tokens over the
+   session than the one-time `/explore` pass.
 2. Durable knowledge (decisions, gotchas, domain terms, unwritten rules,
-   operational runbooks) goes in `.ai/notes.md` (append, telegraphic). Read it
-   at the start of a task. `notes.md` may grow into a hub: once it passes ~1-2
-   screens, move topic clusters (largest first) into `.ai/notes/<topic>.md`,
-   each leaving a one-line linked pointer (`- [topic](notes/<topic>.md) - hook`)
-   behind, until the hub is back under ~1 screen. Then read the hub first and
-   open only the leaves a task needs; keep the pointer list in sync (add on
-   split, remove on delete). Do not split while notes stay short - one file is
-   cheaper to read whole than an index plus a leaf.
+   operational runbooks, pointers to related repos/paths this project depends
+   on — e.g. a sibling repo's venv used for tests, or prior-art to mirror) goes
+   in `.ai/notes.md` (append, telegraphic). Read it at the start of a task.
+   Architecture/module-map knowledge belongs in the Project Context section
+   instead (`/explore`'s output) — never duplicate it here. `notes.md` may grow
+   into a hub: once it passes ~1-2 screens, move topic clusters (largest first)
+   into `.ai/notes/<topic>.md`, each leaving a one-line linked pointer
+   (`- [topic](notes/<topic>.md) - hook`) behind, until the hub is back under
+   ~1 screen. Then read the hub first and open only the leaves a task needs;
+   keep the pointer list in sync (add on split, remove on delete). Do not split
+   while notes stay short - one file is cheaper to read whole than an index
+   plus a leaf.
 3. Non-trivial work: `/spec <id>` writes `.ai/changes/<id>/spec.md` (goal,
    acceptance criteria, task checklist); `/build <id>` implements it.
 4. Before declaring a change done, have the full diff reviewed in a fresh
@@ -523,10 +533,14 @@ def render_notes_stub() -> str:
     return (
         "# Project Notes\n\n"
         "<!-- Running memory for the agent: durable decisions, gotchas, domain\n"
-        "terms, unwritten rules, and operational runbooks (validation loops, CI\n"
-        "quirks, merge-order rules) that do not fit a curated KB node. Append,\n"
-        "telegraphic. Read at the start of a task. The code is the source of\n"
-        "truth for structure; this file captures what the code does not say.\n"
+        "terms, unwritten rules, operational runbooks (validation loops, CI\n"
+        "quirks, merge-order rules), and pointers to related repos/paths this\n"
+        "project depends on (e.g. a sibling repo's venv used for tests, prior-art\n"
+        "to mirror) that do not fit a curated KB node. Append, telegraphic. Read\n"
+        "at the start of a task. Architecture/module-map knowledge belongs in the\n"
+        "AGENTS.md Project Context section (/explore's output) instead - never\n"
+        "duplicate it here. The code is the source of truth for structure; this\n"
+        "file captures what the code does not say.\n"
         "Once this file passes ~1-2 screens, become a hub: move topic clusters\n"
         "(largest first) into .ai/notes/<topic>.md, each leaving a linked\n"
         "one-line pointer here, until the hub is back under ~1 screen. Read the\n"
@@ -2199,11 +2213,14 @@ def cmd_init(args=None) -> int:
     else:
         # No profile given, or "auto": weigh the codebase and recommend one.
         est = estimate_loc(root)
-        size = choose_size(est)
+        auto_size = choose_size(est)
         print(f"auto-size: {est} lines of code across source files "
-              f"-> {size} profile")
+              f"-> {auto_size} profile")
+        size = auto_size
         if requested != "auto":     # unspecified + interactive: let user vet it
-            size = ask_choice("Project size", ["large", "small"], size)
+            choice = ask_choice("Project size", ["auto", "large", "small"],
+                                "auto")
+            size = auto_size if choice == "auto" else choice
     harness = (args.harness if args and args.harness
                else ask_choice("Harness", ["claude", "copilot"], "claude"))
 

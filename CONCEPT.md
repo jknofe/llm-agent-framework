@@ -1,6 +1,12 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-03, v5.9 (automatic profile selection: init-agent counts source
+State: 2026-07-06, v5.10 (explore-freshness guard: small-profile Protocol item 1
+now tells the agent to check whether the Project Context digest is still an
+unpopulated stub and run /explore first if so, instead of proceeding on a
+stale/wrong one-liner; notes.md stub explicitly sanctions cross-repo/path
+pointers as an existing genre, while restating that architecture/module-map
+content stays out of notes.md, §21). v5.9 (automatic profile selection:
+init-agent counts source
 LOC and applies the ~10k boundary to pick small vs large when --size is omitted
 or 'auto'; explicit --size still wins, --update keeps the detected profile,
 §20). v5.8 (small-profile notes hub: .ai/notes.md may become a
@@ -776,3 +782,59 @@ network-status (30 LOC) -> small; a synthetic 12.6k-LOC git project scaffolds
 large and a 90-LOC one scaffolds small, with explicit-override, non-git
 fallback, and `--update --size auto` edge cases all correct. Scaffold path only
 (no explore run).
+
+## 21. Explore-freshness guard + notes.md pointer clarification (2026-07-06, v5.10)
+
+Investigated a proposal: could the small profile's `.ai/notes.md` carry more
+steering — pointers to sub-repos/folders, or an architecture overview — so a
+fresh session finds the right code faster instead of re-deriving structure by
+search. Surveyed four real deployments of this framework
+(`ha-value-crossing`, `ha-weatherstage`, `navigation2`, and this repo itself)
+rather than reasoning in the abstract.
+
+Findings:
+- The mechanism the proposal wants **already exists** and, when used, works
+  well: the small profile's `GENERATED:project-context` section in AGENTS.md
+  (module map, tech stack, glossary — filled by `/explore`) and the large
+  profile's `architecture/*` KB nodes. `ha-value-crossing`'s digest has a
+  precise per-file module map; `navigation2`'s KB has a real module-oriented
+  architecture split. Adding a second architecture home inside `notes.md`
+  would duplicate this and violate the standing single-source-of-truth
+  invariant (§13's design rule) — this is the collision the proposal itself
+  anticipated. **Rejected.**
+- "Pointers to other repos/folders" already happens, unprompted, inside
+  `notes.md` — `ha-weatherstage`'s notes point at
+  `ha-value-crossing`'s `.venv-ha` for running its HA-aware tests. This fits
+  the stub's existing "operational runbooks" genre; it was just never named
+  as an explicit example, making it a discoverability gap rather than a
+  missing capability.
+- The real gap: the project-context digest has **no freshness guard**. This
+  repo's own `AGENTS.md` is the live counterexample — its digest still reads
+  the scaffold-time placeholder ("CLI tool and Python library for
+  manipulating SQLite databases", left over from a §20 test run) while
+  `.ai/notes.md` has 60+ lines of real, current decisions. `/explore` was
+  simply never invoked here, and nothing short-circuits non-trivial work on
+  a repo whose always-loaded digest is still a stub or wrong. A fresh session
+  reading this file cold gets actively misled about the project's purpose —
+  the opposite of the token efficiency the digest exists to buy.
+
+Decision: two guidance-only edits (no new tooling, matching the §19
+precedent), both in the shared stub renderers:
+1. Small-profile Protocol item 1 (`render_agents_md_small`) now tells the
+   agent to check the Project Context section first and run `/explore` before
+   non-trivial work if it is still just the seed one-liner or the raw
+   `Populated by /explore` marker with no module map/commands.
+2. The `notes.md` stub (`render_notes_stub`, shared by both profiles) now
+   names "pointers to related repos/paths this project depends on" as an
+   explicit example of what belongs there, and restates in the same breath
+   that architecture/module-map content stays in the Project Context section
+   — sanctioning the observed-useful pattern without opening the door to
+   duplicating the digest.
+
+Rejected alternatives: seeding the digest from `probe.py`'s mechanical output
+at scaffold time (would help, but the framework deliberately keeps `probe.py`
+output out of the committed scaffold — see `--debug-probe`'s `PROBE.md`,
+explicitly "not part of the scaffold" — so this would be a separate, larger
+design change, not a minor steering fix); a dedicated `references/`-style
+node for small (already covered by `.ai/external/` + a `notes.md` line per
+§13's dropped list; small deliberately has no node machinery).
