@@ -308,6 +308,27 @@ Copilot CLI, start a phase with its kickoff line:
     entry_note = ("packaged as Agent Skills under `.claude/skills/`"
                   if harness == "claude"
                   else "exposed as prompt files under `.github/prompts/`")
+    goal_note = ""
+    if harness == "claude":
+        goal_note = """
+## Autonomous dispatch (/goal)
+`/goal` adds no new definition of done - `/implement` already has one:
+every task in `plan.md` at `status: done`, plus the ticket review gate's
+sign-off. `/goal` only changes whether the agent stops to ask permission
+between tasks or keeps going on its own until the plan is fully done.
+Reach for it when both hold: each task's acceptance criteria are checkable
+by a machine (tests, lint, a named gate script), and no mid-flight
+judgment call is expected - a `/goal` loop cannot ask you a question, so
+save it for tickets that already cleared planning's Q&A. Point its
+condition at `plan.md`; never restate a looser version of it:
+```
+/goal every task in .ai/knowledgebase/tasks/<id>/plan.md is status:done,
+the ticket review gate passed, and .ai is committed
+```
+Pair it with the same stall rule as a manual `/implement` run: on
+`test-fail` twice on the same task, stop rather than a third blind
+attempt - the loop has no one else to escalate to.
+"""
     return f"""# Agent: {project_name}
 
 Project-aware agent (concept v5). KB = `.ai/knowledgebase/`. Token efficiency
@@ -333,7 +354,7 @@ change confined to one self-contained area (e.g. a packaging descriptor or a
 self-contained CLI subcommand), take
 planning.md's trivial path: one task file, one review gate, no Q&A rounds. Do
 not pay ceremony that exceeds the task.
-
+{goal_note}
 ## KB Protocol
 
 1. Parse `.ai/knowledgebase/manifest.yaml` first. Never load all nodes.
@@ -445,6 +466,28 @@ CLI, state the intent directly; the Protocol and Workflows above apply:
 - `Build change <id>: implement .ai/changes/<id>/spec.md, then review the diff against the criteria.`
 
 """
+    goal_note = ""
+    if harness == "claude":
+        goal_note = """## Autonomous dispatch (/goal)
+`/goal` adds no new definition of done - `/build` already has one: the
+spec's acceptance criteria, the gate command, the reviewer's sign-off.
+`/goal` only changes whether the agent stops to ask permission between
+those steps or keeps going on its own until they are met. Reach for it
+when both hold: the finish line is something a machine can check (tests
+pass, lint clean, a named gate script exits 0), and no mid-flight judgment
+call is expected - a `/goal` loop cannot ask you a question. Point its
+condition at the artifact that already defines done; never restate a
+looser version of it:
+```
+/goal every acceptance criterion in .ai/changes/<id>/spec.md is checked
+off, its gate command passes, and the reviewer reports no correctness gaps
+```
+Pair it with the same stall rule as a manual `/build` run: if 2
+consecutive turns make no measurable progress on the same blocker, stop
+and report it instead of a third blind attempt - the loop has no one else
+to escalate to.
+
+"""
     return f"""# Agent: {project_name}
 
 Small-project agent (concept v5, small profile). Token efficiency is a hard
@@ -460,7 +503,7 @@ A change you can describe in one sentence that touches one or two files needs
 no spec: make it, update `.ai/notes.md` if a decision or gotcha emerged, and
 commit `.ai`. Use `/spec` then `/build` for everything larger.
 
-## Protocol
+{goal_note}## Protocol
 1. Explore the codebase with native read/search tools (Read, Grep, Glob), not
    by loading everything. The source is the knowledge base. Check the Project
    Context section below first: if it still holds only the seed one-liner (or

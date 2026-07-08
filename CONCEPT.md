@@ -1,6 +1,10 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-06, v5.10 (explore-freshness guard: small-profile Protocol item 1
+State: 2026-07-08, v5.11 (/goal as a documented autonomous-dispatch mode:
+AGENTS.md now names /goal explicitly in both profiles, pointed at the same
+done-bar /build (small) or /implement (large) already defines rather than a
+new one, paired with the existing stall/escalation rule; claude-harness only,
+§22). v5.10 (explore-freshness guard: small-profile Protocol item 1
 now tells the agent to check whether the Project Context digest is still an
 unpopulated stub and run /explore first if so, instead of proceeding on a
 stale/wrong one-liner; notes.md stub explicitly sanctions cross-repo/path
@@ -838,3 +842,75 @@ explicitly "not part of the scaffold" — so this would be a separate, larger
 design change, not a minor steering fix); a dedicated `references/`-style
 node for small (already covered by `.ai/external/` + a `notes.md` line per
 §13's dropped list; small deliberately has no node machinery).
+
+## 22. /goal as a documented autonomous-dispatch mode (2026-07-08, v5.11)
+
+2026's "loop engineering" trend (self-prompting agents that run turn after
+turn until a stated condition holds — Claude Code's native `/goal`/`/loop`,
+the community Ralph Wiggum technique) was checked against this concept.
+Comparison found the two are answering different questions rather than
+competing: right-sizing decides *how much ceremony a task needs*; `/goal`
+decides *whether a human supervises turn-by-turn or the agent runs
+unsupervised toward an already-stated finish line*. Nothing in the concept
+previously said anything about the second question beyond one throwaway
+line (§17 item 4: "/goal ... the lighter alternative to the scaffolded
+lint/test Stop hook").
+
+Key finding driving the design: `/goal`'s own condition text is not
+automatically the spec's (or plan's) acceptance criteria — it is exactly
+and only the string the user types after `/goal`, checked each turn by a
+separate, fast model. `/build` and `/implement` already have a rigorous
+definition of done baked into the skill (acceptance criteria checked off,
+gate green, reviewer clean); if the `/goal` condition restates that
+loosely ("build spec-01") instead of pointing at the artifact directly, the
+condition-checker's bar and the skill's own bar can silently drift apart —
+the checker might call it done a step early (e.g., before the reviewer
+runs) because nothing in the condition said that step was required.
+
+Decision: document `/goal` as a **supervision mode layered on the existing
+paths, not a third size tier and not a new definition of done**. Added to
+both profiles' `AGENTS.md`, `claude`-harness only (`/goal` has no Copilot
+equivalent), right after Right-sizing:
+- A decision rule for when it applies: the finish line must be
+  machine-checkable (tests, lint, a named gate script), and no mid-flight
+  judgment call is expected — a `/goal` loop cannot ask the user a
+  question, so it is the wrong tool the moment ambiguity is likely.
+- A fixed condition-phrasing convention that points at the artifact
+  already defining done instead of restating it: `.ai/changes/<id>/spec.md`
+  (small) or `.ai/knowledgebase/tasks/<id>/plan.md` (large), plus the gate
+  and the reviewer's sign-off.
+- A paired stall clause, reusing the existing typed-escalation wording
+  verbatim (test-fail-twice → stop, never a third blind attempt) rather
+  than inventing a new guardrail — this was the one gap the loop-engineering
+  comparison actually surfaced: the concept had no generic iteration/budget
+  ceiling in prose, only that one specific escalation trigger.
+
+Usage pattern this surfaced: `/goal` is a **second way to drive the
+framework, running alongside human-supervised spec-then-build rather than
+replacing it**. Turn-by-turn supervision (write a spec, watch `/build`
+implement it, review the diff) stays the default for one-off or
+judgment-heavy work. `/goal`'s complement is a backlog of several
+already-scoped, independently checkable tasks (a ticket queue, a handful of
+specs already written) worked through in one continuous session without a
+human re-approving between them. Within that session, discovery already
+surfaced for the first task (the project-context digest, `notes.md`, files
+already read) carries forward in-context for free through later tasks — no
+rediscovery — as long as the window doesn't fill. The two risks that erase
+that saving are exactly why `notes.md` is worth writing to mid-loop, not
+only at `/explore` time: compaction (detail lost to summarization once the
+window fills) and context rot (earlier detail degrading before any hard
+compaction event). `notes.md` is the loop's insurance against both — cheap
+to write, and the reason the framework's persistence layer and `/goal`'s
+unsupervised dispatch reinforce each other rather than being unrelated
+features.
+
+Rejected: treating `/goal` as a new top-level path alongside trivial and
+ticket-driven work (first draft of this idea) — cleaner to model it as
+orthogonal to sizing, since the same spec or plan is used either way and
+nothing about the artifact format changes. Also rejected: adopting
+heartbeats/crons/hooks (the other loop-engineering patterns) as core
+mechanisms — they answer "run on a schedule/event with nobody watching,"
+a use case this concept is not built for (every unit of work starts from a
+human-filed ticket or invocation by design); worth a deliberate look only
+if scheduled maintenance-style agents become an actual separately-scoped
+goal, not a reason to retrofit the pipeline now.
