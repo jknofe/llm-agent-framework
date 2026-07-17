@@ -59,7 +59,9 @@ that expectation is recorded, never gating.
 ~3-4 h at medium). Run the fast core when the window is tight; a partial round
 is valid (report the cells that ran). A round may additionally include the
 [baseline arm](#baseline-arm-b-cells-no-scaffold-optional-fixed) (B-cells:
-same cells without the scaffold, for the token-economy comparison).
+same cells without the scaffold, for the token-economy comparison) and/or the
+[worker arm](#worker-arm-w-cells-code-worker-dispatch-optional-fixed)
+(W-cells: solo vs code-worker-dispatch twins, for the delegation comparison).
 
 ---
 
@@ -509,6 +511,53 @@ a framework loss on B-amortized session 2 is.
 
 ---
 
+## Worker arm (W-cells, code-worker dispatch; optional, fixed)
+
+Answers the delegation question (CONCEPT §23): what does the same framework
+task cost when `/build` dispatches eligible checklist items to the scaffolded
+`code-worker` sub-agent instead of implementing inline? A W-pair consists of
+two twins of a numbered cell, **both framework-scaffolded**: identical SEED,
+TASK, GATE and image, same MODEL x EFFORT, same round. The only difference is
+the /build execution mode, controlled by one added prompt line each:
+
+- **solo twin** (control), `RUN_ID = <cell>-solo-<date>`: shared agent prompt
+  plus the line "Work every implementation task inline yourself; do NOT
+  dispatch to the code-worker sub-agent." (The scaffold ships the worker, so
+  without this line the control arm is uncontrolled.)
+- **worker twin**, `RUN_ID = <cell>-worker-<date>`: shared agent prompt plus
+  the line "Dispatch checklist items that meet /build's delegation rules
+  (fully specified, test-verifiable, mechanical or multi-file) to the
+  `code-worker` sub-agent; re-run the tests yourself after every worker
+  report."
+
+Fixed rules:
+- **Eligible:** implementation cells whose TASK is multi-file — cell 4
+  canonical; 1, 2, 5 optional. **Cell 3 is NOT eligible:** its fix is a
+  one-file change that /build's own right-sizing keeps inline; a W3 would
+  measure rule violation, not delegation. Plan-only cells 6-7 ineligible.
+- **Worker model comes from the scaffolded frontmatter** (`model: sonnet`),
+  never overridden per cell. With MODEL = claude-sonnet-5 the pair isolates
+  delegation mechanics (context hygiene) at constant tier; with a stronger
+  MODEL it additionally measures the tier price gap. Record which
+  configuration ran.
+- Own work dir per twin (separate transcript dirs); worker sub-agent usage
+  is sidechain usage and lands in the worker twin's total automatically.
+- Both twins bypass-permissions (same rule as B-cells). Reviewer cost stays
+  in both totals.
+- Gate re-verified by the orchestrator for both twins (a worker's
+  self-reported pass is doubly untrusted).
+
+Comparison table: same fixed format as the B-cells (Pair | Twin | Gate |
+Output tokens | Total tokens | Duration), output tokens reported separately.
+Interpretation guardrails: n=1 per pair, deltas under ~30-40% are noise. A
+worker-twin token loss on a small repo is consistent with §13/§23 (dispatch
+overhead has a scale threshold) and is not a defect by itself; the strong
+delegation claim (net token win) FAILS the test if the worker twin costs
+more in BOTH total and output tokens at an equal gate outcome. Correctness
+divergence between twins is reported alongside, with the same weight.
+
+---
+
 ## Results and evaluation (fixed format)
 
 Each cell writes `/tmp/benchmark/results/<RUN_ID>.md` (structure above). After a
@@ -527,6 +576,9 @@ round, verify every cell against this checklist:
 [ ] B-cells only: same SEED/TASK/GATE as the twin, no scaffold, both arms in
     bypass-permissions mode, comparison table in the report
 [ ] B-amortized only: per-session token split recorded (--per-session)
+[ ] W-cells only: both twins scaffolded, one-line mode instruction per twin,
+    worker model from frontmatter (recorded), orchestrator re-ran the gate
+    for both twins, comparison table in the report
 ```
 
 To record a round in the repo: create `benchmarks/<run>/report.md` and copy the
