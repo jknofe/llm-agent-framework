@@ -319,11 +319,17 @@ between tasks or keeps going on its own until the plan is fully done.
 Reach for it when both hold: each task's acceptance criteria are checkable
 by a machine (tests, lint, a named gate script), and no mid-flight
 judgment call is expected - a `/goal` loop cannot ask you a question, so
-save it for tickets that already cleared planning's Q&A. Point its
-condition at `plan.md`; never restate a looser version of it:
+save it for tickets that already cleared planning's Q&A. Invoke
+`/implement <id>` first, then set the goal: skills here are not
+model-invocable, so the loop can only follow the phase procedure if its
+instructions are already in context. Point the condition at `plan.md`
+(never restate a looser version), make the agent prove it in output -
+the goal evaluator reads only the transcript, never files - and bound
+the run with a turn cap:
 ```
-/goal every task in .ai/knowledgebase/tasks/<id>/plan.md is status:done,
-the ticket review gate passed, and .ai is committed
+/goal every task in .ai/knowledgebase/tasks/<id>/plan.md is status:done
+and shown, the transcript shows the ticket review gate passing, and .ai
+is committed; or stop after 30 turns
 ```
 Pair it with the same stall rule as a manual `/implement` run: on
 `test-fail` twice on the same task, stop rather than a third blind
@@ -475,12 +481,17 @@ spec's acceptance criteria, the gate command, the reviewer's sign-off.
 those steps or keeps going on its own until they are met. Reach for it
 when both hold: the finish line is something a machine can check (tests
 pass, lint clean, a named gate script exits 0), and no mid-flight judgment
-call is expected - a `/goal` loop cannot ask you a question. Point its
-condition at the artifact that already defines done; never restate a
-looser version of it:
+call is expected - a `/goal` loop cannot ask you a question. Invoke
+`/build <id>` first, then set the goal: skills here are not
+model-invocable, so the loop can only follow the build procedure if its
+instructions are already in context. Point the condition at the artifact
+that already defines done (never restate a looser version), make the
+agent prove it in output - the goal evaluator reads only the transcript,
+never files - and bound the run with a turn cap:
 ```
 /goal every acceptance criterion in .ai/changes/<id>/spec.md is checked
-off, its gate command passes, and the reviewer reports no correctness gaps
+off and shown, the transcript shows the gate command exiting 0, and the
+reviewer reports no correctness gaps; or stop after 20 turns
 ```
 Pair it with the same stall rule as a manual `/build` run: if 2
 consecutive turns make no measurable progress on the same blocker, stop

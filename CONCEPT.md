@@ -885,6 +885,24 @@ equivalent), right after Right-sizing:
   comparison actually surfaced: the concept had no generic iteration/budget
   ceiling in prose, only that one specific escalation trigger.
 
+Hardened after a doc-check against the official /goal and /loop references
+(2026-07-08, same version):
+- The goal evaluator reads only the transcript — it never runs commands or
+  reads files — so the scaffolded condition examples now require the agent
+  to *show* the checked-off criteria and the gate's exit status in output,
+  not merely reach them; a condition that only names a file leaves the
+  evaluator guessing.
+- A turn-cap clause ("or stop after N turns") now rides both condition
+  examples — the docs' own bounding mechanism, closing the budget-ceiling
+  gap noted above with zero new machinery.
+- Because scaffolded skills are `disable-model-invocation: true` (§17.1),
+  a /goal loop cannot load `/build`/`/implement` itself: the documented
+  ordering is invoke the skill first, then set the goal, so the procedure
+  is already in context for every loop turn. For the same reason,
+  `/loop <interval> /build <id>` delivers the skill as plain text instead
+  of executing it (v2.1.196 scheduled-fire semantics) — the framework does
+  not use /loop, recorded here so nobody debugs it as a defect later.
+
 Usage pattern this surfaced: `/goal` is a **second way to drive the
 framework, running alongside human-supervised spec-then-build rather than
 replacing it**. Turn-by-turn supervision (write a spec, watch `/build`
