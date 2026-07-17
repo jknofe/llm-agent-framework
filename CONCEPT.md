@@ -1,6 +1,13 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-08, v5.11 (/goal as a documented autonomous-dispatch mode:
+State: 2026-07-17, v5.12 (worker sub-agents on a mid-tier model: optional
+scaffolded `code-worker` and `explore-helper` agent definitions pin
+`model: sonnet` in frontmatter — harness-level routing per §3, one
+user-editable line, no framework routing machinery. Dispatch is
+right-sized (fully specified, test-verifiable, multi-file/mechanical items
+only), every gate is re-verified by the dispatcher, and planning, specs,
+reviews, and digest/KB curation never go to the worker tier;
+claude-harness only, §23). v5.11 (/goal as a documented autonomous-dispatch mode:
 AGENTS.md now names /goal explicitly in both profiles, pointed at the same
 done-bar /build (small) or /implement (large) already defines rather than a
 new one, paired with the existing stall/escalation rule; claude-harness only,
@@ -211,6 +218,12 @@ docs.
   opusplan: plan on strong model, implement on cheap one) viable. Stated in
   README, not in agent docs. Direction stays asymmetric: never plan on the
   weak model
+- v5.12 instantiates that property once: two optional scaffolded worker
+  definitions (`code-worker`, `explore-helper`) pin `model: sonnet` in
+  their frontmatter — still harness-level routing (one user-editable
+  line), not per-task machinery. The asymmetry direction is unchanged and
+  extended: implement/collect on the cheap tier; plan, spec, review, and
+  digest curation on the strong one (§23)
 
 ## 4. Ticket lifecycle
 
@@ -932,3 +945,55 @@ a use case this concept is not built for (every unit of work starts from a
 human-filed ticket or invocation by design); worth a deliberate look only
 if scheduled maintenance-style agents become an actual separately-scoped
 goal, not a reason to retrofit the pipeline now.
+
+## 23. Worker sub-agents on a mid-tier model (2026-07-17, v5.12)
+
+The 2026-07-04 benchmark round (haiku × high, framework vs baseline arms on
+a small-profile repo) produced the evidence this section acts on:
+- Cache reads dominate session totals (97–98%); the expensive thing about
+  inline implementation is not the model's output price but the file-dump
+  noise it pulls into the orchestrating context, taxing every later call.
+- Low-tier self-reports are unreliable: in cell 3 both arms edited a test
+  and self-attested PASS; the baseline seq run confabulated a fix over a
+  vanished symptom. Only independent gate re-verification caught it.
+- Ceremony has a scale threshold (§13, re-confirmed with numbers): on the
+  small repo the framework's one-shot overhead cost ~+44% total tokens and
+  the amortization thesis failed its first small-repo test.
+
+Decision: scaffold two **optional** agent definitions (claude harness only,
+both profiles), each pinning `model: sonnet` in frontmatter — the routing
+surface §3 already assigns to the user (edit or delete one line to
+reroute); no framework-side routing machinery returns.
+
+- `code-worker` implements one dispatched change item. Eligible items are
+  fully specified in the spec/task file (exact files, testable criterion,
+  test command) and mechanical or multi-file; one-file judgment work stays
+  inline because dispatch overhead outweighs it (§13 applied to
+  delegation). Standing rules ride in the brief and the definition: never
+  modify test files unless briefed, never commit (host or `.ai`), stop on
+  ambiguity instead of guessing, at most brief escalations — twice on the
+  same item and the dispatcher takes it over.
+- `explore-helper` is the read-only collector for the exploration fan-out
+  the phase docs already prescribed generically: it returns a condensed
+  evidence map (≤2000 tokens, path:line evidence) and never writes the
+  digest, notes, or KB.
+- Non-negotiable asymmetry (extends §3's "never plan on the weak model"):
+  planning, specs, review gates, and digest/KB curation stay on the strong
+  tier, and the dispatcher re-runs gates itself — a worker's self-reported
+  pass is not a gate result.
+
+Rejected:
+- Haiku-tier workers: the round's failure modes (test edited + PASS
+  self-attested, confabulated fix) are exactly what a delegation pattern
+  amplifies. Sonnet-class is the floor.
+- `explore-helper` as digest author: digest errors compound across every
+  later warm start (cell 5's near-empty KB showed what a cheap model does
+  to one); the cheapest model is wrong at the most leveraged write site.
+- Any per-task routing table in the framework: §3's v5 reasoning stands;
+  this is one static frontmatter line per agent definition.
+
+Expected value, honestly stated: the token saving is a hypothesis, not a
+measurement — a W-arm (orchestrator + worker vs solo) in the fixed runbook
+would measure it, and the amortization result warns against believing
+pre-measurement theses. The defensible immediate gains are orchestrator
+context hygiene and the output-price gap on delegated implementation.
