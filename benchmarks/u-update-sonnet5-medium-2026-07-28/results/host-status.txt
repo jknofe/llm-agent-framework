@@ -1,0 +1,4 @@
+ M .gitignore
+?? .claude/
+?? AGENTS.md
+?? CLAUDE.md

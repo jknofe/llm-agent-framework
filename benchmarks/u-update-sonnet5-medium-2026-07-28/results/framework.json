@@ -1,0 +1,21 @@
+{
+  "framework_version": "5.14",
+  "profile": "small",
+  "harness": "claude",
+  "project": "satty",
+  "generated": "2026-07-28",
+  "framework_files": [
+    ".ai/agent/framework.json",
+    ".ai/agent/tools/probe.py",
+    ".claude/agents/reviewer.md",
+    ".claude/hooks/ai_repo_clean.py",
+    ".claude/settings.json",
+    ".claude/skills/build/SKILL.md",
+    ".claude/skills/explore/SKILL.md",
+    ".claude/skills/import-kb/SKILL.md",
+    ".claude/skills/spec/SKILL.md",
+    ".claude/skills/update/SKILL.md",
+    "AGENTS.md",
+    "CLAUDE.md"
+  ]
+}

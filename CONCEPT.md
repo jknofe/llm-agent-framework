@@ -1069,3 +1069,28 @@ one `render_update_body(size, harness, arg)` so both axes stay in one place.
 Not in scope: profile switching. Graduating small -> large stays a deliberate
 re-init per §20; `/update` detects a codebase that has outgrown its profile
 and says so in the report instead of migrating on its own.
+
+**Measured** (`benchmarks/u-update-sonnet5-medium-2026-07-28/`, sonnet-5 x
+medium): a v5.12 Satty scaffold with a real `/explore` digest, real notes, and
+hand edits, updated to 5.14 by an agent following only the skill. Gate 13/13:
+the 4540-byte project-context digest came through byte-identical, notes and the
+hand-added AGENTS.md section survived, the two user-added permissions survived,
+both retired worker definitions were deleted with no dangling references, and
+the agent never read the codebase. Two runs were needed. The first exposed the
+design's one real hole: retirement rested on the recorded `framework_files`
+list, which is empty on every scaffold that exists today, and the fallback rule
+said to treat unmatched files as the user's. Defect 1 was therefore fixed only
+for scaffolds not yet created. The fix is an **orphan test** that asks the
+generator's own history instead of the stamp:
+
+    git -C "$LLM_AGENT_HOME" log --oneline -S'<basename>' -- init_agent.py
+
+Commits found means the framework emitted the file and a later version dropped
+it, so retire it; none means the user wrote it, so leave it; no git checkout
+means undecidable, so report it. This makes retirement work on legacy scaffolds
+without a stamp, which is the only case that matters in the field. Three smaller
+instruction fixes came from the same runs: ensure `.ai/.gitignore` covers the
+backup path before writing it (legacy scaffolds lack the entry), separate
+untracked from tracked-and-modified in the stop condition (an
+uncommitted-scaffold host repo is normal, not a reason to block), and carry
+profile/harness explicitly from preflight into the reference render.
