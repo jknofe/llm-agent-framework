@@ -1,6 +1,13 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-28, v5.13 (worker sub-agents removed: the `code-worker` and
+State: 2026-07-28, v5.14 (agent-driven framework update: `init_agent.py`'s
+`-u/--update` is removed and replaced by an `/update` skill in both profiles
+and both harnesses. Scaffolds now carry a version stamp
+(`.ai/agent/framework.json`: framework version, profile, harness, and the
+list of framework files that version emitted); the CLI keeps two flags that
+only serve the skill, `--detect` and `--emit-reference DIR`. Updating is a
+merge, and merges need judgment a stdlib scaffolder does not have. §24).
+v5.13 (worker sub-agents removed: the `code-worker` and
 `explore-helper` definitions, their dispatch guidance in the phase docs and
 the small-profile skills, and the runbook's W arm are gone. Two reasons: the
 dispatch instructions were harness-neutral text while the agent definitions
@@ -22,7 +29,7 @@ pointers as an existing genre, while restating that architecture/module-map
 content stays out of notes.md, §21). v5.9 (automatic profile selection:
 init-agent counts source
 LOC and applies the ~10k boundary to pick small vs large when --size is omitted
-or 'auto'; explicit --size still wins, --update keeps the detected profile,
+or 'auto'; explicit --size still wins,
 §20). v5.8 (small-profile notes hub: .ai/notes.md may become a
 linked index with .ai/notes/<topic>.md leaves once it grows past ~1-2 screens,
 guidance-only, §19). v5.7 (project-context freshness: end-of-change refresh of
@@ -791,14 +798,16 @@ lines of code across the host repo's source files and applies the §13 boundary:
   large|small` still forces that profile — an explicit flag always wins. With
   no flag and a TTY, the auto pick becomes the *default* of the existing size
   prompt, so the estimate is shown and the user can veto it; with no flag and
-  no TTY (scripted), the auto pick is used directly. `--update` keeps the
-  detected profile and ignores `--size auto` (graduation stays a deliberate
-  re-init, per §13, not a side effect of an update).
+  no TTY (scripted), the auto pick is used directly. Graduation between
+  profiles stays a deliberate re-init, per §13, never a side effect of an
+  update; v5.14 moved updating out of the CLI entirely and `/update` reports a
+  profile mismatch rather than acting on it (§24).
 
 Validated on real and synthetic repos: ha-core (2.29M LOC) -> large,
 network-status (30 LOC) -> small; a synthetic 12.6k-LOC git project scaffolds
 large and a 90-LOC one scaffolds small, with explicit-override, non-git
-fallback, and `--update --size auto` edge cases all correct. Scaffold path only
+fallback, and the (since removed) `--update --size auto` edge cases all
+correct. Scaffold path only
 (no explore run).
 
 ## 21. Explore-freshness guard + notes.md pointer clarification (2026-07-06, v5.10)
@@ -990,3 +999,73 @@ worker tier actually cheaper than MODEL (the measured pair used the same
 tier, so a price gap remains untested), and a repo large enough that
 discovery noise dominates dispatch ceremony. The recorded W round stays in
 `benchmarks/` as the evidence; the runbook arm that produced it is retired.
+
+## 24. Agent-driven framework update (2026-07-28, v5.14)
+
+`init_agent.py -u/--update` regenerated every framework-owned file and froze
+every hand-filled one (`write` vs `write_owned`). Measured against a real
+scaffold, that binary ownership model loses in three ways:
+
+1. **Retired files survive forever.** `-u` only writes; it never deletes. A
+   project scaffolded on v5.12 keeps `.claude/agents/code-worker.md` after an
+   update to v5.13, which withdrew it. Confirmed on a test scaffold: the file
+   was still there after `-u`, and nothing in the report mentioned it.
+2. **User edits to framework files are silently reverted.** A permission entry
+   added to `.claude/settings.json` was gone after `-u`, unreported. The same
+   holds for rules appended to AGENTS.md outside the generated markers.
+3. **The shape of hand-filled content can never change.** `write_owned`
+   refuses to touch a file whose content differs from the stub, which is
+   correct for content and wrong for structure: a new frontmatter key, a new
+   manifest field, or a renamed directory never reaches an existing project.
+   The KB is preserved and silently frozen at the schema it was born with.
+
+Two smaller ones: nothing recorded which framework version built a scaffold,
+so an update could only overwrite unconditionally; and the pre-update snapshot
+covered `.ai` only, while AGENTS.md, CLAUDE.md and the harness directory live
+in the host repo and were overwritten with no rescue copy.
+
+What did work and is kept: `extract_generated` carries the
+`GENERATED:project-context` section across a regeneration in both profiles
+(verified for small and large), and `write_owned` protects KB node bodies.
+
+**Decision.** An update is a three-way merge (project state, previous
+framework, current framework) plus a schema migration. Both are judgment
+calls, so the agent owns them and the CLI provides only what is deterministic:
+
+- **Version stamp.** `.ai/agent/framework.json` records `framework_version`,
+  `profile`, `harness`, `project`, `generated`, and `framework_files` (every
+  framework path that version emitted, collected by `write()` itself so the
+  list cannot drift from the writes). `recorded framework_files` minus
+  `reference framework_files` is exactly the retire set, so defect 1 becomes
+  a set difference rather than a guess.
+- **`--emit-reference DIR`.** Renders a pristine scaffold of the current
+  framework into an empty dir with no git init, no gitignore edits, no commit,
+  no host-project side effects. This is the comparison target; a real project
+  is never compared against a re-run over itself.
+- **`--detect`.** Prints the stamp as JSON, falling back to inspecting the
+  tree for scaffolds that predate the stamp (version `null`, empty file list,
+  so the skill knows nothing can be retired deterministically).
+- **`/update` skill**, both profiles, both harnesses. Preflight (read the
+  stamp, commit `.ai`, copy the host-repo framework files to the gitignored
+  `.ai/agent/.update-backup/`, refuse to proceed silently over uncommitted
+  work) -> render the reference -> classify every path as added / identical /
+  framework-changed / user-edited / retired and act per class, merging the
+  user-edited ones and deleting the retired ones together with the
+  instructions that still named them -> migrate hand-filled content into the
+  new shape in place -> verify every referenced tool runs -> rewrite the stamp
+  and report one row per file. `dry-run` stops after classification.
+
+The governing rule, stated in the skill itself: the knowledge is the
+expensive artifact and the framework files are cheap, so `/update` never
+re-runs `/explore` and never regenerates hand-filled content from a stub. If
+a new field cannot be derived from what the project already records, it is
+left empty and reported, not invented and not researched from the codebase.
+
+Harness gating is explicit per §23's lesson: the merge cases, the backup
+paths, and the verification steps name `.claude/settings.json` and hooks only
+on claude, and `.github/prompts/` only on copilot. The skill body is built by
+one `render_update_body(size, harness, arg)` so both axes stay in one place.
+
+Not in scope: profile switching. Graduating small -> large stays a deliberate
+re-init per §20; `/update` detects a codebase that has outgrown its profile
+and says so in the report instead of migrating on its own.

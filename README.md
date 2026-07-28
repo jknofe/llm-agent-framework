@@ -37,16 +37,27 @@ content, notes, and specs are always preserved, never reverted to stubs.
 profile; for **small**, see [Small projects](#small-projects). Everything
 after init is done by the agent through skills and folder conventions:
 
-**Updating an existing project to a newer framework:** run `init-agent -u`
-(`--update`) in the project root. It auto-detects the scaffold's size,
-harness, and name, pulls the latest framework, and regenerates the
-framework-owned files (skills, phase docs, `.ai/agent/tools/`, hooks,
-settings, the AGENTS.md protocol) while preserving everything you filled in
-(KB nodes, `notes.md`, specs, and the generated project-context section).
-Commit `.ai` first so you can diff the change; pass `--size` to switch
-profile at the same time (e.g. small → large). Without `-u`, a plain
-re-run only regenerates framework files if you confirm the overwrite prompt
-(or pass `-y`).
+**Updating an existing project to a newer framework:** run `/update` in the
+project. Updating is a merge, not a regeneration, so the agent does it rather
+than the CLI. It reads the scaffold's version stamp
+(`.ai/agent/framework.json`), renders a pristine reference scaffold of the
+current framework, and then works file by file: adds what is new, takes the
+framework's version of files you never touched, **merges** the ones you did
+(extra permissions in `.claude/settings.json`, rules you appended to
+AGENTS.md), and **deletes** files the framework has retired along with the
+instructions that still referenced them. Your knowledge is migrated in place,
+never rebuilt: KB nodes, `manifest.yaml`, `notes.md`, specs, tickets, and the
+generated project-context section are carried into the new shape, so `/update`
+never re-runs `/explore`. It reports every file it touched and what it kept.
+`/update dry-run` prints that report without changing anything.
+
+Before touching anything it commits `.ai` and copies the host-repo framework
+files to `.ai/agent/.update-backup/`, so the whole update is revertable. It
+commits `.ai` itself and leaves host-repo changes for you to review.
+Switching profile (small ↔ large) is not an update: re-run
+`init-agent --size <profile>`. A plain re-run of `init-agent` still
+regenerates framework files if you confirm the overwrite prompt (or pass
+`-y`), but it cannot merge or retire, which is why `/update` exists.
 
 1. **Build the knowledge base**: run `/explore`. The agent samples the
    codebase, fills the KB nodes and asks you about non-derivable knowledge
@@ -97,14 +108,16 @@ drops the rest:
 - **`.ai/`** is still a private nested git repo (gitignored from the host), but
   holds just `notes.md` (running memory: decisions, gotchas, domain terms) and
   per-change specs under `changes/<id>/spec.md`.
-- Four skills: **`/explore`** fills the project-context
+- Five skills: **`/explore`** fills the project-context
   section and `notes.md`; **`/spec <id> <title>`** writes a lightweight spec
   (goal + acceptance criteria + task checklist) for a non-trivial change;
   **`/build <id>`** implements it and ends with **one** fresh-context review of
-  the diff against the acceptance criteria (the `reviewer` subagent); and
+  the diff against the acceptance criteria (the `reviewer` subagent);
   **`/import-kb <source>`** distills an existing knowledge base of any structure
-  into the project-context section and `notes.md`. A change you can describe in
-  one sentence skips the spec entirely.
+  into the project-context section and `notes.md`; and **`/update`** moves the
+  scaffold to a newer framework version, migrating `notes.md`, specs, and the
+  project-context digest instead of rebuilding them. A change you can describe
+  in one sentence skips the spec entirely.
 - Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, the read-only
   permission allow list, and `probe.py` (the deterministic repo inventory has
   no KB dependency, so it fits here too). Dropped: the `INDEX.md`-protection
@@ -141,6 +154,7 @@ Both harnesses invoke them the same way:
 | `/implement <ticket-id>` | Phase 3: works the planned task files in order; tests, KB delta, drift check against the plan's `kb-commit`, ticket review gate. |
 | `/add-reference <name> <origin>` | Clones/copies external material to `.ai/external/<name>/` and registers a `references/<name>` KB node (origin, fetch date, pinned version). |
 | `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and transforms it into the framework KB: classifies the content into nodes, writes frontmatter, sets `covers` globs, updates `manifest.yaml`/`INDEX.md` and the project-context section, routes gotchas/runbooks to `notes.md`. Distinct from `/add-reference`, which keeps raw material for search instead of transforming it. |
+| `/update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 The phase skills are thin pointers to the phase docs in
 `.ai/agent/phases/`, so phase instructions stay in one place. The add-*

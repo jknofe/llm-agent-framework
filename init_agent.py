@@ -15,6 +15,10 @@ the agent through skills and folder conventions:
   /import-kb <source>    import an existing knowledge base of any structure:
                          read, classify, and transform it into .ai (KB nodes +
                          notes.md large; project-context + notes.md small)
+  /update                move the scaffold to the current framework version:
+                         merge the framework files, retire what the framework
+                         dropped, migrate hand-filled content into the new
+                         shape. Never re-explores; the KB is carried forward
   archive                no command: ask the agent to archive a finished
                          ticket; the rules live in AGENTS.md
 
@@ -28,7 +32,10 @@ below. If a scaffold
 already exists, init asks before
 overwriting framework files; hand-filled content (KB nodes, manifest, INDEX,
 notes, specs, the generated project-context section) is always preserved,
-never reverted to stubs.
+never reverted to stubs. To move an existing scaffold to a newer framework
+version, run the agent's /update skill rather than re-running init: updating
+is a merge (keep user edits, retire dropped files, migrate hand-filled content
+into a changed shape), and merges need judgment this script does not have.
 
 Size profiles (auto-selected from codebase LOC when --size is omitted or auto):
   large            Full framework: KB (manifest, hot/cold nodes, INDEX),
@@ -40,7 +47,7 @@ Size profiles (auto-selected from codebase LOC when --size is omitted or auto):
                    project-context), running memory in .ai/notes.md, a
                    lightweight per-change spec (.ai/changes/<id>/spec.md) and
                    one fresh-context review gate. Skills: /explore /spec /build
-                   /import-kb.
+                   /import-kb /update.
 
 Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral): KB
@@ -78,13 +85,17 @@ Usage:
   python init_agent.py        (or: init-agent)            interactive
   python init_agent.py --size auto  --name foo --desc "…"  auto-pick profile
   python init_agent.py --size small --name foo --desc "…" force small profile
-  python init_agent.py --update  (or: init-agent -u)      update in place
   Flags: --name, --description/--desc, --size {large,small,auto}, --harness
-  {claude,copilot}, -y/--yes (overwrite framework files without prompting),
-  -u/--update (update an existing scaffold to the latest framework:
-  auto-detects size/harness/name, regenerates framework files, preserves
-  hand-filled KB/notes/specs/project-context; pass --size to switch profile).
+  {claude,copilot}, -y/--yes (overwrite framework files without prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
+
+  Two flags exist only to serve the agent's /update skill, which is how an
+  existing scaffold moves to a newer framework version:
+  --detect                print this directory's scaffold stamp as JSON
+                          (profile, harness, framework version, file list)
+  --emit-reference DIR    render a pristine scaffold of the current framework
+                          into DIR, with no git or host-project side effects,
+                          as the comparison target /update diffs against
 """
 
 import argparse
@@ -102,6 +113,13 @@ except ImportError:
     pass  # not available on all platforms (e.g. Windows); plain input then
 
 TODAY = date.today().isoformat()
+
+# Framework revision this generator emits; mirrors CONCEPT.md's version. Every
+# scaffold records it in .ai/agent/framework.json, which is what makes an
+# agent-driven /update able to tell what changed since the project was built.
+FRAMEWORK_VERSION = "5.14"
+
+FRAMEWORK_JSON = ".ai/agent/framework.json"
 
 # ---------------------------------------------------------------- structure
 
@@ -293,6 +311,7 @@ Copilot CLI, start a phase with its kickoff line:
 - `Run Phase 1: read {PHASES_DIR}/init.md first and follow it exactly.`
 - `Plan ticket <id>: read {PHASES_DIR}/planning.md first, then the ticket.`
 - `Implement ticket <id>: read {PHASES_DIR}/implementation.md first, then plan.md.`
+- `Update the framework: read .github/prompts/update.prompt.md first and follow it exactly.`
 
 """
     hook_note = (" A Stop hook in `.claude/settings.json`\n"
@@ -352,6 +371,10 @@ and commands verbatim.
 | 2 Planning | `{PHASES_DIR}/planning.md` |
 | 3 Implementation | `{PHASES_DIR}/implementation.md` |
 | 4 Operational | none. Protocol below = default behavior |
+
+Framework maintenance is not a phase: `/update` moves this scaffold to the
+current framework version, merging the framework files and migrating the KB in
+place. It never re-runs Phase 1.
 
 Right-sizing: a change you can describe in one sentence and that touches a
 single file needs no ticket. Do it directly, update the affected KB nodes,
@@ -470,6 +493,7 @@ CLI, state the intent directly; the Protocol and Workflows above apply:
 - `Explore the project and fill the Project Context section + .ai/notes.md.`
 - `Spec change <id> "<title>": write .ai/changes/<id>/spec.md (goal, acceptance criteria, tasks).`
 - `Build change <id>: implement .ai/changes/<id>/spec.md, then review the diff against the criteria.`
+- `Update the framework: read .github/prompts/update.prompt.md first and follow it exactly.`
 
 """
     goal_note = ""
@@ -563,6 +587,7 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 | `/explore` | Sample the code; fill the Project Context below and `.ai/notes.md`. |
 | `/spec <id> <title>` | Write `.ai/changes/<id>/spec.md` for a non-trivial change. |
 | `/build <id>` | Implement the spec's tasks, review the diff, finish. |
+| `/update` | Move this scaffold to the current framework version, keeping what the project knows. |
 
 ## Changes layout
 ```
@@ -880,7 +905,165 @@ sessions, one task file per session. Constraints:
 """
 
 
-def command_specs(arg_focus: str, arg_ticket: str) -> list:
+def render_update_body(size: str, harness: str, arg: str) -> str:
+    """Body of the /update skill: an agent-driven framework update.
+
+    A scaffolder can only own files whole (regenerate or freeze), which is why
+    updating used to lose user edits, keep retired files, and never migrate the
+    shape of hand-filled content. Those are merge decisions, so the agent makes
+    them. The rule the whole procedure serves: the knowledge base is the
+    expensive artifact, so an update migrates it and never re-derives it.
+
+    Varies on both axes: the large profile has a KB, manifest, INDEX and
+    generated tools to migrate; the small profile has notes and specs. Harness
+    decides which framework files exist to merge (settings/hooks/skills on
+    claude, prompt files on copilot).
+    """
+    if harness == "claude":
+        backup_paths = "AGENTS.md, CLAUDE.md, and `.claude/`"
+        merge_cases = (
+            "     - `.claude/settings.json`: permission entries and hooks a user\n"
+            "       added are not framework state. Union them with the\n"
+            "       reference's; drop only entries the reference retired.\n"
+            "     - AGENTS.md outside the GENERATED markers: project-specific\n"
+            "       rules a user appended below the framework text.\n"
+            "     - skills, hooks, or sub-agents with no counterpart in the\n"
+            "       reference and no entry in the recorded file list: these are\n"
+            "       the user's own, not retired framework files. Leave them.\n")
+        verify_extra = (
+            "   - `.claude/settings.json` parses as JSON and every hook command\n"
+            "     it names points at a file that exists.\n")
+    else:
+        backup_paths = "AGENTS.md and `.github/prompts/`"
+        merge_cases = (
+            "     - AGENTS.md outside the GENERATED markers: project-specific\n"
+            "       rules a user appended below the framework text.\n"
+            "     - prompt files under `.github/prompts/` with no counterpart in\n"
+            "       the reference and no entry in the recorded file list: these\n"
+            "       are the user's own, not retired framework files. Leave them.\n")
+        verify_extra = ""
+
+    if size == "large":
+        owned = ("KB nodes under `.ai/knowledgebase/`, `manifest.yaml`,\n"
+                 "`INDEX.md`, `.ai/notes.md`, tickets, task files, and the\n"
+                 "`GENERATED:project-context` section of AGENTS.md")
+        migrate = (
+            "   - New or renamed frontmatter keys on KB nodes: add them, deriving\n"
+            "     values from the node's own content and `covers` globs.\n"
+            "   - New fields or sections in `manifest.yaml`: fill them from the\n"
+            "     KB, never from the reference's stub values.\n"
+            "   - Moved or renamed directories: `git mv` inside `.ai` so the KB\n"
+            "     history survives the move.\n")
+        regen = (
+            f"   Then rebuild only what is derived: `python3 {TOOLS_DIR}/gen_index.py`\n"
+            "   regenerates `INDEX.md` from `manifest.yaml`, so it is always safe.\n")
+        verify_tools = (f"`{TOOLS_DIR}/probe.py`, `{TOOLS_DIR}/gen_index.py`,\n"
+                        f"     and `{TOOLS_DIR}/check_stale.py`")
+    else:
+        owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, change specs under\n"
+                 "`.ai/changes/`, and the `GENERATED:project-context` section of\n"
+                 "AGENTS.md")
+        migrate = (
+            "   - New or renamed sections in the project-context digest: add the\n"
+            "     heading and move the matching content that is already there\n"
+            "     under it. Do not re-derive the content from the codebase.\n"
+            "   - A changed spec format: bring existing `.ai/changes/<id>/spec.md`\n"
+            "     files up to it, keeping every goal, criterion, and task intact.\n"
+            "   - Moved or renamed directories: `git mv` inside `.ai` so the notes\n"
+            "     history survives the move.\n")
+        regen = ""
+        verify_tools = f"`{TOOLS_DIR}/probe.py`"
+
+    return (
+        "Update this project's agent framework to the current version, in\n"
+        "place, without losing what this project knows. Argument (optional,\n"
+        f"`dry-run` reports the plan and changes nothing): {arg}\n\n"
+        "The knowledge this project accumulated is the expensive artifact and\n"
+        "the framework files are cheap. So: never re-run /explore as part of an\n"
+        "update, and never regenerate hand-filled content from a stub. That\n"
+        f"covers {owned}.\n\n"
+        "1. Preflight.\n"
+        f"   - Read `{FRAMEWORK_JSON}` for the recorded framework version,\n"
+        "     profile, harness, and the list of framework files that version\n"
+        "     emitted. If the file is missing, this scaffold predates the stamp:\n"
+        "     run `python3 \"$LLM_AGENT_HOME/init_agent.py\" --detect` for\n"
+        "     profile/harness/name and treat the recorded file list as empty\n"
+        "     (nothing can be retired deterministically; say so in the report).\n"
+        "   - Commit anything pending in `.ai` so the update is one revertable\n"
+        "     diff: `git -C .ai add -A && git -C .ai commit -m \"pre-update\n"
+        "     snapshot\"`.\n"
+        "   - The `.ai` repo does not cover the framework files that live in the\n"
+        "     host repo, and those are the ones an update overwrites. Copy\n"
+        f"     {backup_paths} into `.ai/agent/.update-backup/`\n"
+        "     (gitignored; replace any older backup).\n"
+        "   - Report `git status` for those paths. If they carry uncommitted work,\n"
+        "     stop and let the user decide before anything is overwritten.\n\n"
+        "2. Render the reference. The generator is at\n"
+        "   `$LLM_AGENT_HOME/init_agent.py` (set by the framework's install.sh).\n"
+        "   If `$LLM_AGENT_HOME` is unset, ask the user where the checkout is;\n"
+        "   do not guess a path. Pull it first when it has a remote\n"
+        "   (`git -C \"$LLM_AGENT_HOME\" pull --ff-only`), then render a pristine\n"
+        "   scaffold of this project's profile and harness into a temp directory:\n\n"
+        "       python3 \"$LLM_AGENT_HOME/init_agent.py\" --emit-reference <tmpdir> \\\n"
+        f"         --size {size} --harness {harness} --name <project-name>\n\n"
+        "   The reference is a read-only comparison target. Never copy it over\n"
+        "   the project wholesale; that is the blind overwrite this skill exists\n"
+        "   to replace.\n\n"
+        "3. Classify every path in the reference and in this scaffold, then act\n"
+        "   per file. Framework-owned means listed in the reference's or the\n"
+        "   recorded `framework_files`.\n"
+        "   - Added (in the reference, absent here): copy it in.\n"
+        "   - Identical: leave it.\n"
+        "   - Changed by the framework, untouched by the user: take the\n"
+        "     reference's version. Treat a file as user-edited whenever you\n"
+        "     cannot establish that it is still what its recorded version\n"
+        "     emitted, and merge instead of overwriting.\n"
+        "   - Changed by the user: merge. Take the framework's structural\n"
+        "     changes, keep every user addition, and state in the report what\n"
+        "     you kept. The cases that actually come up:\n"
+        f"{merge_cases}"
+        "   - Retired (in the recorded `framework_files`, absent from the\n"
+        "     reference): delete it, then grep the whole scaffold for its name\n"
+        "     and remove the instructions that still point at it. A retired file\n"
+        "     that stays referenced is worse than one that stays on disk.\n\n"
+        "4. Migrate hand-filled content in place; do not regenerate it. The\n"
+        "   reference's stubs show the shape the new version expects, this\n"
+        "   project's files hold the content. Where the shape changed, edit this\n"
+        "   project's files:\n"
+        f"{migrate}"
+        "   If a new field cannot be derived from what the project already\n"
+        "   records, leave it empty and list it in the report for the user.\n"
+        "   Do not invent a value, and do not read the codebase to fill it:\n"
+        "   that is /explore's job and it is not part of an update.\n"
+        f"{regen}\n"
+        "5. Verify before reporting success.\n"
+        f"   - Every tool the instructions name exists and exits 0:\n"
+        f"     {verify_tools}.\n"
+        f"{verify_extra}"
+        "   - AGENTS.md still holds this project's context between its\n"
+        "     GENERATED markers, and the marker text matches the reference's.\n"
+        "   - No instruction in the scaffold names a file that no longer exists.\n\n"
+        "6. Record and report.\n"
+        f"   - Write `{FRAMEWORK_JSON}` from the reference's copy: new version,\n"
+        "     new file list, this project's name and profile.\n"
+        "   - Print one row per file: added / updated / merged (with what was\n"
+        "     kept) / retired / migrated / untouched, then anything left for the\n"
+        "     user to decide.\n"
+        "   - Commit `.ai` (`update: framework <old> -> <new>`). Leave the\n"
+        "     host-repo files uncommitted for the user to review; this framework\n"
+        "     never commits the host project repo.\n"
+        "   - Delete the temp reference directory. Keep\n"
+        "     `.ai/agent/.update-backup/` until the user confirms the result.\n\n"
+        "Switching profile (small <-> large) is not an update: it is a deliberate\n"
+        "re-init with `init-agent --size <profile>`. If this codebase has grown\n"
+        "past the profile it was scaffolded for, say so in the report and let the\n"
+        "user decide.\n\n"
+        "With `dry-run`: do steps 1-3 as analysis only, print the table of what\n"
+        "would change, and stop without writing anything. The backup and the\n"
+        "pre-update commit are still worth doing.\n")
+
+
+def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     """(name, description, body) for each command. Single source for both
     skill (claude) and prompt-file (copilot) rendering; the phase pointers
     keep the phase docs the single source of truth."""
@@ -998,6 +1181,12 @@ def command_specs(arg_focus: str, arg_ticket: str) -> list:
             "If the source is itself a legacy `.ai/` (e.g. docs/ chapters plus a\n"
             "tasks/ tree), transform docs/ into nodes and ignore its task and\n"
             "ticket state.\n",
+        ),
+        (
+            "update",
+            "Update this scaffold to the current framework version: merge the "
+            "framework files, migrate the KB in place, never re-explore",
+            render_update_body("large", harness, arg_ticket),
         ),
     ]
 
@@ -1156,6 +1345,12 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   external / skipped. Do not delete the source. Commit `.ai`\n"
             "   (`import-kb: <source>`).\n",
         ),
+        (
+            "update",
+            "Update this scaffold to the current framework version: merge the "
+            "framework files, migrate notes and specs, never re-explore",
+            render_update_body("small", harness, arg_ticket),
+        ),
     ]
 
 
@@ -1170,6 +1365,7 @@ ARG_HINTS = {
     "import-kb": "<source>",
     "spec": "<id> <title...>",
     "build": "<id>",
+    "update": "[dry-run]",
 }
 
 
@@ -1960,15 +2156,42 @@ def render_settings_json(small: bool = False) -> str:
 
 # ------------------------------------------------------------------ helpers
 
+# Every framework-owned path this run writes, absolute. Recorded in
+# framework.json so /update can diff a project's list against a fresh
+# reference render and see exactly which files a newer version retired.
+# One scaffold runs per process, so a module-level list is enough; each
+# scaffold_* entry point clears it first.
+_framework_paths: list = []
+
+
 def write(path: Path, content: str, force: bool, created: list, skipped: list):
     """Framework-owned files (phase docs, skills, hooks, settings): the
     overwrite confirmation (force) regenerates them."""
+    _framework_paths.append(path)
     if path.exists() and not force:
         skipped.append(path)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     created.append(path)
+
+
+def render_framework_json(root: Path, name: str, size: str,
+                          harness: str) -> str:
+    """The scaffold's version stamp: which framework revision built it, under
+    which profile/harness, and every framework-owned path it emitted. /update
+    reads this to know what to compare, migrate, and retire; without it an
+    update can only overwrite blindly. Call after all other writes."""
+    files = sorted({str(p.relative_to(root)) for p in _framework_paths}
+                   | {FRAMEWORK_JSON})
+    return json.dumps({
+        "framework_version": FRAMEWORK_VERSION,
+        "profile": size,
+        "harness": harness,
+        "project": name,
+        "generated": TODAY,
+        "framework_files": files,
+    }, indent=2) + "\n"
 
 
 def write_owned(path: Path, stub: str, created: list, skipped: list,
@@ -2075,15 +2298,18 @@ def ensure_gitignore(root: Path):
 
 def ensure_ai_gitignore(root: Path):
     """Keep volatile working state out of .ai's own repo: raw external copies
-    (re-fetchable, would bloat KB history) and the `.current` task cursor
-    (per-checkout session state, not shared knowledge)."""
+    (re-fetchable, would bloat KB history), the `.current` task cursor
+    (per-checkout session state, not shared knowledge), and the /update
+    rescue copy of the host-repo framework files (a throwaway snapshot, not
+    history - the `.ai` repo already versions everything it owns)."""
     ai_dir = root / ".ai"
     if not ai_dir.is_dir():
         return
     gi = ai_dir / ".gitignore"
     lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
     have = {line.strip().rstrip("/") for line in lines}
-    add = [e for e in ("external/", ".current") if e.rstrip("/") not in have]
+    add = [e for e in ("external/", ".current", "agent/.update-backup/")
+           if e.rstrip("/") not in have]
     if not add:
         return
     content = "\n".join(lines).rstrip("\n")
@@ -2183,8 +2409,8 @@ def choose_size(loc: int) -> str:
 
 def detect_scaffold(root: Path):
     """Inspect an existing scaffold and return (size, harness, name), or None
-    if this directory has none. Used by --update so the caller need not
-    remember the original flags.
+    if this directory has none. The fallback behind --detect, for scaffolds
+    built before framework.json existed.
 
     size: 'large' when the KB manifest exists, else 'small' when AGENTS.md does.
     harness: 'claude' when `.claude/` exists, else 'copilot' when
@@ -2233,36 +2459,66 @@ def write_debug_probe(root: Path) -> None:
     print("wrote PROBE.md (debug inventory; delete or gitignore it)")
 
 
+def cmd_detect(root: Path) -> int:
+    """--detect: describe the scaffold in this directory as JSON, for the
+    /update skill. Prefers the recorded framework.json (authoritative: it also
+    lists the framework files that version emitted); falls back to inspecting
+    the tree for scaffolds built before the stamp existed."""
+    stamp = root / FRAMEWORK_JSON
+    if stamp.exists():
+        try:
+            print(stamp.read_text(encoding="utf-8").rstrip())
+            return 0
+        except OSError:
+            pass
+    detected = detect_scaffold(root)
+    if detected is None:
+        print("No agent scaffold found in this directory.", file=sys.stderr)
+        return 1
+    size, harness, name = detected
+    print(json.dumps({
+        "framework_version": None,   # predates the stamp
+        "profile": size,
+        "harness": harness,
+        "project": name,
+        "generated": None,
+        "framework_files": [],       # unknown: nothing to retire from
+    }, indent=2))
+    return 0
+
+
+def cmd_emit_reference(target: str, args) -> int:
+    """--emit-reference DIR: render a pristine scaffold into DIR and stop.
+    No git init, no gitignore edits, no commits, no host-project side effects.
+    This is the comparison target the /update skill diffs a real project
+    against, so it must be a plain render of the current framework."""
+    dest = Path(target).expanduser().resolve()
+    if dest.exists() and any(dest.iterdir()):
+        print(f"error: --emit-reference target is not empty: {dest}",
+              file=sys.stderr)
+        return 1
+    size = args.size if args.size and args.size != "auto" else "large"
+    harness = args.harness or "claude"
+    name = args.name if args.name is not None else "reference"
+    desc = args.description if args.description is not None else ""
+    dest.mkdir(parents=True, exist_ok=True)
+    if size == "small":
+        rc = scaffold_small(dest, name, desc, harness, True, reference=True)
+    else:
+        rc = scaffold_large(dest, name, desc, harness, True, reference=True)
+    if rc == 0:
+        print(f"reference {size}/{harness} scaffold "
+              f"(framework {FRAMEWORK_VERSION}) rendered to {dest}")
+    return rc
+
+
 def cmd_init(args=None) -> int:
     root = Path.cwd()
 
-    if args and getattr(args, "update", False):
-        detected = detect_scaffold(root)
-        if detected is None:
-            print("No existing scaffold found here (no AGENTS.md / KB "
-                  "manifest). Run init-agent without --update to create one.",
-                  file=sys.stderr)
-            return 1
-        size, harness, name = detected
-        if args.size and args.size != "auto":   # allow an explicit switch
-            size = args.size
-        harness = args.harness or harness
-        name = args.name if args.name is not None else name
-        desc = args.description if args.description is not None else ""
-        print(f"Updating {size} scaffold ({harness}) for '{name}' to the "
-              "latest framework. Framework files are regenerated; hand-filled "
-              "content (KB, notes, specs, project-context) is preserved.")
-        # Snapshot the current .ai in its own repo first, so the regeneration
-        # is a clean, revertable diff (no-op if .ai has nothing pending).
-        ai_commit(root, "pre-update: .ai snapshot before framework update")
-        msg = f"update: regenerate {size}-profile framework files ({name})"
-        if size == "small":
-            rc = scaffold_small(root, name, desc, harness, True, msg)
-        else:
-            rc = scaffold_large(root, name, desc, harness, True, msg)
-        if rc == 0 and getattr(args, "debug_probe", False):
-            write_debug_probe(root)
-        return rc
+    if args and getattr(args, "detect", False):
+        return cmd_detect(root)
+    if args and getattr(args, "emit_reference", None):
+        return cmd_emit_reference(args.emit_reference, args)
 
     name = (args.name if args and args.name is not None
             else ask("Project name", root.name))
@@ -2305,11 +2561,13 @@ def cmd_init(args=None) -> int:
 
 
 def scaffold_large(root: Path, name: str, desc: str, harness: str,
-                   force: bool, commit_message: str = None) -> int:
+                   force: bool, commit_message: str = None,
+                   reference: bool = False) -> int:
     kb = root / ".ai" / "knowledgebase"
     if desc:
         seed_description(desc)
     created, skipped, preserved = [], [], []
+    _framework_paths.clear()
 
     for d in KB_DIRS:
         (kb / d).mkdir(parents=True, exist_ok=True)
@@ -2361,7 +2619,7 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
     if harness == "claude":
         write(root / "CLAUDE.md", render_claude_pointer(), force, created, skipped)
         for rel, content in render_skills(
-                command_specs("$ARGUMENTS", "$ARGUMENTS")).items():
+                command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
             write(root / ".claude" / "skills" / rel, content,
                   force, created, skipped)
         write(root / ".claude" / "agents" / "reviewer.md",
@@ -2377,9 +2635,18 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
               force, created, skipped)
     else:
         for fname, content in render_prompt_files(
-                command_specs("${input:focus}", "${input:ticket}")).items():
+                command_specs(harness, "${input:focus}",
+                              "${input:ticket}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
+
+    # Version stamp last: it records every framework path written above.
+    write(root / FRAMEWORK_JSON,
+          render_framework_json(root, name, "large", harness),
+          force, created, skipped)
+
+    if reference:
+        return 0
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
@@ -2400,12 +2667,14 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
 
 
 def scaffold_small(root: Path, name: str, desc: str, harness: str,
-                   force: bool, commit_message: str = None) -> int:
+                   force: bool, commit_message: str = None,
+                   reference: bool = False) -> int:
     """Small profile: dense AGENTS.md + running notes + per-change specs, no KB
     manifest, phase docs, or deterministic KB tools. `.ai/` is still a private
     nested repo (notes + specs); AGENTS.md and .claude/.github live in the host
     repo, as in the full profile."""
     created, skipped, preserved = [], [], []
+    _framework_paths.clear()
 
     archive = root / ".ai" / "changes" / "_archive"
     archive.mkdir(parents=True, exist_ok=True)
@@ -2447,6 +2716,14 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
 
+    # Version stamp last: it records every framework path written above.
+    write(root / FRAMEWORK_JSON,
+          render_framework_json(root, name, "small", harness),
+          force, created, skipped)
+
+    if reference:
+        return 0
+
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
     ai_commit(root, commit_message or f"init: small-profile scaffold ({name})")
@@ -2479,11 +2756,16 @@ def main() -> int:
                     help="target harness (skip the prompt); default claude")
     ap.add_argument("-y", "--yes", action="store_true",
                     help="overwrite framework files without prompting")
-    ap.add_argument("-u", "--update", action="store_true",
-                    help="update an existing scaffold in place to the latest "
-                         "framework: auto-detects size/harness/name, "
-                         "regenerates framework files, preserves your "
-                         "KB/notes/specs/project-context")
+    ap.add_argument("--detect", action="store_true",
+                    help="print this directory's scaffold stamp as JSON "
+                         "(profile, harness, framework version, framework "
+                         "file list) and exit; used by the /update skill")
+    ap.add_argument("--emit-reference", metavar="DIR",
+                    help="render a pristine scaffold of the current framework "
+                         "into DIR (must be empty or absent) and exit, with "
+                         "no git or host-project side effects. The comparison "
+                         "target for the /update skill; use --size/--harness "
+                         "to match the project being updated")
     ap.add_argument("--debug-probe", action="store_true",
                     help="after scaffolding, run the generated probe.py and "
                          "write its report to PROBE.md in the current "

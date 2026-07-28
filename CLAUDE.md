@@ -11,7 +11,7 @@ templates. You change agent behavior by editing the `render_*` / `command_specs*
 functions, never by editing a generated file (those live in target projects).
 
 - `init_agent.py` generator (the whole product)
-- `CONCEPT.md` versioned design spec, source of truth (currently v5.6)
+- `CONCEPT.md` versioned design spec, source of truth (currently v5.14)
 - `README.md` user-facing docs
 - `install.sh` shell-function installer
 - `benchmarks/fixed-runbook.md` fully-pinned reproducible benchmark (only
@@ -30,6 +30,14 @@ Everything is a template inside `init_agent.py`. Where things live:
 - Hooks: `render_hook_*`; permissions: `render_settings_json`
 - Re-init preservation logic: `write_owned` (keeps hand-filled content, never
   reverts to stubs)
+- Framework updates: `render_update_body` (the `/update` skill body, varies on
+  both axes), the `.ai/agent/framework.json` stamp (`render_framework_json`,
+  fed by `write`), and the two CLI flags that serve the skill, `--detect` and
+  `--emit-reference`. Bump `FRAMEWORK_VERSION` with the CONCEPT.md version.
+  Retiring a framework file is now a supported operation: drop the `write()`
+  call and `/update` deletes it from existing projects via the recorded file
+  list. Do not add a Python update path; updating is a merge and belongs to
+  the agent (CONCEPT.md §24).
 
 Two axes cut through most functions: **profile** (large vs small `_small`
 variant) and **harness** (`claude` vs `copilot`). When you add behavior, handle

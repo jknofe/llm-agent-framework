@@ -29,7 +29,14 @@ templates, so the tests are "does it render, does it run, does an agent behave".
 5. **Re-init preservation:** scaffold, hand-edit a KB node / notes.md / the
    `GENERATED:project-context` section, re-run init, confirm the report says
    `preserved` and nothing reverted to a stub.
-6. **Leakage sweep** (after changing normative text): grep the scaffolds for
+6. **Update plumbing** (after any change to the file set or the stamp):
+   `--emit-reference` renders into an empty dir with no git side effects,
+   `--detect` prints the stamp for a stamped scaffold and the inspected
+   fallback for one without, and every path in `framework_files` exists in
+   the scaffold that recorded it. Retiring a file means removing its
+   `write()` call: verify the old scaffold's `framework_files` still lists it
+   so `/update` can delete it.
+7. **Leakage sweep** (after changing normative text): grep the scaffolds for
    terms specific to any benchmark target (satty, debian, cargo deb, angular,
    sqlite-utils, bats, ros, nav2, navigation2, colcon, ...). Generated
    artifacts must stay ecosystem-neutral; named linters are allowed only as
