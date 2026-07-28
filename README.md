@@ -105,8 +105,7 @@ drops the rest:
   **`/import-kb <source>`** distills an existing knowledge base of any structure
   into the project-context section and `notes.md`. A change you can describe in
   one sentence skips the spec entirely.
-- Kept: the `reviewer`, `code-worker` and `explore-helper` subagents, the
-  `.ai`-clean Stop hook, the read-only
+- Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, the read-only
   permission allow list, and `probe.py` (the deterministic repo inventory has
   no KB dependency, so it fits here too). Dropped: the `INDEX.md`-protection
   hook.
@@ -197,14 +196,6 @@ obedience:
   backstop.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
   reviewer used by the plan-review and ticket-review gates.
-- `.claude/agents/code-worker.md` and `.claude/agents/explore-helper.md`
-  define optional mid-tier worker subagents (`model: sonnet` in their
-  frontmatter, a single line you can edit or delete to reroute): the code
-  worker implements fully specified, test-verifiable task items dispatched
-  by the main agent; the explore helper collects read-only exploration
-  material. Planning, reviews and the project-context digest always stay
-  on the main model, and the main agent re-runs the tests after every
-  worker report instead of trusting a self-reported pass.
 
 During Phase 1 the agent additionally offers a project-specific Stop hook
 that runs your lint/tests, turning "done = checks pass" into a hard gate.
@@ -248,8 +239,7 @@ that don't warrant a curated node), the `.ai/tickets/` inbox,
 `.ai/agent/phases/` (on-demand phase docs), `.ai/agent/tools/` (probe,
 gen_index, check_stale), the canonical `AGENTS.md`, the skills above and, for Claude
 Code, the `CLAUDE.md`
-pointer, the reviewer, code-worker and explore-helper subagents, the hook
-scripts and
+pointer, the reviewer subagent, the hook scripts and
 `.claude/settings.json` with the hooks plus a read-only permission allow
 list (grep, find, ls, cat, awk, read-only git, `git -C .ai`, the KB
 tools, ...) so exploration and `.ai` commits run without a confirmation

@@ -1,13 +1,16 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-17, v5.12 (worker sub-agents on a mid-tier model: optional
-scaffolded `code-worker` and `explore-helper` agent definitions pin
-`model: sonnet` in frontmatter — harness-level routing per §3, one
-user-editable line, no framework routing machinery. Dispatch is
-right-sized (fully specified, test-verifiable, multi-file/mechanical items
-only), every gate is re-verified by the dispatcher, and planning, specs,
-reviews, and digest/KB curation never go to the worker tier;
-claude-harness only, §23). v5.11 (/goal as a documented autonomous-dispatch mode:
+State: 2026-07-28, v5.13 (worker sub-agents removed: the `code-worker` and
+`explore-helper` definitions, their dispatch guidance in the phase docs and
+the small-profile skills, and the runbook's W arm are gone. Two reasons: the
+dispatch instructions were harness-neutral text while the agent definitions
+were claude-only, so copilot scaffolds told the agent to dispatch to
+sub-agents that do not exist; and the one W-arm measurement showed the
+delegation claim failing (+35% total tokens, +43% cost at an equal gate).
+§23 rewritten as the rejected-design record). v5.12 (worker sub-agents on a
+mid-tier model: optional scaffolded `code-worker` and `explore-helper` agent
+definitions pinning `model: sonnet` in frontmatter; removed in v5.13).
+v5.11 (/goal as a documented autonomous-dispatch mode:
 AGENTS.md now names /goal explicitly in both profiles, pointed at the same
 done-bar /build (small) or /implement (large) already defines rather than a
 new one, paired with the existing stall/escalation rule; claude-harness only,
@@ -218,12 +221,10 @@ docs.
   opusplan: plan on strong model, implement on cheap one) viable. Stated in
   README, not in agent docs. Direction stays asymmetric: never plan on the
   weak model
-- v5.12 instantiates that property once: two optional scaffolded worker
-  definitions (`code-worker`, `explore-helper`) pin `model: sonnet` in
-  their frontmatter — still harness-level routing (one user-editable
-  line), not per-task machinery. The asymmetry direction is unchanged and
-  extended: implement/collect on the cheap tier; plan, spec, review, and
-  digest curation on the strong one (§23)
+- v5.12 instantiated that property once with two scaffolded worker
+  definitions pinning `model: sonnet`; v5.13 removed them (§23). The rule
+  stands as before: routing is the user's, via harness controls, and the
+  framework ships no tier pin of its own
 
 ## 4. Ticket lifecycle
 
@@ -946,54 +947,46 @@ human-filed ticket or invocation by design); worth a deliberate look only
 if scheduled maintenance-style agents become an actual separately-scoped
 goal, not a reason to retrofit the pipeline now.
 
-## 23. Worker sub-agents on a mid-tier model (2026-07-17, v5.12)
+## 23. Worker sub-agents on a mid-tier model (2026-07-17, v5.12; removed 2026-07-28, v5.13)
 
-The 2026-07-04 benchmark round (haiku × high, framework vs baseline arms on
-a small-profile repo) produced the evidence this section acts on:
-- Cache reads dominate session totals (97–98%); the expensive thing about
-  inline implementation is not the model's output price but the file-dump
-  noise it pulls into the orchestrating context, taxing every later call.
-- Low-tier self-reports are unreliable: in cell 3 both arms edited a test
-  and self-attested PASS; the baseline seq run confabulated a fix over a
-  vanished symptom. Only independent gate re-verification caught it.
-- Ceremony has a scale threshold (§13, re-confirmed with numbers): on the
-  small repo the framework's one-shot overhead cost ~+44% total tokens and
-  the amortization thesis failed its first small-repo test.
+v5.12 scaffolded two optional agent definitions (claude harness only, both
+profiles), each pinning `model: sonnet` in frontmatter: `code-worker`
+implemented one fully specified change item dispatched by the main agent,
+`explore-helper` was the read-only collector for the exploration fan-out.
+Planning, specs, review gates, and digest/KB curation stayed on the strong
+tier, and the dispatcher re-verified every gate.
 
-Decision: scaffold two **optional** agent definitions (claude harness only,
-both profiles), each pinning `model: sonnet` in frontmatter — the routing
-surface §3 already assigns to the user (edit or delete one line to
-reroute); no framework-side routing machinery returns.
+v5.13 removes both definitions and every dispatch instruction that named
+them (phase 1 explore bullet, phase 3 "Worker dispatch" section,
+small-profile /explore and /build skills, the runbook's W arm). Two reasons:
 
-- `code-worker` implements one dispatched change item. Eligible items are
-  fully specified in the spec/task file (exact files, testable criterion,
-  test command) and mechanical or multi-file; one-file judgment work stays
-  inline because dispatch overhead outweighs it (§13 applied to
-  delegation). Standing rules ride in the brief and the definition: never
-  modify test files unless briefed, never commit (host or `.ai`), stop on
-  ambiguity instead of guessing, at most brief escalations — twice on the
-  same item and the dispatcher takes it over.
-- `explore-helper` is the read-only collector for the exploration fan-out
-  the phase docs already prescribed generically: it returns a condensed
-  evidence map (≤2000 tokens, path:line evidence) and never writes the
-  digest, notes, or KB.
-- Non-negotiable asymmetry (extends §3's "never plan on the weak model"):
-  planning, specs, review gates, and digest/KB curation stay on the strong
-  tier, and the dispatcher re-runs gates itself — a worker's self-reported
-  pass is not a gate result.
+1. Harness leakage. The agent definitions were claude-only, but the dispatch
+   guidance lived in harness-neutral text (phase docs, `command_specs_small`).
+   Copilot scaffolds therefore instructed the agent to dispatch to
+   `code-worker` and `explore-helper`, which do not exist there. Any revival
+   has to gate the prose on `harness == "claude"`, not only the file writes.
+2. The measurement came back negative. The W arm ran once
+   (`benchmarks/w4-sonnet5-medium-2026-07-17/`, sonnet-5 x medium, cell-4
+   py-feature, worker pinned to the same tier as MODEL). Both twins passed
+   the gate; the worker twin cost +35% total tokens, +40% output, +43%
+   estimated cost, with only wall-clock active time slightly lower. §13's
+   scale threshold applies to delegation as well: brief construction, worker
+   cold context, report-back, and re-verification exceeded the discovery
+   noise kept out of the orchestrator.
 
-Rejected:
-- Haiku-tier workers: the round's failure modes (test edited + PASS
-  self-attested, confabulated fix) are exactly what a delegation pattern
-  amplifies. Sonnet-class is the floor.
-- `explore-helper` as digest author: digest errors compound across every
-  later warm start (cell 5's near-empty KB showed what a cheap model does
-  to one); the cheapest model is wrong at the most leveraged write site.
-- Any per-task routing table in the framework: §3's v5 reasoning stands;
-  this is one static frontmatter line per agent definition.
+What survives the removal:
+- §3 stands unchanged and now has no exception: routing is the user's, via
+  harness controls; the framework pins no tier anywhere.
+- The generic guidance the workers were attached to stays, phrased without
+  named agents: run the exploration fan-out in sub-agent contexts, cap each
+  return at ~2000 tokens, and never let a sub-agent write the digest, notes,
+  or KB (digest errors compound across every later warm start).
+- The asymmetry rule from the 2026-07-04 round is unaffected: low-tier
+  self-reported PASS is not a gate result, so gates are re-verified by
+  whoever owns them.
 
-Expected value, honestly stated: the token saving is a hypothesis, not a
-measurement — a W-arm (orchestrator + worker vs solo) in the fixed runbook
-would measure it, and the amortization result warns against believing
-pre-measurement theses. The defensible immediate gains are orchestrator
-context hygiene and the output-price gap on delegated implementation.
+Conditions for a revival, if one is ever attempted: harness-gated prose, a
+worker tier actually cheaper than MODEL (the measured pair used the same
+tier, so a price gap remains untested), and a repo large enough that
+discovery noise dominates dispatch ceremony. The recorded W round stays in
+`benchmarks/` as the evidence; the runbook arm that produced it is retired.

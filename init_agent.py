@@ -63,8 +63,6 @@ Context layout:
   .claude/hooks/*.py           hook scripts: protect generated files, remind
                                about uncommitted .ai changes
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
-  .claude/agents/code-worker.md    optional mid-tier implementation worker
-  .claude/agents/explore-helper.md optional mid-tier read-only explore collector
 
 Versioning:
   .ai/ is excluded from the host project's repo (init appends it to the
@@ -650,12 +648,10 @@ Read this before analyzing the project.
 - Prefer the harness's native read and search tools (Read, Grep, Glob) over
   shell `grep`/`cat`/`awk`: same result, no permission prompts.{perms}
 - Run exploration in isolated sub-agent contexts when the harness supports
-  them; the scaffolded `explore-helper` sub-agent (read-only, mid-tier
-  model) is the collector for exactly this. Each sub-agent returns a
-  condensed summary of at most 2000 tokens. Keep raw file dumps out of the
-  synthesizing context. KB nodes and the digest stay yours to write: never
-  let a helper fill them - digest errors compound across every later
-  session.
+  them. Each sub-agent returns a condensed summary of at most 2000 tokens.
+  Keep raw file dumps out of the synthesizing context. KB nodes and the
+  digest stay yours to write: never let a sub-agent fill them - digest
+  errors compound across every later session.
 - If you cannot spawn sub-agents (you are yourself a sub-agent, or a headless
   run without them), every raw file read lands in this one context, so explore
   is a full session on its own. Do not try to reach planning or implementation
@@ -832,21 +828,6 @@ gotcha recorded in `.ai/notes.md` or the bound KB nodes, confirm the diff
 honors it. A change that ignores a known build side effect or feature flag is
 a correctness gap even when the acceptance criteria read as met. Record the
 outcome in `plan.md` (`reviewed: <date>`).
-
-## Worker dispatch (optional)
-A task that is fully specified (exact files, testable criterion, test
-command) and mechanical or multi-file may be dispatched to the scaffolded
-`code-worker` sub-agent (mid-tier model) instead of being worked inline.
-Constraints:
-- The brief carries the task file content plus the standing rules: never
-  modify test files unless listed, never commit (host repo or `.ai`).
-- Re-run the task's test command yourself after every worker report; a
-  worker's self-reported pass is not a gate result.
-- Fold reported gotchas into `.ai/notes.md`; the worker never writes it.
-- One-file judgment work stays inline: dispatch overhead outweighs it.
-- If a worker escalates twice on the same task, take it over inline.
-- Planning, the review gates, and digest/KB curation never go to the worker
-  tier (model asymmetry: implement cheap, judge strong).
 
 ## Parallel dispatch (optional)
 Tasks marked `parallel: ok` in their frontmatter may be worked by concurrent
@@ -1049,12 +1030,11 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "- Sample the code with your read/search tools (Read, Grep, Glob); do\n"
             "  not load everything. Read entry points, each area's public API, and\n"
             "  the tests. At this size the source is the knowledge base. Where the\n"
-            "  harness supports sub-agents, dispatch the sampling fan-out to the\n"
-            "  `explore-helper` sub-agent (read-only, mid-tier model): it returns\n"
-            "  a condensed evidence map and keeps raw file dumps out of this\n"
-            "  context. Write the digest yourself; never let a helper fill\n"
-            "  `AGENTS.md` or `notes.md` - digest errors compound across every\n"
-            "  later session.\n"
+            "  harness supports sub-agents, dispatch the sampling fan-out to them:\n"
+            "  each returns a condensed evidence map and keeps raw file dumps out\n"
+            "  of this context. Write the digest yourself; never let a sub-agent\n"
+            "  fill `AGENTS.md` or `notes.md` - digest errors compound across\n"
+            "  every later session.\n"
             "- Fill the `GENERATED:project-context` section of `AGENTS.md`,\n"
             "  condensed (cap ~1500 tokens): one-line purpose, tech stack,\n"
             "  build/test/lint commands (highest priority), top conventions, a\n"
@@ -1109,18 +1089,7 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   `.ai/notes.md`. Write `.ai/.current` (gitignored) with the change\n"
             "   id, the spec path, and the date, so the work can be resumed.\n"
             "2. Work the task checklist in order. Explore the real code with\n"
-            "   read/search tools as needed; do not load the whole tree. Where\n"
-            "   the harness supports sub-agents, you may dispatch a checklist\n"
-            "   item to the `code-worker` sub-agent (mid-tier model), but only\n"
-            "   if the spec fully specifies it: exact files, a testable\n"
-            "   criterion, the test command. Right-size the dispatch: mechanical\n"
-            "   or multi-file items qualify; one-file judgment work stays inline\n"
-            "   (dispatch overhead outweighs it). The brief carries goal, paths,\n"
-            "   criterion, test command, and the standing rules (never modify\n"
-            "   tests, never commit). Re-run the tests yourself after every\n"
-            "   worker report - a worker's self-reported pass is not a gate\n"
-            "   result. If a worker escalates twice on the same item, take it\n"
-            "   over inline.\n"
+            "   read/search tools as needed; do not load the whole tree.\n"
             "3. Keep tests and lint green.\n"
             "4. Review gate: before declaring the change done, have the full diff\n"
             "   reviewed in a fresh context against the acceptance criteria. Run\n"
@@ -1290,83 +1259,6 @@ Check:
 Report only gaps that affect correctness or the stated requirements, with
 file and line references. Do not report style preferences. If the work is
 sound, say so plainly; do not invent findings to have something to report.
-"""
-
-
-def render_code_worker_agent(small: bool = False) -> str:
-    """Optional mid-tier implementation worker. Pins `model: sonnet` in the
-    frontmatter — the one harness-level routing surface CONCEPT §3 sanctions;
-    the user edits or deletes that line to reroute. Never a planner or
-    reviewer: benchmark evidence (2026-07-04) shows low-tier self-reported
-    PASS is unreliable, so the dispatcher re-verifies every gate."""
-    brief_src = ("the change's spec at `.ai/changes/<id>/spec.md`" if small
-                 else "the ticket's task file under "
-                      "`.ai/knowledgebase/tasks/<id>/`")
-    return f"""---
-name: code-worker
-description: Implements one fully specified change item dispatched by the main agent - mechanical or multi-file edits plus the named test run. Not for planning, specs, reviews, or architecture decisions.
-tools: Read, Edit, Write, Bash, Grep, Glob
-model: sonnet
----
-You implement exactly the change described in your dispatch brief; the main
-agent plans, reviews, and owns every commit. The `model:` line above pins a
-mid-tier model on purpose (implementation is delegable, judgment is not);
-the tier is the user's choice - edit or delete that one line to reroute.
-
-A valid brief carries: the goal, the exact files, the acceptance-criterion
-slice this item satisfies (normally taken from {brief_src}), the test/lint
-commands to run, and the standing gotchas. If any of these is missing or
-ambiguous, stop and report the open question instead of guessing.
-
-Rules:
-- Make only the briefed change. No scope expansion, no drive-by fixes.
-- Never modify test files unless the brief explicitly lists them as targets.
-- Never commit, neither the host repo nor `.ai`; the main agent owns all
-  commits and `.ai` bookkeeping.
-- Run the briefed test/lint commands after editing and report their real
-  output; never claim a run you did not perform.
-- No architectural decisions; escalate them instead.
-
-Report back: files changed (path:line), test/lint results with actual exit
-status, any durable gotcha you hit (the main agent appends it to
-`.ai/notes.md`), and open questions. A blocked report is a good report; a
-guessed implementation is not.
-"""
-
-
-def render_explore_helper_agent(small: bool = False) -> str:
-    """Optional mid-tier, read-only exploration collector. Gathers raw
-    material (probe output, samples, command candidates) so file dumps stay
-    out of the dispatching context; the main agent curates the digest —
-    digest errors compound across every later session, so curation never
-    goes to the worker tier."""
-    targets = ("the `GENERATED:project-context` section of AGENTS.md and "
-               "`.ai/notes.md`" if small
-               else "the KB nodes, the `GENERATED:project-context` section "
-                    "of AGENTS.md, and `.ai/notes.md`")
-    return f"""---
-name: explore-helper
-description: Read-only sampling fan-out for exploration - collects probe output, entry-point/API/test samples, and command candidates, returning a condensed evidence map. Never writes the digest, notes, or KB.
-tools: Read, Grep, Glob, Bash
-model: sonnet
----
-You collect raw exploration material so file dumps stay out of the main
-agent's context. You never interpret it into durable artifacts: {targets}
-are written by the main agent only. The `model:` line above pins a mid-tier
-model on purpose; edit or delete that one line to reroute.
-
-Given a focus brief:
-- Run `python3 {TOOLS_DIR}/probe.py` if the brief asks for the inventory;
-  otherwise sample with read/search tools: entry points, each area's public
-  API, and the tests. Sample, never scan everything.
-- Return a condensed map of at most ~2000 tokens: one line per area
-  (purpose, key files), build/test/lint command candidates each with the
-  file that evidences them (path:line), and glossary/domain-term candidates.
-- Report facts with evidence only; mark uncertain items as uncertain
-  instead of smoothing them over. No recommendations, no digest drafts.
-- Never write or edit any file. You are read-only: Bash is in your tool set
-  solely for read-only commands (the probe, `git log`, listings); never use
-  it to create, modify, or delete anything.
 """
 
 
@@ -2474,10 +2366,6 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
                   force, created, skipped)
         write(root / ".claude" / "agents" / "reviewer.md",
               render_reviewer_agent(), force, created, skipped)
-        write(root / ".claude" / "agents" / "code-worker.md",
-              render_code_worker_agent(), force, created, skipped)
-        write(root / ".claude" / "agents" / "explore-helper.md",
-              render_explore_helper_agent(), force, created, skipped)
         hooks = root / ".claude" / "hooks"
         write(hooks / "protect_generated.py", render_hook_protect_generated(),
               force, created, skipped)
@@ -2548,10 +2436,6 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
                   force, created, skipped)
         write(root / ".claude" / "agents" / "reviewer.md",
               render_reviewer_agent(small=True), force, created, skipped)
-        write(root / ".claude" / "agents" / "code-worker.md",
-              render_code_worker_agent(small=True), force, created, skipped)
-        write(root / ".claude" / "agents" / "explore-helper.md",
-              render_explore_helper_agent(small=True), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "settings.json",
