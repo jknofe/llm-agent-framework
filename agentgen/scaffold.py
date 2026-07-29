@@ -295,9 +295,17 @@ def bootstrap_update(root: Path) -> int:
 
     print(f"wrote {rel}")
     print(f"wrote {FRAMEWORK_JSON} (version unknown: recorded "
-          f"{size}/{harness} so /update need not re-detect)")
-    print("\nNothing else was touched. Now run /update in this project; the "
-          "agent does the merge.")
+          f"{size}/{harness} so the update need not re-detect it)")
+    print("\nNothing else was touched. The agent does the merge; start it "
+          "with:")
+    if harness == "claude":
+        print("  /update")
+    else:
+        # Prompt files are a VS Code feature. Copilot CLI does not read
+        # .github/prompts/ at all, so it needs the kickoff sentence instead.
+        print("  VS Code (Copilot Chat):  /update")
+        print("  Copilot CLI:             Update the framework: read "
+              f"{rel} first and follow it exactly.")
     return 0
 
 

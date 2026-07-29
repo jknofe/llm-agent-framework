@@ -1,6 +1,13 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-29, v5.18 (`--bootstrap-update`: deliver the `/update` skill
+State: 2026-07-29, v5.19 (copilot invocation documented correctly: prompt
+files are a VS Code feature invoked as `/name` slash commands, and Copilot
+CLI does not read `.github/prompts/` at all, so it gets the kickoff
+sentences instead. The generated AGENTS.md section said prompt files were
+VS Code only without ever saying how to run them there, and
+`--bootstrap-update` told copilot users to run `/update` regardless of
+surface. Docs only, no mechanism change).
+v5.18 (`--bootstrap-update`: deliver the `/update` skill
 into a scaffold built before it existed, and nothing else, so pre-5.14
 projects can be updated by the agent instead of by a blind re-init. The stamp
 it writes records `framework_version: null` on purpose. Also fixes the orphan
