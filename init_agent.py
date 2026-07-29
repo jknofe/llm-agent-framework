@@ -15,6 +15,9 @@ the agent through skills and folder conventions:
   /import-kb <source>    import an existing knowledge base of any structure:
                          read, classify, and transform it into .ai (KB nodes +
                          notes.md large; project-context + notes.md small)
+  /import <source>       migrate an existing .ai/ folder (older framework
+                         version or other layout) into the current structure:
+                         knowledge and lifecycle state (tickets, tasks, changes)
   /update                move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
@@ -47,7 +50,7 @@ Size profiles (auto-selected from codebase LOC when --size is omitted or auto):
                    project-context), running memory in .ai/notes.md, a
                    lightweight per-change spec (.ai/changes/<id>/spec.md) and
                    one fresh-context review gate. Skills: /explore /spec /build
-                   /import-kb /update.
+                   /import-kb /import /update.
 
 Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral): KB
@@ -117,7 +120,7 @@ TODAY = date.today().isoformat()
 # Framework revision this generator emits; mirrors CONCEPT.md's version. Every
 # scaffold records it in .ai/agent/framework.json, which is what makes an
 # agent-driven /update able to tell what changed since the project was built.
-FRAMEWORK_VERSION = "5.14"
+FRAMEWORK_VERSION = "5.15"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -1207,6 +1210,84 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "ticket state.\n",
         ),
         (
+            "import",
+            "Migrate an existing .ai/ folder (older framework version or other "
+            "layout) into the current structure: knowledge and lifecycle state",
+            "Migrate an existing `.ai/` directory into the current large-profile\n"
+            f"structure. Source `.ai/` (an older version of this framework, or a\n"
+            f"differently-shaped agent folder): {arg_ticket}\n\n"
+            "This converts a whole prior `.ai/` working directory - both the\n"
+            "knowledge AND the lifecycle state - into the current layout. It is\n"
+            "not /import-kb: that transforms arbitrary curated knowledge (a\n"
+            "docs/wiki dump) into KB nodes and deliberately ignores task and\n"
+            "ticket state. /import additionally carries the ticket, task, plan,\n"
+            "decision, and notes state across. If the source is a docs/wiki dump\n"
+            "rather than a `.ai/`-style working folder, use /import-kb instead.\n"
+            "It is also not /update: that moves a scaffold this framework already\n"
+            "wrote (one carrying `.ai/agent/framework.json`) to the current\n"
+            "version in place. Use /update when the folder is a stamped scaffold\n"
+            "of an earlier version, /import when it is unstamped or foreign.\n"
+            "Run this after scaffolding, against a copy of the old folder: move\n"
+            "the pre-existing `.ai/` aside (e.g. to `.ai.old/`) before init, then\n"
+            "`/import .ai.old`.\n\n"
+            "1. Survey without bulk-loading. List the source tree; sample its\n"
+            "   entry points (`manifest.yaml`, `INDEX.md`, `AGENTS.md`,\n"
+            "   `tickets/`, `knowledgebase/`, `changes/`, notes). Identify the\n"
+            "   layout and roughly which framework version it is (large markers:\n"
+            "   `knowledgebase/` + `manifest.yaml`; small markers: `changes/` +\n"
+            "   `notes.md`, no manifest; foreign: neither). Run the survey in a\n"
+            "   sub-agent where available; bring back a condensed map (<=2000\n"
+            "   tokens) of what exists and where.\n"
+            "2. Migrate the knowledge. For source content already in framework\n"
+            "   node shape, upgrade it in place: remap each node into the six\n"
+            "   categories (architecture/, conventions/, domain/, infra/,\n"
+            "   decisions/, references/) and rewrite its frontmatter to the\n"
+            "   current schema (id, summary, tags, covers globs, tier hot|cold,\n"
+            "   updated, related), re-matching `covers` to real code paths. For\n"
+            "   content not already node-shaped, apply the /import-kb\n"
+            "   read->classify->transform protocol (synthesize telegraphic nodes\n"
+            "   under the ~1500-token cap, dedup by merging, never a second source\n"
+            "   of truth). Operational gotchas and runbooks route to\n"
+            "   `.ai/notes.md`, not a node.\n"
+            "3. Migrate the lifecycle state (what /import-kb drops):\n"
+            "   - Inbox tickets -> `.ai/tickets/<ID>-<slug>.md`, frontmatter\n"
+            "     preserved.\n"
+            "   - Planned or in-progress tickets ->\n"
+            "     `.ai/knowledgebase/tasks/<id>/` (ticket.md, plan.md,\n"
+            "     NN-<slug>.md task files, kb-delta.yaml), preserving each task's\n"
+            "     status (planned|in-progress|done|blocked) in frontmatter, not\n"
+            "     folder names. Finished tickets ->\n"
+            "     `.ai/knowledgebase/tasks/_archive/`.\n"
+            "   - Decisions/ADRs -> `decisions/` nodes, append-only, keep the\n"
+            "     rationale.\n"
+            "   - External references -> `references/` nodes; if the source held\n"
+            "     raw material under its own `external/`, copy it into\n"
+            "     `.ai/external/<name>/` and ensure `.ai/.gitignore` lists\n"
+            "     `external/`.\n"
+            "   - `notes.md` / notes hub -> `.ai/notes.md` (+ leaves),\n"
+            "     telegraphic.\n"
+            "4. Regenerate, do not copy, the derived artifacts: append every\n"
+            "   migrated node to `manifest.yaml` (INDEX.md regenerates via the\n"
+            "   claude hook; on other harnesses run\n"
+            f"   `python3 {TOOLS_DIR}/gen_index.py`), and regenerate the\n"
+            "   GENERATED:project-context section of AGENTS.md from the migrated\n"
+            "   hot-tier nodes rather than importing the old AGENTS.md text.\n"
+            "   Never carry the source's INDEX.md or generated section over\n"
+            "   verbatim, and never overwrite `.ai/agent/framework.json` with the\n"
+            "   source's copy: init already stamped this scaffold at the current\n"
+            "   version, and that stamp is what /update reads later.\n"
+            "5. Record provenance: note the source origin in each migrated node so\n"
+            "   the migration is auditable.\n"
+            "6. Report a mapping table: source item -> target\n"
+            "   (migrated/merged/skipped), and list anything you could not map for\n"
+            "   the user to decide. Do not delete or modify the source. Commit the\n"
+            "   `.ai` repo (`import: <source>`).\n\n"
+            "Profile mismatch: if the source was a small-profile `.ai`\n"
+            "(project-context + notes, no node store), promote its distilled facts\n"
+            "into KB nodes here. Map the source's content onto this profile's\n"
+            "targets; do not recreate the source's shape.\n",
+        ),
+        (
             "update",
             "Update this scaffold to the current framework version: merge the "
             "framework files, migrate the KB in place, never re-explore",
@@ -1370,6 +1451,55 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   (`import-kb: <source>`).\n",
         ),
         (
+            "import",
+            "Migrate an existing .ai/ folder (older version or other layout) into "
+            "the small profile: project-context, notes.md, and in-flight changes",
+            "Migrate an existing `.ai/` directory into the current small-profile\n"
+            f"structure. Source `.ai/` (an older version of this framework, or a\n"
+            f"differently-shaped agent folder): {arg_ticket}\n\n"
+            "This converts a whole prior `.ai/` working directory into the small\n"
+            "profile. The small-profile targets are the GENERATED:project-context\n"
+            "section of AGENTS.md, `.ai/notes.md`, and `.ai/changes/<id>/spec.md`\n"
+            "for in-flight changes; there is no KB node store. It is not\n"
+            "/import-kb: that transforms arbitrary curated knowledge (a docs/wiki\n"
+            "dump) and ignores lifecycle state, whereas /import also carries\n"
+            "ticket/change and notes state across. If the source is a docs/wiki\n"
+            "dump rather than a `.ai/`-style working folder, use /import-kb. It\n"
+            "is also not /update: that moves a scaffold this framework already\n"
+            "wrote (one carrying `.ai/agent/framework.json`) to the current\n"
+            "version in place. Use /update when the folder is a stamped scaffold\n"
+            "of an earlier version, /import when it is unstamped or foreign. Run\n"
+            "this after scaffolding, against a copy of the old folder (e.g. move\n"
+            "the pre-existing `.ai/` aside to `.ai.old/` before init, then\n"
+            "`/import .ai.old`).\n\n"
+            "1. Survey without bulk-loading: list the source tree; sample its\n"
+            "   entry/index files and any manifest, notes, `changes/`, `tickets/`,\n"
+            "   `knowledgebase/` (sub-agent where available; bring back a\n"
+            "   condensed map). Note whether the source was large (knowledgebase/\n"
+            "   + manifest) or small.\n"
+            "2. Distill knowledge, do not copy. Fold stable, high-value facts\n"
+            "   (purpose, tech stack, build/test/lint commands, top conventions,\n"
+            "   module map, glossary) into the project-context section of\n"
+            "   AGENTS.md (cap ~1500 tokens); if the source was a large-profile\n"
+            "   KB, distill its hot-tier nodes down, do not reproduce the node\n"
+            "   store. Route operational gotchas, runbooks, decisions, and domain\n"
+            "   terms to `.ai/notes.md` (append, telegraphic; use the notes hub if\n"
+            "   it grows).\n"
+            "3. Migrate lifecycle state: unfinished tickets or changes ->\n"
+            "   `.ai/changes/<id>/spec.md` (goal, acceptance criteria, task\n"
+            "   checklist, status preserved); finished ones ->\n"
+            "   `.ai/changes/_archive/`. A large body worth only searching later\n"
+            "   -> clone or copy into `.ai/external/<name>/` and note it in\n"
+            "   `.ai/notes.md` instead of inlining it.\n"
+            "4. Regenerate, do not copy: refresh project-context from the migrated\n"
+            "   facts, not the old AGENTS.md text. Never overwrite\n"
+            "   `.ai/agent/framework.json` with the source's copy: init already\n"
+            "   stamped this scaffold at the current version, and that stamp is\n"
+            "   what /update reads later. Report a short mapping (source\n"
+            "   -> project-context / notes.md / changes / external / skipped). Do\n"
+            "   not delete the source. Commit `.ai` (`import: <source>`).\n",
+        ),
+        (
             "update",
             "Update this scaffold to the current framework version: merge the "
             "framework files, migrate notes and specs, never re-explore",
@@ -1387,6 +1517,7 @@ ARG_HINTS = {
     "implement": "<ticket-id>",
     "add-reference": "<name> <origin>",
     "import-kb": "<source>",
+    "import": "<source>",
     "spec": "<id> <title...>",
     "build": "<id>",
     "update": "[dry-run]",

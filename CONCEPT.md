@@ -1,6 +1,12 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-28, v5.14 (agent-driven framework update: `init_agent.py`'s
+State: 2026-07-29, v5.15 (/import: migrate a whole existing `.ai/` folder
+(older framework version or foreign agent layout) into the current structure,
+carrying both the knowledge and the lifecycle state (tickets, tasks, plans,
+decisions, notes; small profile: in-flight changes) that /import-kb drops;
+both profiles, both harnesses. Distinct from /update, which upgrades a
+scaffold this framework already stamped; /import handles unstamped or foreign
+folders. §25). v5.14 (agent-driven framework update: `init_agent.py`'s
 `-u/--update` is removed and replaced by an `/update` skill in both profiles
 and both harnesses. Scaffolds now carry a version stamp
 (`.ai/agent/framework.json`: framework version, profile, harness, and the
@@ -1094,3 +1100,80 @@ backup path before writing it (legacy scaffolds lack the entry), separate
 untracked from tracked-and-modified in the stop condition (an
 uncommitted-scaffold host repo is normal, not a reason to block), and carry
 profile/harness explicitly from preflight into the reference render.
+
+## 25. Migrating an existing .ai/ folder (2026-07-29, v5.15)
+
+`/import <source>` migrates a whole prior `.ai/` working directory - an older
+version of this framework, or a differently-shaped agent folder - into the
+current structure. It runs after scaffolding, against a copy of the old folder
+(move the pre-existing `.ai/` aside to `.ai.old/` before init, then
+`/import .ai.old`), because init writes a fresh `.ai/` and a foreign layout has
+no owned files for `write_owned` to preserve.
+
+### Why it is separate from /import-kb (§15)
+`/import-kb` transforms *arbitrary curated knowledge* (a docs/wiki dump, a
+README-heavy repo) into KB nodes and deliberately ignores task and ticket state
+(§15 last paragraph: "transform docs/ into nodes and ignore its task and ticket
+state"). That is the wrong operation for a prior `.ai/` you want to keep working
+in: you would lose the inbox, the planned/in-progress tasks, the decisions, and
+the running notes. `/import` is the migration counterpart - it carries the
+*lifecycle state* across as well, and upgrades already-framework-shaped nodes in
+place (re-categorize, rewrite frontmatter to the current schema, re-match
+`covers`) rather than re-synthesizing them from scratch. For the knowledge that
+is not already node-shaped it reuses the /import-kb read->classify->transform
+protocol, so the two skills share machinery without duplicating intent. The
+four-way boundary the skill bodies state so the agent chooses correctly:
+`/add-reference` keeps raw material for search; `/import-kb` transforms curated
+knowledge into nodes; `/import` migrates a whole `.ai/` working directory,
+knowledge and state; `/update` (§24) upgrades a scaffold this framework already
+wrote.
+
+### Why it is separate from /update (§24)
+Both move a prior `.ai/` to the current shape, but they start from different
+material. `/update` operates on a scaffold this framework wrote, identified by
+its `.ai/agent/framework.json` stamp: the file list is known, so the work is a
+file-by-file merge plus retirement of what the framework dropped. `/import`
+starts from a folder with no stamp - an older pre-stamp version, or a foreign
+agent layout - where nothing about the source can be assumed, so the work is
+classification before migration. The decision rule the skill bodies carry:
+stamped scaffold -> `/update`, unstamped or foreign -> `/import`. Because
+`/import` runs after a fresh init, the current scaffold's stamp is already
+correct; `/import` must never overwrite it with the source's copy, or the next
+`/update` would diff against the wrong version.
+
+### Why a skill, not a tool
+Same reasoning as §15: the source layout is unknown by definition (any prior
+version, or a foreign framework), so no deterministic parser can exist. The
+model reads heterogeneous input, infers what each piece *is* (a node, a ticket,
+a plan, a decision, a note), and maps it onto the current shape. The
+deterministic parts it reuses are the ones the framework already owns:
+`gen_index.py`, the manifest format, the node frontmatter schema, the ticket and
+changes layouts.
+
+### Protocol
+Survey (sub-agent, condensed map, detect large|small|foreign layout) ->
+migrate knowledge (upgrade node-shaped content in place; classify+transform the
+rest) -> migrate lifecycle state (tickets -> inbox; planned/in-progress ->
+tasks/<id>/ with status preserved in frontmatter; finished -> _archive/;
+decisions -> decisions/ nodes; external -> references/ + `.ai/external/`; notes
+-> notes.md) -> regenerate the derived artifacts (manifest, INDEX,
+project-context) from the migrated content rather than copying the source's
+generated files, leaving `.ai/agent/framework.json` as init stamped it ->
+report a source->target mapping, list the unmappable remainder, preserve the
+source, commit `.ai` (`import: <source>`).
+
+### Profile differences
+- **Large**: full migration into KB nodes plus the ticket/task pipeline;
+  `manifest.yaml` + `INDEX.md` + the project-context section are regenerated.
+- **Small**: no node store; distill the source's stable facts into the AGENTS.md
+  project-context section, route the rest to `notes.md`, and carry in-flight
+  work into `.ai/changes/<id>/spec.md` (finished ones to `_archive/`). A
+  large-profile source's hot-tier nodes are distilled down, not reproduced.
+
+### Profile mismatch
+The source's profile and the current scaffold's profile need not match; `/import`
+maps the source's content onto the *current* profile's targets rather than
+recreating the source's shape (a small source's project-context becomes nodes in
+a large scaffold; a large source's node store is distilled into project-context +
+notes in a small scaffold). The small profile now carries six skills
+(`/explore`, `/spec`, `/build`, `/import-kb`, `/import`, `/update`).
