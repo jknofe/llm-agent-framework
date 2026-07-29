@@ -2,14 +2,25 @@
 
 How to validate a change to this framework. Two layers: fast mechanical checks
 (run on every change) and benchmark runs (run for behavior changes worth
-shipping). There is no unit-test suite; the generator is a set of string
-templates, so the tests are "does it render, does it run, does an agent behave".
+shipping). The generator renders templates, so the tests are "does it render,
+does it run, does an agent behave" plus a property check over the templates
+themselves.
 
 ## Layer 1: Mechanical checks (every change, <1 min)
 
+0. **Template properties**
+   ```bash
+   python3 tests/check_templates.py
+   ```
+   Asserts no orphaned template, every declared slot filled, no `${...}` left
+   in any rendered artifact, rendered tools parse as Python, rendered settings
+   parse as JSON, and no em dash in a template (CONCEPT.md section 8).
+   `safe_substitute` leaves a mistyped slot in place silently, so the slot
+   check is the only thing between a typo and a broken scaffold.
 1. **Syntax**
    ```bash
    python3 -c "import ast; ast.parse(open('init_agent.py').read())"
+   for f in agentgen/*.py; do python3 -c "import ast; ast.parse(open('$f').read())"; done
    ```
 2. **Scaffold all four variants** into a throwaway dir (init writes to CWD;
    never scaffold into this repo root):
@@ -36,7 +47,12 @@ templates, so the tests are "does it render, does it run, does an agent behave".
    the scaffold that recorded it. Retiring a file means removing its
    `write()` call: verify the old scaffold's `framework_files` still lists it
    so `/update` can delete it.
-7. **Leakage sweep** (after changing normative text): grep the scaffolds for
+7. **Byte-identity** (after any refactor that must not change output):
+   capture all four rendered variants before the change, re-render after, and
+   require an empty diff. This is the only cheap guard against silent
+   corruption when moving content between templates and code; it caught two
+   real defects during the v5.17 restructuring that reading the diff did not.
+8. **Leakage sweep** (after changing normative text): grep the scaffolds for
    terms specific to any benchmark target (satty, debian, cargo deb, angular,
    sqlite-utils, bats, ros, nav2, navigation2, colcon, ...). Generated
    artifacts must stay ecosystem-neutral; named linters are allowed only as

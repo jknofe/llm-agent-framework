@@ -1,6 +1,14 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-29, v5.16 (/tidy-up: a bounded hygiene sweep over the host code
+State: 2026-07-29, v5.17 (generator restructured: content the generator emits
+moved out of string literals into `templates/` as files of their own kind
+(emitted Python as `.py`, prose as `.md`, data as data), logic split into an
+`agentgen/` package, `init_agent.py` reduced to the CLI. Slots use
+`string.Template` because emitted content is full of literal braces. The two
+axes keep branching in code, with conditional prose as fragment files, so no
+document is duplicated per variant. Verified by byte-identity across all four
+variants: the emitted scaffold is unchanged from v5.16. §27). v5.16 (/tidy-up:
+a bounded hygiene sweep over the host code
 in four passes (dead code removed with evidence, obsolete files proposed but
 never deleted, overlong comments compressed to 1-2 lines without losing the
 knowledge in them, em dashes rewritten out of prose), gated on a green
@@ -1254,3 +1262,79 @@ behavior change.
 
 Like every other skill, it commits `.ai` and leaves host-repo changes staged
 for the user. The framework does not commit the host project repo.
+
+## 27. Generator structure: content as files (2026-07-29, v5.17)
+
+The generator was one 3093-line Python file in which two thirds of the lines
+were not code. Measured by AST: 792 lines of skill body prose, 554 lines of
+Python programs written as string literals, 312 lines of AGENTS.md text, 272
+of phase docs, 151 of static config. About 600 lines were actual logic. This
+section records why that was split and on what principle, because the shape
+is easy to undo by accident.
+
+### The principle
+Content that the generator emits lives under `templates/` as a file of its
+own kind: emitted Python as `.py`, emitted markdown as `.md`, emitted data as
+a data file. Code decides *which* content applies and *what* fills its slots.
+Prose does not live in string literals, and logic does not live in templates.
+
+### What that buys
+The 554 lines of embedded programs were the sharpest case. `probe.py` was 236
+lines of Python that no linter, type checker, or test could see, because to
+every tool it was one long string. Writing a `{` in it required remembering to
+write `{{`. As a file it is just Python. The same move turned
+`_MANIFEST_PARSER`, a code fragment that was spliced into three tools by hand,
+into one file included in three places.
+
+It also made a test layer possible for the first time. `tests/check_templates.py`
+asserts properties that could not previously be asked: no template is orphaned,
+every slot a template declares is filled by its caller, no rendered artifact
+still contains a `${...}`, every rendered tool parses as Python, the rendered
+settings parse as JSON, and no template carries an em dash (section 8, which
+the generator had been violating in nine places).
+
+### Slot syntax: why not str.format
+Emitted content is full of literal braces: JSON, dict literals, f-strings
+inside the generated tools. `str.format` would demand every one of them be
+doubled, and a missed escape is a silent corruption rather than an error.
+`string.Template.safe_substitute` ignores braces entirely, and it leaves
+unknown `$NAME` alone, so the three harness variables that must reach the
+output verbatim (`$ARGUMENTS`, `$LLM_AGENT_HOME`, `$CLAUDE_PROJECT_DIR`) need
+no escaping either. The cost of `safe_substitute` is that a mistyped slot
+fails silently, which is exactly what the slot check in the test layer exists
+to catch. Slot names stay lowercase so they cannot collide with the
+passthrough variables.
+
+### The two axes stay in code
+Profile and harness branch at 28 points, and the branches are sentence-level
+rather than document-level: a clause that appears only on the claude harness,
+a bullet only in the large profile. The tempting move is four copies of
+AGENTS.md, one per variant. That is rejected: duplicated documents are how the
+axes drift, which is the failure the "handle both or state why" rule in the
+dev guide already exists to prevent. Instead the conditional prose is a
+fragment file under `fragments/<harness>/` or `fragments/<profile>/`, and the
+`if` that selects it stays in Python. Templates hold prose; they do not hold
+conditionals, and no template language was introduced.
+
+### Distribution was never the constraint
+"Single stdlib file" read like a distribution requirement. It was not one.
+`install.sh` git-clones the whole repo and the shell function runs
+`$LLM_AGENT_HOME/init_agent.py` after a pull, so a sibling package and
+template tree travel with it automatically. There is no `curl | python`, no
+pip, no zipapp path. Python puts the script's own directory on `sys.path`, so
+the imports resolve regardless of the working directory the user runs
+`init-agent` from. If a single-file artifact is ever wanted, `zipapp` is
+stdlib and can bundle the tree without changing the source layout.
+
+### The refactor was verified, not reviewed
+Restructuring 2081 lines of content by hand invites silent corruption, so the
+move was gated on byte-identity: render all four size and harness variants
+before and after, diff the trees, and require an empty diff. That harness
+caught two real defects during the work that reading the diff would not have.
+The first was an extraction script that neutralized `if __name__ ==
+"__main__"` by rewriting the text, which also rewrote the nested guards inside
+the templates. The second was `/update`'s description, which differs by
+profile and had been collapsed to one string. Both surfaced as a failing diff
+within seconds. No behavior changed in this revision: the emitted scaffold is
+identical to v5.16 in all four variants, and the version bump records the
+source layout, not the output.
