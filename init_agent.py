@@ -18,6 +18,9 @@ the agent through skills and folder conventions:
   /import <source>       migrate an existing .ai/ folder (older framework
                          version or other layout) into the current structure:
                          knowledge and lifecycle state (tickets, tasks, changes)
+  /tidy-up [scope]       hygiene sweep that may not change behavior: remove
+                         dead code, propose obsolete files for removal,
+                         shorten overlong comments, drop em dashes from prose
   /update                move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
@@ -50,7 +53,7 @@ Size profiles (auto-selected from codebase LOC when --size is omitted or auto):
                    project-context), running memory in .ai/notes.md, a
                    lightweight per-change spec (.ai/changes/<id>/spec.md) and
                    one fresh-context review gate. Skills: /explore /spec /build
-                   /import-kb /import /update.
+                   /import-kb /import /tidy-up /update.
 
 Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral): KB
@@ -120,7 +123,7 @@ TODAY = date.today().isoformat()
 # Framework revision this generator emits; mirrors CONCEPT.md's version. Every
 # scaffold records it in .ai/agent/framework.json, which is what makes an
 # agent-driven /update able to tell what changed since the project was built.
-FRAMEWORK_VERSION = "5.15"
+FRAMEWORK_VERSION = "5.16"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -314,6 +317,7 @@ Copilot CLI, start a phase with its kickoff line:
 - `Run Phase 1: read {PHASES_DIR}/init.md first and follow it exactly.`
 - `Plan ticket <id>: read {PHASES_DIR}/planning.md first, then the ticket.`
 - `Implement ticket <id>: read {PHASES_DIR}/implementation.md first, then plan.md.`
+- `Tidy up [scope]: read .github/prompts/tidy-up.prompt.md first and follow it exactly.`
 - `Update the framework: read .github/prompts/update.prompt.md first and follow it exactly.`
 
 """
@@ -375,13 +379,15 @@ and commands verbatim.
 | 3 Implementation | `{PHASES_DIR}/implementation.md` |
 | 4 Operational | none. Protocol below = default behavior |
 
-Framework maintenance is not a phase: `/update` moves this scaffold to the
-current framework version, merging the framework files and migrating the KB in
-place. It never re-runs Phase 1.
+Maintenance is not a phase. `/update` moves this scaffold to the current
+framework version, merging the framework files and migrating the KB in place;
+it never re-runs Phase 1. `/tidy-up [scope]` sweeps the host code for dead
+code, obsolete files, overlong comments, and em dashes, and may not change
+behavior; anything that would is a ticket.
 
 Right-sizing: a change you can describe in one sentence and that touches a
 single file needs no ticket. Do it directly, update the affected KB nodes,
-and commit `.ai`. Use the ticket pipeline for everything larger — but for a
+and commit `.ai`. Use the ticket pipeline for everything larger, but for a
 change confined to one self-contained area (e.g. a packaging descriptor or a
 self-contained CLI subcommand), take
 planning.md's trivial path: one task file, one review gate, no Q&A rounds. Do
@@ -496,6 +502,7 @@ CLI, state the intent directly; the Protocol and Workflows above apply:
 - `Explore the project and fill the Project Context section + .ai/notes.md.`
 - `Spec change <id> "<title>": write .ai/changes/<id>/spec.md (goal, acceptance criteria, tasks).`
 - `Build change <id>: implement .ai/changes/<id>/spec.md, then review the diff against the criteria.`
+- `Tidy up [scope]: read .github/prompts/tidy-up.prompt.md first and follow it exactly.`
 - `Update the framework: read .github/prompts/update.prompt.md first and follow it exactly.`
 
 """
@@ -547,14 +554,14 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
    Context section below first: if it still holds only the seed one-liner (or
    the raw `<!-- Populated by /explore -->` marker) with no module map or
    build/test/lint commands, `/explore` was never run. Run it before non-trivial
-   work — a stale or missing digest costs more discovery tokens over the
+   work: a stale or missing digest costs more discovery tokens over the
    session than the one-time `/explore` pass.
 2. Durable knowledge (decisions, gotchas, domain terms, unwritten rules,
    operational runbooks, pointers to related repos/paths this project depends
-   on — e.g. a sibling repo's venv used for tests, or prior-art to mirror) goes
+   on, e.g. a sibling repo's venv used for tests, or prior-art to mirror) goes
    in `.ai/notes.md` (append, telegraphic). Read it at the start of a task.
    Architecture/module-map knowledge belongs in the Project Context section
-   instead (`/explore`'s output) — never duplicate it here. `notes.md` may grow
+   instead (`/explore`'s output). Never duplicate it here. `notes.md` may grow
    into a hub: once it passes ~1-2 screens, move topic clusters (largest first)
    into `.ai/notes/<topic>.md`, each leaving a one-line linked pointer
    (`- [topic](notes/<topic>.md) - hook`) behind, until the hub is back under
@@ -590,6 +597,7 @@ commit `.ai`. Use `/spec` then `/build` for everything larger.
 | `/explore` | Sample the code; fill the Project Context below and `.ai/notes.md`. |
 | `/spec <id> <title>` | Write `.ai/changes/<id>/spec.md` for a non-trivial change. |
 | `/build <id>` | Implement the spec's tasks, review the diff, finish. |
+| `/tidy-up [scope]` | Hygiene sweep that may not change behavior: dead code, obsolete files, comments, em dashes. |
 | `/update` | Move this scaffold to the current framework version, keeping what the project knows. |
 
 ## Changes layout
@@ -645,7 +653,7 @@ hook in `.claude/settings.json` that runs lint (and fast tests if cheap)
 when the agent finishes a turn with code changes. A deterministic check
 beats an instruction the model may skip. Add it only with user consent.
 Mention the lighter alternative too: a session-scoped `/goal` condition
-(e.g. "tests and lint pass") that an evaluator re-checks each turn — good
+(e.g. "tests and lint pass") that an evaluator re-checks each turn, good
 for a single unattended run without touching settings.
 """
     rules_line = ""
@@ -744,7 +752,7 @@ Read this before decomposing a ticket.
    produce it. Use the `reviewer` sub-agent where the harness supports
    sub-agents. If it cannot be spawned (e.g. you are yourself a sub-agent) and
    no human is available (autonomous run), spawn a fresh general-purpose
-   sub-agent given only the plan and the acceptance criteria — never your own
+   sub-agent given only the plan and the acceptance criteria, never your own
    working context; if no fresh context is reachable at all, do a
    clean-context self-review against this gate's checklist and record that the
    `reviewer` sub-agent was unavailable. Never silently skip the gate. Fix gaps
@@ -1090,6 +1098,145 @@ def render_update_body(size: str, harness: str, arg: str) -> str:
         "pre-update commit are still worth doing.\n")
 
 
+def render_tidy_up_body(size: str, harness: str, arg: str) -> str:
+    """Body of the /tidy-up skill: a bounded hygiene sweep over the host code.
+
+    Four passes with deliberately different authority. Removing dead code and
+    rewriting comments or prose is reversible and locally verifiable, so the
+    agent does it. Deleting a file is neither, so that pass only proposes. The
+    rule the whole procedure serves: a tidy-up may not change behavior, so
+    every pass is gated on the same test and lint baseline captured up front.
+
+    Varies on both axes: the large profile has KB nodes whose `covers` globs
+    can point at removed paths; the small profile has notes plus the
+    project-context digest. Harness decides whether the survey fan-out and the
+    review gate can run in sub-agents.
+    """
+    if harness == "claude":
+        survey_note = (
+            "   Dispatch the survey fan-out to sub-agents where the harness\n"
+            "   supports them: each returns a candidate list with evidence, not\n"
+            "   file dumps. Decide every removal yourself.\n")
+        review_note = (
+            "   Run the `reviewer` sub-agent on the full diff. If it cannot be\n"
+            "   spawned, use a fresh general-purpose sub-agent given only the\n"
+            "   diff and the rule that behavior must not change.\n")
+    else:
+        survey_note = (
+            "   Survey with your read and search tools; keep raw file dumps out\n"
+            "   of context by searching for evidence, not by reading whole trees.\n")
+        review_note = (
+            "   Re-read the full diff in a clean context against the rule that\n"
+            "   behavior must not change, and note that no reviewer sub-agent\n"
+            "   was available.\n")
+
+    if size == "large":
+        record = (
+            "   Removing code can invalidate the KB. For every node whose\n"
+            "   `covers` globs matched a removed path, update the node and its\n"
+            f"   `manifest.yaml` entry, then run `python3 {TOOLS_DIR}/gen_index.py`.\n"
+            "   Update the `GENERATED:project-context` module map only if a\n"
+            "   module disappeared or was renamed.\n")
+    else:
+        record = (
+            "   If a module disappeared or was renamed, update the module map in\n"
+            "   the `GENERATED:project-context` section of AGENTS.md. Append any\n"
+            "   durable finding to `.ai/notes.md`, for example a subsystem that\n"
+            "   turned out to be unreachable.\n")
+
+    return (
+        "Tidy up this codebase without changing what it does. Scope (optional:\n"
+        f"a path, module, or area; default is the whole repo): {arg}\n\n"
+        "Four passes, in this order, so nothing is polished that is about to be\n"
+        "removed. A tidy-up is a hygiene sweep, not a refactor: it may not\n"
+        "change behavior, public API, or output. If a cleanup you want needs a\n"
+        "behavior change, stop and write it up as a change spec instead.\n\n"
+        "0. Baseline first. Confirm the worktree is clean, or ask the user\n"
+        "   whether to proceed with pending edits. Run the project's build,\n"
+        "   test, and lint commands and record the result. If they are already\n"
+        "   failing, say so and stop: without a green baseline you cannot tell\n"
+        "   your sweep from a pre-existing break. Note the current commit SHA.\n\n"
+        "1. Dead code: remove it, with evidence.\n"
+        "   Candidates: unreferenced private functions, types, and variables;\n"
+        "   unused imports; unreachable branches; commented-out code blocks;\n"
+        "   parameters no caller passes; feature-flag arms whose flag no longer\n"
+        "   exists.\n"
+        "   Evidence before every removal. Search the whole repo, not just the\n"
+        "   source tree: tests, build files, CI config, packaging metadata,\n"
+        "   templates, and docs. Check the dynamic-reference sites a plain\n"
+        "   search misses, whichever apply to this ecosystem: reflection and\n"
+        "   name-based lookup, plugin or command registries, dependency\n"
+        "   injection, serialized field names, conditional compilation,\n"
+        "   generated bindings, and entry points declared in packaging\n"
+        "   manifests.\n"
+        "   Decide first whether this repo is a library or an application. In a\n"
+        "   library, an exported symbol is not dead merely because nothing in\n"
+        "   this repo calls it; removing it is an API break, which this skill\n"
+        "   does not do. Treat the public surface as used.\n"
+        "   Where the ecosystem has a tool that reports unused code (a linter,\n"
+        "   a compiler warning, a coverage report), run it and use its output as\n"
+        "   a candidate list, then verify each hit yourself. A tool's verdict is\n"
+        "   evidence, not authority.\n"
+        "   When the evidence is ambiguous, do not remove it. Move it to the\n"
+        "   proposal list in step 2 and let the user decide.\n"
+        f"{survey_note}"
+        "\n"
+        "2. Obsolete files: propose, never delete.\n"
+        "   Candidates: scripts nothing invokes, config for a tool the project\n"
+        "   no longer uses, generated output committed by mistake, editor and\n"
+        "   merge droppings (`.orig`, `.rej`, `.bak`), duplicated vendored\n"
+        "   copies, and docs describing a removed feature.\n"
+        "   Evidence: nothing references the path, no build, CI, or packaging\n"
+        "   config names it (including by string), and its git history shows it\n"
+        "   went quiet. All three, not one.\n"
+        "   Never delete a file in this pass, and never mass-delete on a guess.\n"
+        "   Report a table instead: path, why it looks obsolete, what breaks if\n"
+        "   that is wrong, and your confidence. Let the user choose. Leave\n"
+        "   licence files, CI config, and anything a packaging manifest names\n"
+        "   out of the proposal unless the evidence is conclusive.\n\n"
+        "3. Overlong comments: shorten to at most 1-2 lines.\n"
+        "   Target the narrative blocks that restate what the code already\n"
+        "   says. Shorten those to a single line, or delete them when the code\n"
+        "   is clearer without.\n"
+        "   Do not shorten, regardless of length: licence and copyright\n"
+        "   headers, SPDX tags, generated-file banners, and API documentation\n"
+        "   comments that are the published contract for a symbol.\n"
+        "   A long comment that carries real information is not clutter. If it\n"
+        "   explains why, records a non-obvious invariant, justifies a\n"
+        "   workaround, or cites an algorithm or issue, keep the information:\n"
+        "   compress it to 1-2 lines if it fits, otherwise move it into the\n"
+        "   project's docs and leave a one-line pointer. Never delete knowledge\n"
+        "   to satisfy a line count.\n\n"
+        "4. Em dashes: remove them from prose.\n"
+        "   Rewrite every em dash in source strings, comments, docs, and\n"
+        "   markdown. Replace by clause, do not swap character for character: a\n"
+        "   parenthetical pair becomes commas or parentheses, an abrupt break\n"
+        "   becomes a colon or a full stop, a range becomes `to`. Read the\n"
+        "   result back; if it no longer parses as a sentence, rewrite it.\n"
+        "   Leave alone: test fixtures and golden or expected-output files,\n"
+        "   vendored third-party sources, licence texts, data files, URLs, and\n"
+        "   any string where the character is the data under test. Changing\n"
+        "   those changes behavior, which this skill may not do.\n\n"
+        "5. Verify and record.\n"
+        "   Re-run the same build, test, and lint commands from step 0 and\n"
+        "   compare against the recorded baseline. Any new failure means the\n"
+        "   sweep broke something: fix it or revert that hunk. A golden-file\n"
+        "   mismatch after pass 4 means you edited data, not prose.\n"
+        f"{review_note}"
+        f"{record}"
+        "\n"
+        "6. Report and hand over.\n"
+        "   Print one section per pass: what was removed with the evidence, the\n"
+        "   proposal table for files, the comments touched, and the em-dash\n"
+        "   count. Commit `.ai` (`tidy-up: <scope>`). Leave the host-repo\n"
+        "   changes uncommitted for the user to review; this framework never\n"
+        "   commits the host project repo.\n\n"
+        "Right-size the sweep. On a large repo, take the scope argument\n"
+        "seriously and do one area at a time: a diff nobody can review is worse\n"
+        "than untidy code. Keep the passes in separate commits-worth of changes\n"
+        "so a reviewer can read them independently.\n")
+
+
 def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     """(name, description, body) for each command. Single source for both
     skill (claude) and prompt-file (copilot) rendering; the phase pointers
@@ -1286,6 +1433,12 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "(project-context + notes, no node store), promote its distilled facts\n"
             "into KB nodes here. Map the source's content onto this profile's\n"
             "targets; do not recreate the source's shape.\n",
+        ),
+        (
+            "tidy-up",
+            "Hygiene sweep that may not change behavior: remove dead code, "
+            "propose obsolete files, shorten comments, drop em dashes",
+            render_tidy_up_body("large", harness, arg_ticket),
         ),
         (
             "update",
@@ -1500,6 +1653,12 @@ def command_specs_small(harness: str, arg_focus: str, arg_ticket: str) -> list:
             "   not delete the source. Commit `.ai` (`import: <source>`).\n",
         ),
         (
+            "tidy-up",
+            "Hygiene sweep that may not change behavior: remove dead code, "
+            "propose obsolete files, shorten comments, drop em dashes",
+            render_tidy_up_body("small", harness, arg_ticket),
+        ),
+        (
             "update",
             "Update this scaffold to the current framework version: merge the "
             "framework files, migrate notes and specs, never re-explore",
@@ -1520,6 +1679,7 @@ ARG_HINTS = {
     "import": "<source>",
     "spec": "<id> <title...>",
     "build": "<id>",
+    "tidy-up": "[scope]",
     "update": "[dry-run]",
 }
 
@@ -1603,8 +1763,8 @@ Check:
 - Nothing outside the stated scope changed.
 - Stated edge cases have tests.
 - For build, CI, or packaging config you cannot run here: reason about whether
-  it would actually build or run — required toolchain/compiler versions, and
-  whether declared dependencies exist in the target distro/registry — not just
+  it would actually build or run: required toolchain/compiler versions, and
+  whether declared dependencies exist in the target distro/registry, not just
   whether the files are well-formed.
 
 Report only gaps that affect correctness or the stated requirements, with
@@ -1900,7 +2060,7 @@ def render_tool_gen_rules() -> str:
 
 Cold `conventions/*` nodes with non-empty `covers` globs render to
 `.claude/rules/<id>.md` with `paths:` frontmatter, so the harness injects the
-convention deterministically whenever matching files are touched — no manifest
+convention deterministically whenever matching files are touched, with no manifest
 lookup by the model needed. Hot nodes are excluded (already embedded in the
 AGENTS.md project-context section); nodes without `covers` cannot be
 path-scoped and stay on the manifest protocol.

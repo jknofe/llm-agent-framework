@@ -1,0 +1,144 @@
+diff --git a/src/tools/arrow.rs b/src/tools/arrow.rs
+index 769d96c..7ec14a9 100644
+--- a/src/tools/arrow.rs
++++ b/src/tools/arrow.rs
+@@ -182,9 +182,7 @@ impl Drawable for Arrow {
+         let arrow_length = arrow_offset.norm();
+         let arrow_direction = arrow_offset * (1.0 / arrow_length);
+ 
+-        // We rotate the canvas so that we can draw the arrow on the x-axis.
+-        // start will be at (0,0)
+-        // end will be at (length, 0)
++        // Rotate the canvas onto the arrow's axis: start is (0,0), end is (length, 0).
+         canvas.save();
+         canvas.translate(self.start.x, self.start.y);
+         canvas.rotate(arrow_direction.angle().radians);
+@@ -199,10 +197,8 @@ impl Drawable for Arrow {
+             .style
+             .size
+             .to_arrow_head_length(self.style.annotation_size_factor);
+-        // The offset of the midpoint is the distance the midpoint moves toward the end of the arrow.
+-        // A offset of 0 will place the midpoint right below the head side.
+-        // A negative value will result in a diamond head.
+-        // A positive value will result in a sharper head.
++        // Shifts the midpoint toward the end: 0 sits below the head side, negative
++        // gives a diamond head, positive a sharper one.
+         let midpoint_offset = head_side_length * 0.1;
+ 
+         let head_angle = Angle::from_degrees(60.0); // The angle of the point of the arrow head.
+diff --git a/src/tools/blur.rs b/src/tools/blur.rs
+index 63b95d4..2a486fe 100644
+--- a/src/tools/blur.rs
++++ b/src/tools/blur.rs
+@@ -58,7 +58,6 @@ impl Blur {
+             ImageFilter::GaussianBlur { sigma },
+             src_image_id,
+         );
+-        //canvas.delete_image(src_image_id);
+ 
+         Ok(dst_image_id)
+     }
+diff --git a/src/tools/crop.rs b/src/tools/crop.rs
+index 6096999..4b8d45f 100644
+--- a/src/tools/crop.rs
++++ b/src/tools/crop.rs
+@@ -489,9 +489,7 @@ impl Tool for CropTool {
+     }
+ 
+     fn get_drawable(&self) -> Option<&dyn Drawable> {
+-        // the reason we always return None is because we dont want this tool
+-        // to show up with the standard rendering mechanism. Instead it will always
+-        // be drawn separately by using `get_crop(&self)`
++        // Always None: the crop overlay is drawn separately via get_crop(&self).
+         None
+     }
+ 
+diff --git a/src/tools/highlight.rs b/src/tools/highlight.rs
+index f60a89a..e3a74ca 100644
+--- a/src/tools/highlight.rs
++++ b/src/tools/highlight.rs
+@@ -181,13 +181,8 @@ impl Tool for HighlightTool {
+                 if event.button == MouseButton::Middle {
+                     return ToolUpdateResult::Unmodified;
+                 }
+-                // There exists two types of highlighting modes currently: freehand, block
+-                // A user may set a primary highlighter mode, with the other being accessible
+-                // by clicking CTRL when starting a highlight (doesn't need to be held).
++                // CTRL toggles to the non-primary highlighter mode for this stroke (no need to hold it).
+                 match (primary_highlighter, ctrl_pressed) {
+-                    // This matches when CTRL is not pressed and the primary highlighting mode
+-                    // is block, along with its inverse, CTRL pressed with the freehand mode
+-                    // being their primary highlighting mode.
+                     (Highlighters::Block, false) | (Highlighters::Freehand, true) => {
+                         self.highlighter =
+                             Some(HighlightKind::Block(Highlighter::<BlockHighlight> {
+@@ -198,9 +193,6 @@ impl Tool for HighlightTool {
+                                 style: self.style,
+                             }))
+                     }
+-                    // This matches the remaining two cases, which is when the user has the
+-                    // freehand mode as the primary mode and CTRL is not pressed, and conversely,
+-                    // when CTRL is pressed and the users primary mode is block.
+                     (Highlighters::Freehand, false) | (Highlighters::Block, true) => {
+                         self.highlighter =
+                             Some(HighlightKind::Freehand(Highlighter::<FreehandHighlight> {
+@@ -244,20 +236,10 @@ impl Tool for HighlightTool {
+                             return ToolUpdateResult::Unmodified;
+                         };
+ 
+-                        // The freehand highlighter has a more complex shift model:
+-                        // when pressing shift it begins a straight line, which is aligned
+-                        // from the point after shift was pressed, to any 15*n degree rotation.
+-                        //
+-                        // After releasing shift, it creates an extra point, this is useful since
+-                        // it means that users do not need to move their mouse to achieve perfectly
+-                        // aligned turns, since they can release, then hold shift again to continue
+-                        // another aligned line.
+-                        // This extra point can be removed by releasing shift again (if the cursor
+-                        // hasn't moved)
++                        // Shift snaps the segment to 15-degree steps; releasing shift drops an
++                        // anchor point so aligned segments can be chained without moving the mouse.
+                         if shift_pressed {
+-                            // if shift was pressed before we remove an extra point which would
+-                            // have been the previous aligned point. However ignore if there is
+-                            // only one point which means the highlight has just started.
++                            // Replace the previous aligned anchor, unless the highlight just started.
+                             if highlighter.data.shift_pressed && highlighter.data.points.len() >= 2
+                             {
+                                 highlighter
+@@ -311,9 +293,8 @@ impl Tool for HighlightTool {
+         &mut self,
+         event: crate::sketch_board::KeyEventMsg,
+     ) -> ToolUpdateResult {
+-        // Adds an extra point when shift is released in the freehand mode, this
+-        // allows for users to make sharper turns. Release shift a second time
+-        // to remove the added point (only if the cursor has not moved).
++        // Shift release adds a turn anchor in freehand mode; releasing again removes
++        // it if the cursor hasn't moved.
+         if (event.key == Key::Shift_L || event.key == Key::Shift_R)
+             && let Some(HighlightKind::Freehand(highlighter)) = &mut self.highlighter
+         {
+diff --git a/src/tools/mod.rs b/src/tools/mod.rs
+index 90fd548..519448a 100644
+--- a/src/tools/mod.rs
++++ b/src/tools/mod.rs
+@@ -233,7 +233,6 @@ pub struct ToolsManager {
+ impl ToolsManager {
+     pub fn new() -> Self {
+         let mut tools: HashMap<Tools, Rc<RefCell<dyn Tool>>> = HashMap::new();
+-        //tools.insert(Tools::Crop, Rc::new(RefCell::new(CropTool::default())));
+         tools.insert(
+             Tools::Pointer,
+             Rc::new(RefCell::new(PointerTool::default())),
+diff --git a/src/tools/text.rs b/src/tools/text.rs
+index 3acf04e..326dcb2 100644
+--- a/src/tools/text.rs
++++ b/src/tools/text.rs
+@@ -1627,7 +1627,6 @@ impl TextTool {
+                                     (end - start) as i32
+                                 } else {
+                                     let temp = current_offset - start as i32;
+-                                    // current_offset - start as i32
+                                     let next_start =
+                                         content[..ranges.get(i + 1).unwrap().start].chars().count();
+                                     let next_end =

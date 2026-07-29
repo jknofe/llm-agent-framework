@@ -108,7 +108,7 @@ drops the rest:
 - **`.ai/`** is still a private nested git repo (gitignored from the host), but
   holds just `notes.md` (running memory: decisions, gotchas, domain terms) and
   per-change specs under `changes/<id>/spec.md`.
-- Five skills: **`/explore`** fills the project-context
+- Seven skills: **`/explore`** fills the project-context
   section and `notes.md`; **`/spec <id> <title>`** writes a lightweight spec
   (goal + acceptance criteria + task checklist) for a non-trivial change;
   **`/build <id>`** implements it and ends with **one** fresh-context review of
@@ -116,7 +116,9 @@ drops the rest:
   **`/import-kb <source>`** distills an existing knowledge base of any structure
   into the project-context section and `notes.md`; **`/import <source>`**
   migrates a whole prior `.ai/` folder (older version or other layout) into the
-  small profile, including in-flight change state; and **`/update`** moves the
+  small profile, including in-flight change state; **`/tidy-up [scope]`** runs a
+  hygiene sweep that may not change behavior (dead code, obsolete files,
+  overlong comments, em dashes); and **`/update`** moves the
   scaffold to a newer framework version, migrating `notes.md`, specs, and the
   project-context digest instead of rebuilding them. A change you can describe
   in one sentence skips the spec entirely.
@@ -156,7 +158,8 @@ Both harnesses invoke them the same way:
 | `/implement <ticket-id>` | Phase 3: works the planned task files in order; tests, KB delta, drift check against the plan's `kb-commit`, ticket review gate. |
 | `/add-reference <name> <origin>` | Clones/copies external material to `.ai/external/<name>/` and registers a `references/<name>` KB node (origin, fetch date, pinned version). |
 | `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and transforms it into the framework KB: classifies the content into nodes, writes frontmatter, sets `covers` globs, updates `manifest.yaml`/`INDEX.md` and the project-context section, routes gotchas/runbooks to `notes.md`. Distinct from `/add-reference`, which keeps raw material for search instead of transforming it. |
-| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, or a differently-shaped agent folder) into the current structure — both the knowledge **and** the lifecycle state: KB nodes get schema-upgraded and re-categorized, tickets/tasks/plans/decisions/notes are carried across (small profile: in-flight changes and notes), and `manifest.yaml`/`INDEX.md`/the project-context section are regenerated. Distinct from `/import-kb`, which transforms arbitrary curated knowledge and ignores task/ticket state, and from `/update`, which upgrades a scaffold this framework already stamped. |
+| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** the lifecycle state: KB nodes get schema-upgraded and re-categorized, tickets/tasks/plans/decisions/notes are carried across (small profile: in-flight changes and notes), and `manifest.yaml`/`INDEX.md`/the project-context section are regenerated. Distinct from `/import-kb`, which transforms arbitrary curated knowledge and ignores task/ticket state, and from `/update`, which upgrades a scaffold this framework already stamped. |
+| `/tidy-up [scope]` | Hygiene sweep over the host code in four passes: removes dead code with evidence (a library's exported surface counts as used), **proposes** obsolete files without deleting them, compresses overlong comments to 1-2 lines while relocating rather than discarding the knowledge in them, and rewrites em dashes out of prose. Gated on a green build/test/lint baseline captured before the sweep and re-checked after; it may not change behavior, and anything that would is a change spec instead. |
 | `/update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 The phase skills are thin pointers to the phase docs in

@@ -1,6 +1,13 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-29, v5.15 (/import: migrate a whole existing `.ai/` folder
+State: 2026-07-29, v5.16 (/tidy-up: a bounded hygiene sweep over the host code
+in four passes (dead code removed with evidence, obsolete files proposed but
+never deleted, overlong comments compressed to 1-2 lines without losing the
+knowledge in them, em dashes rewritten out of prose), gated on a green
+test/lint baseline captured up front and forbidden from changing behavior;
+both profiles, both harnesses. The generator's own templates were swept for
+the em-dash rule they already stated. §26). v5.15 (/import: migrate a whole
+existing `.ai/` folder
 (older framework version or foreign agent layout) into the current structure,
 carrying both the knowledge and the lifecycle state (tickets, tasks, plans,
 decisions, notes; small profile: in-flight changes) that /import-kb drops;
@@ -1175,5 +1182,75 @@ The source's profile and the current scaffold's profile need not match; `/import
 maps the source's content onto the *current* profile's targets rather than
 recreating the source's shape (a small source's project-context becomes nodes in
 a large scaffold; a large source's node store is distilled into project-context +
-notes in a small scaffold). The small profile now carries six skills
-(`/explore`, `/spec`, `/build`, `/import-kb`, `/import`, `/update`).
+notes in a small scaffold). The small profile now carries seven skills
+(`/explore`, `/spec`, `/build`, `/import-kb`, `/import`, `/tidy-up`,
+`/update`).
+
+## 26. Hygiene sweeps as a skill (2026-07-29, v5.16)
+
+`/tidy-up [scope]` sweeps the host code for four kinds of rot: dead code,
+obsolete files, overlong comments, and em dashes in prose. It is maintenance,
+not a phase and not a ticket, so it sits beside `/update` rather than inside
+the pipeline.
+
+### The constraint that shapes it
+A tidy-up may not change behavior. That single rule is what makes the skill
+safe to hand an agent, and it is enforced structurally rather than by asking
+nicely: step 0 captures a green build/test/lint baseline and refuses to start
+without one, step 5 re-runs the same commands and compares. Without the
+up-front baseline the agent cannot distinguish a break it caused from one it
+inherited, which is the failure mode that makes automated cleanup dangerous.
+Anything that would change behavior is out of scope by definition and becomes
+a change spec instead.
+
+### Why the four passes carry different authority
+Removing dead code and rewriting prose is reversible and locally verifiable,
+so the agent does it. Deleting a file is neither: the evidence that a file is
+unused is always circumstantial (nothing references it *that a search found*),
+and the cost of being wrong is unbounded. So pass 2 only proposes, with a
+table of path, reason, blast radius, and confidence. This asymmetry is the
+design, not caution for its own sake: the passes are ordered by how cheaply a
+mistake can be detected and undone.
+
+### Dead code needs evidence, and a library has none
+The pass states where a plain search goes blind (reflection, plugin
+registries, dependency injection, serialized field names, conditional
+compilation, generated bindings, packaging entry points) because an agent that
+greps for a symbol and finds nothing will otherwise conclude it is dead. The
+sharper rule: in a library, an exported symbol is not dead because this repo
+does not call it. Removing it is an API break, so the public surface counts as
+used. Ecosystem tools that report unused code are treated as a candidate list
+to verify, never as authority.
+
+### Comments: a line count that cannot destroy knowledge
+Shortening comments to 1-2 lines is trivially satisfiable by deleting them,
+which is the wrong outcome. The pass therefore separates narrative that
+restates the code (compress or delete) from information the code cannot carry:
+why, invariants, workarounds, citations. That content is compressed if it
+fits and relocated with a pointer if it does not. Licence headers, SPDX tags,
+generated-file banners, and published API documentation are exempt from the
+count entirely.
+
+### Em dashes: a register rule the framework owed itself
+§8 has required plain punctuation in generated artifacts since v1. The
+generator was violating it: nine em dashes in `init_agent.py` templates
+reached ten files across the four scaffold variants. Those were rewritten by
+clause (parenthetical to commas, break to colon or full stop) rather than
+swapped character for character, which is the same instruction the pass gives.
+Fixtures, golden files, vendored sources, licence texts, and data files are
+excluded, because there the character is the data and editing it is a
+behavior change.
+
+### Profile and harness differences
+- **Large**: removals can invalidate KB nodes whose `covers` globs matched a
+  deleted path; those nodes and their `manifest.yaml` entries are updated and
+  `INDEX.md` regenerated.
+- **Small**: the module map in the project-context digest is updated only if a
+  module disappeared, and durable findings append to `notes.md`.
+- **claude**: the survey fan-out runs in sub-agents that return evidence
+  rather than file dumps, and the `reviewer` sub-agent takes the diff.
+- **copilot**: search-based survey and a clean-context self-review, noted as
+  such in the report.
+
+Like every other skill, it commits `.ai` and leaves host-repo changes staged
+for the user. The framework does not commit the host project repo.

@@ -1,0 +1,75 @@
+diff --git a/.github/ISSUE_TEMPLATE/feature.yml b/.github/ISSUE_TEMPLATE/feature.yml
+index eb4dc52..148d752 100644
+--- a/.github/ISSUE_TEMPLATE/feature.yml
++++ b/.github/ISSUE_TEMPLATE/feature.yml
+@@ -8,7 +8,7 @@ body:
+       value: |
+         Thanks for taking the time to share your idea!  
+         💡 If you already have thoughts on how it might be implemented, feel free to include them.  
+-        🙌 If you could see yourself contributing, even better — but no pressure.  
++        🙌 If you could see yourself contributing, even better, but no pressure.  
+         🔎 Please check if a similar open or closed issue already exists.
+   - type: textarea
+     id: idea
+diff --git a/.github/dependabot.yml b/.github/dependabot.yml
+index d2fb003..f42fb96 100644
+--- a/.github/dependabot.yml
++++ b/.github/dependabot.yml
+@@ -1,7 +1,4 @@
+-# To get started with Dependabot version updates, you'll need to specify which
+-# package ecosystems to update and where the package manifests are located.
+-# Please see the documentation for all configuration options:
+-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
++# Dependabot config reference: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+ 
+ version: 2
+ updates:
+diff --git a/README.md b/README.md
+index a0fff4c..3862967 100644
+--- a/README.md
++++ b/README.md
+@@ -56,7 +56,7 @@ All configuration is done either at the config file in `XDG_CONFIG_DIR/.config/s
+ 
+ #### Color Selection Shortcuts <sup>0.20.1</sup>
+ 
+-<kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>, …, <kbd>9</kbd>, <kbd>0</kbd> — select nth color from the color palette
++<kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>, …, <kbd>9</kbd>, <kbd>0</kbd>: select nth color from the color palette
+ 
+ If out of range select custom color <sup>0.21.0</sup>
+ 
+@@ -130,9 +130,8 @@ initial-tool = "brush"
+ copy-command = "wl-copy"
+ # Increase or decrease the size of the annotations
+ annotation-size-factor = 2
+-# Filename to use for saving action. Omit to disable saving to file. Might contain format specifiers: https://docs.rs/chrono/latest/chrono/format/strftime/index.html
+-# starting with 0.20.0, can contain leading tilde (~) for home directory
+-# starting with 0.21.0, save as uses this as initial filename/path when available
++# Filename for save action (omit to disable). Supports strftime specifiers: https://docs.rs/chrono/latest/chrono/format/strftime/index.html
++# Supports leading `~` (0.20.0); used as initial filename in the save-as dialog (0.21.0)
+ output-filename = "/tmp/test-%Y-%m-%d_%H:%M:%S.png"
+ # After copying the screenshot, save it to a file as well
+ save-after-copy = false
+@@ -172,9 +171,8 @@ pan-step-size = 50.0
+ zoom-factor = 1.1
+ # experimental feature (0.20.1): The length to move the text when using arrow keys. defaults to 50.0
+ text-move-length = 50.0 
+-# experimental feature (0.20.1): Scale factor on the input image when it was taken (e.g. DPI scale on the monitor it was recorded from).
+-# This may be more useful to set via the command line.
+-# Note, before 0.21.0 this is ignored with explicit resize.
++# experimental feature (0.20.1): scale factor of the input image when captured (e.g. monitor DPI scale). Often more useful set via the command line.
++# Note: ignored with explicit resize before 0.21.0
+ input-scale = 2.0
+ # experimental feature (0.21.0): set window title
+ title = "Satty"
+@@ -200,9 +198,8 @@ highlight = "g"
+ [font]
+ family = "Roboto"
+ style = "Regular"
+-# specify fallback fonts (0.20.1)
+-# Please note, there is no default setting for these and the fonts listed below
+-# are not shipped with Satty but need to be available on the system.
++# specify fallback fonts (0.20.1); no default set
++# These are not shipped with Satty; they must already be available on the system.
+ fallback = [
+     "Noto Sans CJK JP",
+     "Noto Sans CJK SC",
