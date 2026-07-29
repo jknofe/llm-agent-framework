@@ -1,6 +1,12 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-29, v5.17 (generator restructured: content the generator emits
+State: 2026-07-29, v5.18 (`--bootstrap-update`: deliver the `/update` skill
+into a scaffold built before it existed, and nothing else, so pre-5.14
+projects can be updated by the agent instead of by a blind re-init. The stamp
+it writes records `framework_version: null` on purpose. Also fixes the orphan
+test, whose `-- init_agent.py` path filter went stale in 5.17 and would have
+made every file added after that version unretirable. §28). v5.17 (generator
+restructured: content the generator emits
 moved out of string literals into `templates/` as files of their own kind
 (emitted Python as `.py`, prose as `.md`, data as data), logic split into an
 `agentgen/` package, `init_agent.py` reduced to the CLI. Slots use
@@ -1338,3 +1344,79 @@ profile and had been collapsed to one string. Both surfaced as a failing diff
 within seconds. No behavior changed in this revision: the emitted scaffold is
 identical to v5.16 in all four variants, and the version bump records the
 source layout, not the output.
+
+## 28. Bootstrapping /update into a pre-5.14 scaffold (2026-07-29, v5.18)
+
+§24 put updating in the agent's hands: an update is a merge, and merges need
+judgment a scaffolder does not have. That leaves a gap at the bottom. A
+scaffold built before v5.14 has no `/update` skill to run, so the agent has no
+way in, and the obvious workaround is wrong.
+
+### Why re-running init is not the workaround
+Init overwrites framework files whole, which is all a scaffolder can do. On an
+existing scaffold that was measured, not assumed:
+
+- project rules appended below the framework text in AGENTS.md: gone
+- a permission the user added to `.claude/settings.json`: gone
+- files the framework retired two versions ago: still there, because `write()`
+  has no concept of deletion
+- re-running without `--harness` on a copilot scaffold: a `.claude/` tree
+  appears next to the `.github/prompts/` one, and the stamp then names the
+  wrong harness
+
+Only the `GENERATED:project-context` section is rescued, because
+`extract_generated` looks for it specifically. Everything else a user put in a
+framework-owned file is lost silently.
+
+### What the bootstrap does instead
+`init_agent.py --bootstrap-update` writes exactly two things: the `/update`
+skill (or its prompt-file equivalent) and a stamp. Nothing else is touched, so
+there is nothing for it to destroy. Profile and harness come from
+`detect_scaffold`, never from a flag, which removes the drift failure above by
+construction. It refuses on a directory with no scaffold, and on one already
+stamped with a version, where `/update` is the right tool and already present.
+
+This is safe for a reason specific to skills: skill files are entirely
+framework-owned. Unlike AGENTS.md, which carries a generated section plus
+whatever the user appended, and unlike `settings.json`, which carries user
+permissions, a skill file has no user-edited region at all. Overwriting one
+cannot lose anything. That property is what makes the narrow fix possible, and
+it is worth preserving: do not add a user-editable region to a skill file.
+
+### The stamp must not claim a version
+The stamp records `framework_version: null` and an empty file list. Stamping
+the current version instead would be actively harmful, and in the obvious way:
+`/update`'s preflight reads the recorded version, sees it match the reference,
+and concludes the project is current, while the project still holds the old
+AGENTS.md and phase docs. The empty file list matters for the same reason.
+Retirement is "in the recorded list, absent from the reference", so a current
+list makes that set empty and nothing is ever retired. Null is the honest
+value and is the case the preflight already handles: profile, harness, and
+project name are recorded so the agent need not re-detect them, and the
+version stays unknown so retirement falls to the orphan test, deliberately.
+
+### The orphan test had gone stale
+With an empty file list the orphan test is the only thing that can retire
+anything, and v5.17 had broken it without anyone noticing. It asks the
+generator's history whether a path was ever emitted:
+
+    git -C "$LLM_AGENT_HOME" log --oneline -S'<basename>' -- init_agent.py
+
+That path filter was right while `init_agent.py` was the whole product. After
+the restructure the write calls live in `agentgen/` and the content under
+`templates/`, so a file introduced after 5.17 leaves no trace in
+`init_agent.py`. The test would report "no commits", conclude the user wrote
+the file, and leave it forever. The filter now covers all three paths. The
+failure was latent rather than live, because every path that exists today was
+named in `init_agent.py` back when it was added, and it would have started
+biting on the first file retired after 5.17.
+
+### What this deliberately does not do
+No three-way merge, no deterministic classification plan, no second update
+implementation in Python. The bootstrap is a delivery mechanism and stops
+there. Making `/update` itself smarter, by rendering the reference for the
+version a project was built at so "did the user edit this file" becomes a hash
+comparison rather than a judgment call, is a real improvement and is measured
+in the notes for a later revision. It is not needed for the mechanism to work,
+and it is better designed after watching `/update` run against real legacy
+scaffolds than before.

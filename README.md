@@ -54,6 +54,17 @@ never re-runs `/explore`. It reports every file it touched and what it kept.
 Before touching anything it commits `.ai` and copies the host-repo framework
 files to `.ai/agent/.update-backup/`, so the whole update is revertable. It
 commits `.ai` itself and leaves host-repo changes for you to review.
+
+**Scaffolds older than the `/update` skill** (built before framework 5.14)
+have no `/update` to run. Bootstrap it once with
+`init-agent --bootstrap-update` in the project: that writes the `/update`
+skill and a stamp, detects profile and harness itself, and touches nothing
+else. Then run `/update` as above. Do **not** re-run plain `init-agent` to
+update an existing scaffold: it overwrites framework files whole, so it
+discards rules you appended to AGENTS.md and permissions you added to
+`.claude/settings.json`, and it cannot retire files the framework has
+dropped.
+
 Switching profile (small ↔ large) is not an update: re-run
 `init-agent --size <profile>`. A plain re-run of `init-agent` still
 regenerates framework files if you confirm the overwrite prompt (or pass

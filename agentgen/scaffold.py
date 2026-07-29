@@ -218,6 +218,89 @@ def detect_scaffold(root: Path):
                 break
     return size, harness, name
 
+def bootstrap_update(root: Path) -> int:
+    """Deliver the /update skill into a scaffold that predates it, and nothing
+    else.
+
+    The chicken-and-egg this solves: updating is a merge and belongs to the
+    agent (CONCEPT.md section 24), but a scaffold built before v5.14 has no
+    /update skill to run, and re-running init is not an alternative. Init
+    overwrites whole files, so on an existing scaffold it destroys
+    project-specific rules appended to AGENTS.md and permissions added to
+    settings.json, and it cannot retire anything.
+
+    Writing only the skill file is safe because skill files are entirely
+    framework-owned: no GENERATED region, no user-edited part, nothing to
+    merge. Every other framework file is left exactly as it is, for /update
+    to merge properly on its first run.
+
+    The stamp this writes deliberately records `framework_version: null` and
+    an empty file list. Claiming the current version would tell /update the
+    project is already up to date, and would leave it with the current file
+    list, so nothing would ever be classified as retired. Null is the honest
+    value and is the case /update's preflight already handles: profile,
+    harness, and name are recorded so it need not re-detect them, and the
+    version stays unknown so retirement falls to the orphan test.
+    """
+    detected = detect_scaffold(root)
+    if detected is None:
+        print("No agent scaffold found in this directory. Nothing to "
+              "bootstrap; run init-agent to create one.", file=sys.stderr)
+        return 1
+    size, harness, name = detected
+
+    stamp = root / FRAMEWORK_JSON
+    if stamp.exists():
+        try:
+            recorded = json.loads(stamp.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            recorded = {}
+        if recorded.get("framework_version"):
+            print(f"This scaffold is already stamped "
+                  f"(framework {recorded['framework_version']}); it has "
+                  f"/update already.\nRun /update in the project instead.",
+                  file=sys.stderr)
+            return 1
+
+    specs = (content.command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")
+             if size == "large"
+             else content.command_specs_small(harness, "$ARGUMENTS",
+                                              "$ARGUMENTS"))
+    update_spec = [s for s in specs if s[0] == "update"]
+    if not update_spec:
+        print("error: this generator emits no /update skill.", file=sys.stderr)
+        return 1
+
+    if harness == "claude":
+        rel = Path(".claude") / "skills" / "update" / "SKILL.md"
+        body = content.render_skills(update_spec)["update/SKILL.md"]
+    else:
+        rel = Path(".github") / "prompts" / "update.prompt.md"
+        body = content.render_prompt_files(update_spec)["update.prompt.md"]
+
+    target = root / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(body, encoding="utf-8")
+
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(json.dumps({
+        "framework_version": None,   # unknown: this scaffold predates the stamp
+        "profile": size,
+        "harness": harness,
+        "project": name,
+        "generated": None,
+        "framework_files": [],       # unknown: nothing to retire from
+        "bootstrapped": TODAY,
+    }, indent=2) + "\n", encoding="utf-8")
+
+    print(f"wrote {rel}")
+    print(f"wrote {FRAMEWORK_JSON} (version unknown: recorded "
+          f"{size}/{harness} so /update need not re-detect)")
+    print("\nNothing else was touched. Now run /update in this project; the "
+          "agent does the merge.")
+    return 0
+
+
 def scaffold_large(root: Path, name: str, desc: str, harness: str,
                    force: bool, commit_message: str = None,
                    reference: bool = False) -> int:

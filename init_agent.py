@@ -231,6 +231,8 @@ def cmd_init(args=None) -> int:
         return cmd_detect(root)
     if args and getattr(args, "emit_reference", None):
         return cmd_emit_reference(args.emit_reference, args)
+    if args and getattr(args, "bootstrap_update", False):
+        return bootstrap_update(root)
 
     name = (args.name if args and args.name is not None
             else ask("Project name", root.name))
@@ -296,6 +298,14 @@ def main() -> int:
                          "no git or host-project side effects. The comparison "
                          "target for the /update skill; use --size/--harness "
                          "to match the project being updated")
+    ap.add_argument("--bootstrap-update", action="store_true",
+                    help="deliver the /update skill into an existing scaffold "
+                         "that predates it, and nothing else. Profile and "
+                         "harness are detected, never prompted. Use this "
+                         "instead of re-running init on an existing scaffold: "
+                         "init overwrites whole files and would discard rules "
+                         "appended to AGENTS.md and permissions added to "
+                         "settings.json. Afterwards run /update in the project")
     ap.add_argument("--debug-probe", action="store_true",
                     help="after scaffolding, run the generated probe.py and "
                          "write its report to PROBE.md in the current "

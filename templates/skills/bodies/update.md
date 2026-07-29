@@ -71,7 +71,15 @@ ${merge_cases}   - Retired (in the recorded `framework_files`, absent from the
    emitted that path:
 
        git -C "$LLM_AGENT_HOME" log --oneline -S'<file basename>' \
-         -- init_agent.py
+         -- init_agent.py agentgen/ templates/
+
+   Search all three paths, not just `init_agent.py`. Up to framework 5.16
+   the generator was that one file and every emitted path appeared in it;
+   from 5.17 the emitted content lives under `templates/` and the write
+   calls under `agentgen/`, so a file introduced after 5.17 leaves no
+   trace in `init_agent.py` at all. Narrowing the search to it would
+   report "no commits" for framework output and quietly make that file
+   unretirable.
 
    Commits found means the framework emitted this file and a later
    version dropped it: it is orphaned framework output, so retire it like

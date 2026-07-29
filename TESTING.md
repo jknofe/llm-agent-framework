@@ -8,10 +8,15 @@ themselves.
 
 ## Layer 1: Mechanical checks (every change, <1 min)
 
-0. **Template properties**
+0. **Template properties and bootstrap**
    ```bash
    python3 tests/check_templates.py
+   python3 tests/test_bootstrap_update.py
    ```
+   The second builds real v5.12/v5.13 scaffolds from this repo's git history
+   and checks that `--bootstrap-update` delivers `/update`, stamps
+   `framework_version: null`, and modifies nothing else. It skips cleanly on a
+   shallow clone.
    Asserts no orphaned template, every declared slot filled, no `${...}` left
    in any rendered artifact, rendered tools parse as Python, rendered settings
    parse as JSON, and no em dash in a template (CONCEPT.md section 8).

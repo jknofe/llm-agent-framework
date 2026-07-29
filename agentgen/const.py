@@ -10,7 +10,7 @@ from agentgen import render
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "5.17"
+FRAMEWORK_VERSION = "5.18"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
