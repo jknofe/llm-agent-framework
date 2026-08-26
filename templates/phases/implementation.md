@@ -32,20 +32,26 @@ cosmetic drift.
   `op: update|create|split`, `node: <id>`, `diff: <content>`
 
 ## Ticket review gate
-After the last task is done, review the combined change in a fresh context
-before declaring the ticket done: run the `reviewer` sub-agent on the full
-diff against the acceptance criteria in `ticket.md` and `plan.md`. If the
-harness cannot spawn it (e.g. you are yourself a sub-agent) and no human is
-available, spawn a fresh general-purpose sub-agent given only the diff and the
-criteria; if no fresh context is reachable at all, do a clean-context
-self-review against those criteria and record that the `reviewer` sub-agent
-was unavailable. Never silently skip the gate. Fix gaps that affect
-correctness or the stated requirements; ignore style-only findings. The gate
-also cross-checks captured constraints: for every build, CI, or packaging
-gotcha recorded in `.ai/notes.md` or the bound KB nodes, confirm the diff
-honors it. A change that ignores a known build side effect or feature flag is
-a correctness gap even when the acceptance criteria read as met. Record the
-outcome in `plan.md` (`reviewed: <date>`).
+After the last task is done, check the combined change against the acceptance
+criteria in `ticket.md` and `plan.md` before declaring the ticket done. Size
+the gate to the ticket:
+- A ticket that took planning.md's trivial path (one task file, diff under
+  roughly one screen): check it inline against the criteria, no sub-agent.
+- Everything else: review it in a fresh context. Run the `reviewer` sub-agent
+  on the full diff. If the harness cannot spawn it (e.g. you are yourself a
+  sub-agent) and no human is available, spawn a fresh general-purpose
+  sub-agent given only the diff and the criteria; if no fresh context is
+  reachable at all, do a clean-context self-review against those criteria and
+  record that the `reviewer` sub-agent was unavailable.
+
+Fix gaps that affect correctness or the stated requirements; ignore
+style-only findings. Where the diff touches build, CI, or packaging, the gate
+also cross-checks captured constraints: for every gotcha recorded in
+`.ai/notes.md` or the bound KB nodes, confirm the diff honors it. A change
+that ignores a known build side effect or feature flag is a correctness gap
+even when the acceptance criteria read as met. Record the outcome in
+`plan.md` (`reviewed: <date>`). Sizing the gate down is a judgment call you
+may make; silently skipping it is not.
 
 ## Parallel dispatch (optional)
 Tasks marked `parallel: ok` in their frontmatter may be worked by concurrent

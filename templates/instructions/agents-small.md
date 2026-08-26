@@ -36,13 +36,13 @@ ${goal_note}## Protocol
    plus a leaf.
 3. Non-trivial work: `/spec <id>` writes `.ai/changes/<id>/spec.md` (goal,
    acceptance criteria, task checklist); `/build <id>` implements it.
-4. Before declaring a change done, have the full diff reviewed in a fresh
-   context against the acceptance criteria: the `reviewer` sub-agent where
-   available; in an autonomous run, a fresh general-purpose sub-agent or, if
-   none is reachable, a recorded clean-context self-review. The review also
-   confirms the diff honors every build/CI gotcha recorded in `.ai/notes.md`,
-   not just the acceptance criteria. Fix correctness gaps; ignore style-only
-   findings.
+4. Before declaring a spec'd change done, have the full diff reviewed in a
+   fresh context against the acceptance criteria: the `reviewer` sub-agent
+   where available; in an autonomous run, a fresh general-purpose sub-agent
+   or, if none is reachable, a recorded clean-context self-review. Fix
+   correctness gaps; ignore style-only findings. A right-sized change (item
+   above) gets no gate: checks green is done. Do not spawn a reviewer for a
+   diff you can hold in your head.
 5. Tests and lint must pass. Done = checks green and review clean.
 6. After changing files under `.ai/`, commit them in its own repo:
    `git -C .ai add -A && git -C .ai commit -m "<short summary>"`. Never commit

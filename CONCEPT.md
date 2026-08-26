@@ -1,6 +1,12 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-07-29, v5.19 (copilot invocation documented correctly: prompt
+State: 2026-08-26, v5.20 (review gates sized to the change: right-sizing now
+reaches the gates, not just the pipeline entrance. A right-sized small-profile
+change gets no gate at all, the large trivial path sizes both gates down to an
+inline criteria check, and the reviewer brief scales depth to the artifact
+with the packaging/toolchain sweep conditioned on the diff touching build
+config. Sizing down is allowed, silent skipping is not).
+v5.19 (copilot invocation documented correctly: prompt
 files are a VS Code feature invoked as `/name` slash commands, and Copilot
 CLI does not read `.github/prompts/` at all, so it gets the kickoff
 sentences instead. The generated AGENTS.md section said prompt files were
@@ -211,7 +217,8 @@ view.
   improving; baking the planner's context guess into a hard contract trades
   brittleness for tokens
 - Trivial path: ticket fits one sentence / 1-2 files → skip Q&A, single task
-  file, sign-off = one line. Ceremony must not exceed the task (SDD field
+  file, sign-off = one line, and both review gates size down to an inline
+  criteria check (§29). Ceremony must not exceed the task (SDD field
   reports: planning overhead > savings on small tasks)
 - Plan-review gate before Phase 3: adversarial review in fresh context
   (reviewer sub-agent; fallback: user review) vs acceptance criteria, then
@@ -228,9 +235,11 @@ view.
   re-plan on cosmetic drift
 - Done = tests green + lint + `status: done` + patch in kb-delta.yaml
   (op: update/create/split, node, diff)
-- Ticket review gate: after last task, fresh-context review (reviewer
-  sub-agent) of full diff vs acceptance criteria. Fix correctness gaps,
-  ignore style-only findings; record `reviewed: <date>` in plan.md
+- Ticket review gate: after last task, review of full diff vs acceptance
+  criteria, sized to the ticket (§29). Trivial path → inline check, no
+  sub-agent; otherwise fresh-context review (reviewer sub-agent). Fix
+  correctness gaps, ignore style-only findings; record `reviewed: <date>` in
+  plan.md
 - Typed escalation:
   - missing-context → bounded discovery + reload KB (1 hop, sub-agent where
     available), then ask user
@@ -1427,3 +1436,56 @@ comparison rather than a judgment call, is a real improvement and is measured
 in the notes for a later revision. It is not needed for the mechanism to work,
 and it is better designed after watching `/update` run against real legacy
 scaffolds than before.
+
+## 29. Review gates sized to the change (2026-08-26, v5.20)
+
+Owner report from daily use: reviews fire too often and run too deep, and
+small changes feel like they pay a gate built for large ones. Reading the
+templates confirms it. Right-sizing existed only at the *entrance* to the
+pipeline (does this need a ticket / a spec?) and never at the *gate*. Once
+inside, review cost was constant.
+
+### Three separate defects
+
+**The small profile reviewed changes it had just exempted from planning.**
+Right-sizing says a one-sentence, 1-2 file change needs no spec: make it,
+note it, commit. The always-on protocol then said "before declaring a change
+done, have the full diff reviewed in a fresh context against the acceptance
+criteria" with no scope qualifier. A right-sized change has neither a spec nor
+acceptance criteria, so the rule demanded a `reviewer` sub-agent for a diff
+whose whole content fits in a sentence. The two rules sat eleven lines apart
+in the same always-loaded document. This is the main driver of the "too often"
+report: it hits the most common daily change, the small one.
+
+**The large profile's trivial path shrank one gate of two.** Phase 2 shrinks
+the plan-review gate to a one-line sign-off for a trivial ticket, and
+AGENTS.md advertised the path as "one task file, one review gate". Phase 3's
+ticket review gate carried no trivial clause and closed with "Never silently
+skip the gate", so a trivial ticket still paid a full sub-agent diff review.
+The two phase docs disagreed and the entry document described a third
+behavior. Both gates now size down together on the trivial path.
+
+**Review depth did not scale.** The `reviewer` brief ran one fixed checklist
+regardless of the artifact, including toolchain-version and
+registry-availability reasoning for build config even when the diff touched no
+build config, and both gates cross-checked every gotcha in `notes.md`
+unconditionally. The packaging reasoning is now conditioned on the diff
+actually touching build/CI/packaging (which is what it was written for, per
+§18), as is the gotcha sweep, and the brief opens by telling the reviewer to
+match depth to the artifact and that report length is not evidence of rigor.
+
+### The rule
+Sizing a gate down is a judgment call the agent may make; skipping one
+silently is not. Every gate keeps a floor, an inline check against the
+acceptance criteria, so "small" buys a cheaper instrument rather than no
+instrument. The fresh-context requirement is what gets spent, and it is spent
+where a producing context is actually likely to grade its own work wrong: a
+multi-task diff, or one with blast radius beyond the files it names.
+
+### What this does not change
+The gates themselves stay. §12's finding stands, a producing context grades
+its own work generously, and fresh-context review is also what makes
+cheap-execution modes safe (§9, §23). The change is proportionality, not
+removal, and it does not touch the plan-review gate for non-trivial tickets:
+a weak plan still poisons every downstream task, and that is the gate with the
+highest leverage per token in the whole framework.

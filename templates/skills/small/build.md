@@ -9,18 +9,23 @@ Implement a planned change. Id: ${arg_ticket}
 2. Work the task checklist in order. Explore the real code with
    read/search tools as needed; do not load the whole tree.
 3. Keep tests and lint green.
-4. Review gate: before declaring the change done, have the full diff
-   reviewed in a fresh context against the acceptance criteria. Run
-   the `reviewer` sub-agent where the harness supports sub-agents. If
-   it cannot be spawned (e.g. you are yourself a sub-agent) and no
-   human is available, spawn a fresh general-purpose sub-agent given
-   only the diff and the criteria; failing that, do a clean-context
-   self-review and note that the `reviewer` sub-agent was unavailable.
-   The review also cross-checks captured constraints: for each
-   build, test, or CI gotcha in `.ai/notes.md`, confirm the diff
-   honors it, not just that the acceptance criteria read as met.
-   Never skip the gate. Fix gaps that affect correctness or the
-   stated criteria; ignore style-only findings.
+4. Review gate, sized to the change: before declaring the change
+   done, check the full diff against the acceptance criteria.
+   - One task in the checklist and a diff under roughly one screen:
+     do the check inline against the criteria. No sub-agent.
+   - Otherwise: have it reviewed in a fresh context. Run the
+     `reviewer` sub-agent where the harness supports sub-agents. If
+     it cannot be spawned (e.g. you are yourself a sub-agent) and no
+     human is available, spawn a fresh general-purpose sub-agent
+     given only the diff and the criteria; failing that, do a
+     clean-context self-review and note that the `reviewer`
+     sub-agent was unavailable.
+   Either way, if the diff touches build, test, or CI wiring, also
+   cross-check captured constraints: for each build, test, or CI
+   gotcha in `.ai/notes.md`, confirm the diff honors it, not just
+   that the acceptance criteria read as met. Fix gaps that affect
+   correctness or the stated criteria; ignore style-only findings.
+   Sizing down the gate is allowed; skipping it silently is not.
 5. Append any durable decision or gotcha to `.ai/notes.md`. If
    `notes.md` has grown past ~1-2 screens, move topic clusters
    (largest first) into `.ai/notes/<topic>.md`, each leaving a

@@ -27,8 +27,9 @@ single file needs no ticket. Do it directly, update the affected KB nodes,
 and commit `.ai`. Use the ticket pipeline for everything larger, but for a
 change confined to one self-contained area (e.g. a packaging descriptor or a
 self-contained CLI subcommand), take
-planning.md's trivial path: one task file, one review gate, no Q&A rounds. Do
-not pay ceremony that exceeds the task.
+planning.md's trivial path: one task file, no Q&A rounds, and both review
+gates sized down to an inline check against the criteria. Do not pay ceremony
+that exceeds the task.
 ${goal_note}
 ## KB Protocol
 
