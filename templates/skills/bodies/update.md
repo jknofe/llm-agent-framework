@@ -70,6 +70,13 @@ ${merge_cases}   - Retired (in the recorded `framework_files`, absent from the
      reference): delete it, then grep the whole scaffold for its name
      and remove the instructions that still point at it. A retired file
      that stays referenced is worse than one that stays on disk.
+   - Renamed (a command that answers to a different name in the
+     reference): one command must have one definition, so move the
+     directory or file rather than adding the new name beside the old
+     one. Framework 5.25 renames the update command itself from
+     `update` to `framework-update` on every harness, so this case
+     applies to the very skill you are running; finish the update, then
+     the old entry is the one to remove.
 
    Orphan test, for every file here that the reference does not have and
    the recorded list does not name. On a pre-stamp scaffold that is every

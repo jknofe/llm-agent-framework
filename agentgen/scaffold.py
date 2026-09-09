@@ -33,7 +33,7 @@ def render_framework_json(root: Path, name: str, harness: str,
                           desc: str = "") -> str:
     """The scaffold's version stamp: which framework revision built it, under
     which harness, for which project, and every framework-owned path it
-    emitted. /update reads this to know what to compare, migrate, and retire;
+    emitted. /framework-update reads this to know what to compare, migrate, and retire;
     without it an update can only overwrite blindly. Call after all other
     writes.
 
@@ -46,7 +46,7 @@ def render_framework_json(root: Path, name: str, harness: str,
     both, and would rename the project to its directory name.
 
     `profile` is still recorded, always "small". Framework 5.22 removed the
-    large profile, and the field is what lets /update recognize a scaffold
+    large profile, and the field is what lets /framework-update recognize a scaffold
     stamped `"large"` as predating that and stop instead of guessing."""
     files = sorted({str(p.relative_to(root)) for p in _framework_paths}
                    | {FRAMEWORK_JSON})
@@ -124,7 +124,7 @@ def ensure_ai_gitignore(root: Path):
     """Keep volatile working state out of .ai's own repo: raw external copies
     (re-fetchable, would bloat KB history), the `.current` task cursor
     (per-checkout session state, not shared knowledge), and the two rescue
-    copies of host-repo framework files, from /update and from a harness
+    copies of host-repo framework files, from /framework-update and from a harness
     switch (throwaway snapshots, not history - the `.ai` repo already versions
     everything it owns)."""
     ai_dir = root / ".ai"
@@ -267,26 +267,26 @@ def detect_scaffold(root: Path):
     return size, harness, name
 
 def bootstrap_update(root: Path) -> int:
-    """Deliver the /update skill into a scaffold that predates it, and nothing
-    else.
+    """Deliver the /framework-update skill into a scaffold that predates it,
+    and nothing else.
 
     The chicken-and-egg this solves: updating is a merge and belongs to the
     agent (CONCEPT.md section 24), but a scaffold built before v5.14 has no
-    /update skill to run, and re-running init is not an alternative. Init
+    update skill to run, and re-running init is not an alternative. Init
     overwrites whole files, so on an existing scaffold it destroys
     project-specific rules appended to AGENTS.md and permissions added to
     settings.json, and it cannot retire anything.
 
     Writing only the skill file is safe because skill files are entirely
     framework-owned: no GENERATED region, no user-edited part, nothing to
-    merge. Every other framework file is left exactly as it is, for /update
+    merge. Every other framework file is left exactly as it is, for /framework-update
     to merge properly on its first run.
 
     The stamp this writes deliberately records `framework_version: null` and
-    an empty file list. Claiming the current version would tell /update the
+    an empty file list. Claiming the current version would tell /framework-update the
     project is already up to date, and would leave it with the current file
     list, so nothing would ever be classified as retired. Null is the honest
-    value and is the case /update's preflight already handles: profile,
+    value and is the case /framework-update's preflight already handles: profile,
     harness, and name are recorded so it need not re-detect them, and the
     version stays unknown so retirement falls to the orphan test.
     """
@@ -306,34 +306,34 @@ def bootstrap_update(root: Path) -> int:
         if recorded.get("framework_version"):
             print(f"This scaffold is already stamped "
                   f"(framework {recorded['framework_version']}); it has "
-                  f"/update already.\nRun /update in the project instead.",
+                  f"an update skill already.\nRun /framework-update in "
+                  f"the project instead.",
                   file=sys.stderr)
             return 1
 
     if size == "large":
         print("This is a large-profile scaffold, and framework 5.22 removed "
-              "the large profile.\nThere is no /update path across that "
+              "the large profile.\nThere is no update path across that "
               "boundary: scaffold fresh with init-agent\nand carry the "
               "knowledge over with /import.", file=sys.stderr)
         return 1
 
     specs = content.command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")
-    update_spec = [s for s in specs if s[0] == "update"]
+    cmd = "framework-update"
+    update_spec = [s for s in specs if s[0] == cmd]
     if not update_spec:
-        print("error: this generator emits no /update skill.", file=sys.stderr)
+        print(f"error: this generator emits no /{cmd} skill.", file=sys.stderr)
         return 1
 
     if harness == "claude":
-        rel = Path(".claude") / "skills" / "update" / "SKILL.md"
-        body = content.render_skills(update_spec)["update/SKILL.md"]
+        rel = Path(".claude") / "skills" / cmd / "SKILL.md"
+        body = content.render_skills(update_spec)[f"{cmd}/SKILL.md"]
     elif harness == "hermes":
-        # Renamed: hermes reserves /update for a built-in command of its own.
-        cmd = content.command_name("update", harness)
         rel = Path(HERMES_SKILLS_DIR) / cmd / "SKILL.md"
         body = content.render_hermes_skills(update_spec)[f"{cmd}/SKILL.md"]
     else:
-        rel = Path(".github") / "prompts" / "update.prompt.md"
-        body = content.render_prompt_files(update_spec)["update.prompt.md"]
+        rel = Path(".github") / "prompts" / f"{cmd}.prompt.md"
+        body = content.render_prompt_files(update_spec)[f"{cmd}.prompt.md"]
 
     target = root / rel
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -357,14 +357,14 @@ def bootstrap_update(root: Path) -> int:
     print("\nNothing else was touched. The agent does the merge; start it "
           "with:")
     if harness == "claude":
-        print("  /update")
+        print(f"  /{cmd}")
     elif harness == "hermes":
         print("  hermes skills trust     (once, in this repository)")
-        print(f"  /{content.command_name('update', harness)}")
+        print(f"  /{cmd}")
     else:
         # Prompt files are a VS Code feature. Copilot CLI does not read
         # .github/prompts/ at all, so it needs the kickoff sentence instead.
-        print("  VS Code (Copilot Chat):  /update")
+        print(f"  VS Code (Copilot Chat):  /{cmd}")
         print("  Copilot CLI:             Update the framework: read "
               f"{rel} first and follow it exactly.")
     return 0

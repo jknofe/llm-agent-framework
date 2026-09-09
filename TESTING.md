@@ -18,7 +18,7 @@ themselves.
    old command set is gone, that a user-added skill next to it is not, that
    retired files land in the backup, and that a switch is never silent.
    The second builds real v5.12/v5.13 scaffolds from this repo's git history
-   and checks that `--bootstrap-update` delivers `/update`, stamps
+   and checks that `--bootstrap-update` delivers `/framework-update`, stamps
    `framework_version: null`, and modifies nothing else. It skips cleanly on a
    shallow clone.
    Asserts no orphaned template, every declared slot filled, no `${...}` left
@@ -56,7 +56,7 @@ themselves.
    fallback for one without, and every path in `framework_files` exists in
    the scaffold that recorded it. Retiring a file means removing its
    `write()` call: verify the old scaffold's `framework_files` still lists it
-   so `/update` can delete it.
+   so `/framework-update` can delete it.
 7. **Byte-identity** (after any refactor that must not change output):
    capture all three rendered variants before the change, re-render after, and
    require an empty diff. This is the only cheap guard against silent

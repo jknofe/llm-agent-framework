@@ -19,7 +19,7 @@ the agent through skills and folder conventions:
   /tidy-up [scope]       hygiene sweep that may not change behavior: remove
                          dead code, propose obsolete files for removal,
                          shorten overlong comments, drop em dashes from prose
-  /update                move the scaffold to the current framework version:
+  /framework-update      move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
                          shape. Never re-explores
@@ -38,7 +38,7 @@ never recorded are left alone and reported). It asks first unless -y is given. N
 the flags below. If a scaffold already exists, init asks before overwriting
 framework files; hand-filled content (notes, specs, the generated
 project-context section) is always preserved, never reverted to stubs. To move
-an existing scaffold to a newer framework version, run the agent's /update
+an existing scaffold to a newer framework version, run the agent's /framework-update
 skill rather than re-running init: updating is a merge (keep user edits,
 retire dropped files, migrate hand-filled content into a changed shape), and
 merges need judgment this script does not have.
@@ -66,9 +66,9 @@ Context layout:
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
                                loaded once `hermes skills trust` has run in the
-                               repo. /import and /update are hermes built-ins,
-                               so those two ship as /import-agent and
-                               /framework-update
+                               repo. /import is a hermes built-in, so it
+                               ships as /import-agent there; every other
+                               command has one name on every harness
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
   .claude/settings.json        permission allow list + Stop hook (claude only)
   .claude/hooks/*.py           hook scripts: remind about uncommitted .ai
@@ -92,14 +92,14 @@ Usage:
   -y/--yes (overwrite framework files without prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 
-  Two flags exist only to serve the agent's /update skill, which is how an
-  existing scaffold moves to a newer framework version:
+  Two flags exist only to serve the agent's /framework-update skill, which is
+  how an existing scaffold moves to a newer framework version:
   --detect                print this directory's scaffold stamp as JSON
                           (harness, framework version, project name and
                           description, file list)
   --emit-reference DIR    render a pristine scaffold of the current framework
                           into DIR, with no git or host-project side effects,
-                          as the comparison target /update diffs against
+                          as the comparison target /framework-update diffs against
 """
 
 import argparse
@@ -173,7 +173,7 @@ def write_debug_probe(root: Path) -> None:
 
 def cmd_detect(root: Path) -> int:
     """--detect: describe the scaffold in this directory as JSON, for the
-    /update skill. Prefers the recorded framework.json (authoritative: it also
+    /framework-update skill. Prefers the recorded framework.json (authoritative: it also
     lists the framework files that version emitted); falls back to inspecting
     the tree for scaffolds built before the stamp existed."""
     stamp = root / FRAMEWORK_JSON
@@ -201,7 +201,7 @@ def cmd_detect(root: Path) -> int:
 def cmd_emit_reference(target: str, args) -> int:
     """--emit-reference DIR: render a pristine scaffold into DIR and stop.
     No git init, no gitignore edits, no commits, no host-project side effects.
-    This is the comparison target the /update skill diffs a real project
+    This is the comparison target the /framework-update skill diffs a real project
     against, so it must be a plain render of the current framework."""
     dest = Path(target).expanduser().resolve()
     if dest.exists() and any(dest.iterdir()):
@@ -301,7 +301,7 @@ def main() -> int:
     ap.add_argument("--description", "--desc", dest="description",
                     help="one-line project description (skip the prompt)")
     ap.add_argument("--size", choices=["small"],
-                    help=argparse.SUPPRESS)   # accepted so /update skill
+                    help=argparse.SUPPRESS)   # accepted so /framework-update skill
                                               # bodies written before 5.22
                                               # keep working; there is only
                                               # one profile now
@@ -317,21 +317,21 @@ def main() -> int:
     ap.add_argument("--detect", action="store_true",
                     help="print this directory's scaffold stamp as JSON "
                          "(profile, harness, framework version, framework "
-                         "file list) and exit; used by the /update skill")
+                         "file list) and exit; used by the /framework-update skill")
     ap.add_argument("--emit-reference", metavar="DIR",
                     help="render a pristine scaffold of the current framework "
                          "into DIR (must be empty or absent) and exit, with "
                          "no git or host-project side effects. The comparison "
-                         "target for the /update skill; use --harness to "
+                         "target for the /framework-update skill; use --harness to "
                          "match the project being updated")
     ap.add_argument("--bootstrap-update", action="store_true",
-                    help="deliver the /update skill into an existing scaffold "
+                    help="deliver the /framework-update skill into an existing scaffold "
                          "that predates it, and nothing else. Profile and "
                          "harness are detected, never prompted. Use this "
                          "instead of re-running init on an existing scaffold: "
                          "init overwrites whole files and would discard rules "
                          "appended to AGENTS.md and permissions added to "
-                         "settings.json. Afterwards run /update in the project")
+                         "settings.json. Afterwards run /framework-update in the project")
     ap.add_argument("--debug-probe", action="store_true",
                     help="after scaffolding, run the generated probe.py and "
                          "write its report to PROBE.md in the current "

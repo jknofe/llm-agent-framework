@@ -34,8 +34,8 @@ always preserved, never reverted to stubs. `init-agent -h` shows help.
 Everything after init is done by the agent through skills and folder
 conventions:
 
-**Updating an existing project to a newer framework:** run `/update` in the
-project. Updating is a merge, not a regeneration, so the agent does it rather
+**Updating an existing project to a newer framework:** run
+`/framework-update` in the project. Updating is a merge, not a regeneration, so the agent does it rather
 than the CLI. It reads the scaffold's version stamp
 (`.ai/agent/framework.json`), renders a pristine reference scaffold of the
 current framework, and then works file by file: adds what is new, takes the
@@ -44,18 +44,19 @@ framework's version of files you never touched, **merges** the ones you did
 AGENTS.md), and **deletes** files the framework has retired along with the
 instructions that still referenced them. Your knowledge is migrated in place,
 never rebuilt: `notes.md`, change specs, and the generated project-context
-section are carried into the new shape, so `/update` never re-runs
+section are carried into the new shape, so `/framework-update` never re-runs
 `/explore`. It reports every file it touched and what it kept.
-`/update dry-run` prints that report without changing anything.
+`/framework-update dry-run` prints that report without changing anything.
 
 Before touching anything it commits `.ai` and copies the host-repo framework
 files to `.ai/agent/.update-backup/`, so the whole update is revertable. It
 commits `.ai` itself and leaves host-repo changes for you to review.
 
-**Scaffolds older than the `/update` skill** (built before framework 5.14)
-have no `/update` to run. Bootstrap it once with
-`init-agent --bootstrap-update` in the project: that writes the `/update`
-skill and a stamp, detects the harness itself, and touches nothing else. Then run `/update` as above. Do **not** re-run plain `init-agent` to
+**Scaffolds older than the update skill** (built before framework 5.14) have
+none to run. Bootstrap it once with `init-agent --bootstrap-update` in the
+project: that writes the skill and a stamp, detects the harness itself, and
+touches nothing else. Then run `/framework-update` as above. Do **not** re-run
+plain `init-agent` to
 update an existing scaffold: it overwrites framework files whole, so it
 discards rules you appended to AGENTS.md and permissions you added to
 `.claude/settings.json`, and it cannot retire files the framework has
@@ -63,7 +64,7 @@ dropped.
 
 A plain re-run of `init-agent` regenerates framework files if you confirm the
 overwrite prompt (or pass `-y`), but it cannot merge or retire, which is why
-`/update` exists.
+`/framework-update` exists.
 
 **Switching harness** (say claude to hermes) is not an update either: the
 entry files are pure framework output with nothing to merge, so the CLI does
@@ -124,7 +125,7 @@ on-demand phase docs, the `kb-delta.yaml` patches, the ticket pipeline
 review gate. The agent re-reads the real source instead of maintaining a
 synced index of it.
 
-**Existing large-profile scaffolds** cannot be carried across with `/update`:
+**Existing large-profile scaffolds** cannot be carried across with `/framework-update`:
 there is no reference to render for them, so it stops and says so. Scaffold
 fresh with `init-agent` and run `/import <old-.ai>`, which distills the KB
 into the project-context section and `notes.md` and carries in-flight change
@@ -149,9 +150,9 @@ see [Hermes support](#hermes-support)):
 | `/spec <id> <title...>` | Writes `.ai/changes/<id>/spec.md` for a non-trivial change: goal, acceptance criteria, task checklist. No implementation yet. |
 | `/build <id>` | Works the spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
 | `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and distills it into the project-context section and `notes.md`, routing gotchas and runbooks to `notes.md`. |
-| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/update`, which upgrades a scaffold this framework already stamped. |
+| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/framework-update`, which upgrades a scaffold this framework already stamped. |
 | `/tidy-up [scope]` | Hygiene sweep over the host code in four passes: removes dead code with evidence (a library's exported surface counts as used), **proposes** obsolete files without deleting them, compresses overlong comments to 1-2 lines while relocating rather than discarding the knowledge in them, and rewrites em dashes out of prose. Gated on a green build/test/lint baseline captured before the sweep and re-checked after; it may not change behavior, and anything that would is a change spec instead. |
-| `/update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
+| `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
 Archiving has no command: prompt the agent; the rules live in AGENTS.md.
@@ -226,13 +227,17 @@ Hermes loads project skills only from a repository you have trusted, so run
 `hermes skills trust` once in the project root; in a running session
 `/reload-skills` picks up edited skills.
 
-Two commands are renamed there, because Hermes reserves those names for
-built-in commands of its own:
+One command is renamed there, because Hermes reserves that name for a
+built-in command of its own:
 
 | Elsewhere | On hermes |
 |---|---|
 | `/import <source>` | `/import-agent <source>` |
-| `/update [dry-run]` | `/framework-update [dry-run]` |
+
+`/framework-update` carries the same name on every harness. It is spelled out
+rather than shortened to `/update` precisely because Hermes reserves the short
+one, and a command whose name depends on the harness is worse than a longer
+name that is always right.
 
 Hermes substitutes nothing into a skill: whatever you type after the command
 name reaches the agent as your instruction, and the skill says so.
@@ -263,7 +268,7 @@ project-context section of `AGENTS.md`, so the agent's first ramp-up starts
 from a known project intent instead of discovering it from scratch.
 `/explore` verifies and refines it against the code, overwriting that
 section, which is why the stamp keeps its own copy: re-running init, switching
-harness and `/update` all read the name and description back from there
+harness and `/framework-update` all read the name and description back from there
 instead of falling back to the directory name and a blank line. On an existing
 scaffold the prompts are pre-filled with them, so Enter keeps the project as
 it is.
@@ -277,7 +282,7 @@ that differ from their stubs are reported as `preserved`, and an existing
 host project via a `.gitignore` entry written by `init`. `init` makes the
 first commit; afterwards the agent commits `.ai` changes itself (a protocol
 rule in `AGENTS.md`, enforced by the Stop hook on the claude harness). The
-`/update` rescue backup stays out of that repo, as does `.ai/.current`, a
+`/framework-update` rescue backup stays out of that repo, as does `.ai/.current`, a
 gitignored task cursor (active change id, modified files) the agent reads at
 session start to resume work after a break, independent of session
 compaction.

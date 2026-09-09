@@ -1,6 +1,10 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-09-09, v5.24 (the project name and one-line description are
+State: 2026-09-09, v5.25 (the update command is `/framework-update` on every
+harness. It was `/update` on two of them and `/framework-update` on hermes,
+which reserves the short name; a command whose name depends on where you type
+it is worse than a longer name that is always right. §34).
+v5.24 (the project name and one-line description are
 recorded in the version stamp. They were the only two init answers nothing
 kept: /explore overwrites the section the description is seeded into, so every
 later re-render invented both and renamed the project to its directory. §33).
@@ -1705,3 +1709,40 @@ harness become the prompt defaults, and Enter keeps the project as it is
 rather than proposing a rename. A scaffold stamped before this revision has
 `"description": null`, which /update is told to treat as "ask the user", not
 as an empty description to write in.
+
+## 34. One name per command (2026-09-09, v5.25)
+
+§30 introduced per-harness command names to get around hermes built-ins, and
+applied them to `/update`, `/import` and `/plan`. §31 removed `/plan` with the
+ticket pipeline. What was left was a framework whose central maintenance
+command was `/update` on claude and copilot and `/framework-update` on hermes.
+
+That is a worse property than it looks. The name is what a user types, what
+they search the README for, what they tell a colleague, and what the framework
+writes in its own instructions. Making it depend on which harness the project
+happens to target means no sentence anywhere can name the command without
+qualifying it, which is why §30 had to introduce `${cmd_*}` slots in the first
+place. The cost is paid on every document that mentions the command, forever.
+
+So the command is `/framework-update` everywhere. Hermes cannot have `/update`,
+so that was never the name all three could share; the question was only whether
+the other two would keep a shorter name that hermes could not. They do not.
+The longer name is also the more accurate one: it updates the framework, not
+the project, and `/update` next to a harness's own `/update` was ambiguous even
+where it was legal.
+
+`/import` stays renamed on hermes (`/import-agent`), because there the
+alternative is renaming it on all three to work around one harness's built-in,
+and unlike the update command it is not the framework's own maintenance verb.
+The mechanism from §30 stays for exactly that case; it now carries one entry
+instead of three.
+
+### Migration
+
+Existing scaffolds rename themselves. The old `/update` skill renders a
+reference containing `framework-update`, sees its own file as retired and the
+new one as added, and the classification rules in step 3 already cover that;
+they gain one clause saying a renamed command is a move, not an addition
+beside the old one. So the last act of the old command is to replace itself,
+which is the only sequencing that works: there is no version at which both
+names should answer.

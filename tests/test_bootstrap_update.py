@@ -11,13 +11,13 @@ skips with a clear message when that is missing.
 What it pins down, in order of how badly it would hurt to get wrong:
 
   stamp_is_honest    the bootstrap must not claim the current version. If it
-                     did, /update would read "already current", and would also
+                     did, the update would read "already current", and also
                      inherit the current file list, so nothing would ever be
                      classified as retired. A silent no-op update.
   touches_nothing    user edits to AGENTS.md and settings.json survive. This
                      is the whole reason bootstrap exists instead of a re-init,
                      which destroys both.
-  delivers_update    the /update skill lands, for both harnesses.
+  delivers_update    the /framework-update skill lands, for both harnesses.
   refuses            no scaffold, and already-stamped scaffold, both refused.
 """
 
@@ -30,7 +30,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 FW = REPO / "init_agent.py"
 
-# Historical generators. v5.13 is the last version before /update existed;
+# Historical generators. v5.13 is the last version before the update skill
+# existed;
 # v5.12 additionally emitted worker sub-agents, retired in v5.13.
 LEGACY = {"v5.13": "649149b", "v5.12": "4700bb4"}
 
@@ -91,7 +92,7 @@ def test_stamp_is_honest(tmp):
     if stamp["framework_version"] is not None:
         fail("stamp_is_honest",
              f"claims version {stamp['framework_version']!r}; must be null so "
-             "/update does not read the project as already current")
+             "the update does not read the project as already current")
     if stamp["framework_files"]:
         fail("stamp_is_honest",
              "recorded a file list; must be empty so retirement falls to the "
@@ -127,8 +128,10 @@ def test_touches_nothing(tmp):
 
 
 def test_delivers_update(tmp):
-    for harness, rel in (("claude", ".claude/skills/update/SKILL.md"),
-                         ("copilot", ".github/prompts/update.prompt.md")):
+    for harness, rel in (("claude",
+                          ".claude/skills/framework-update/SKILL.md"),
+                         ("copilot",
+                          ".github/prompts/framework-update.prompt.md")):
         root = make_scaffold(tmp, "v5.13", "small", harness)
         r = bootstrap(root)
         if r.returncode != 0:

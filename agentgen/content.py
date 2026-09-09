@@ -16,8 +16,8 @@ from agentgen.const import _SKILL_DESCRIPTIONS
 def command_name(name: str, harness: str) -> str:
     """The slash-command name a roster entry is emitted under.
 
-    Identity everywhere except hermes, which reserves /update, /import and
-    /plan for built-in commands of its own (see HERMES_COMMAND_NAMES).
+    Identity everywhere except hermes, which reserves /import for a built-in
+    command of its own (see HERMES_COMMAND_NAMES).
     """
     if harness == "hermes":
         return HERMES_COMMAND_NAMES.get(name, name)
@@ -84,7 +84,7 @@ def render_notes_stub() -> str:
     return render.fill("config/notes-stub.md")
 
 def render_update_body(harness: str, arg: str) -> str:
-    """Body of the /update skill: an agent-driven framework update.
+    """Body of the /framework-update skill: an agent-driven framework update.
 
     A scaffolder can only own files whole (regenerate or freeze), which is why
     updating used to lose user edits, keep retired files, and never migrate the
@@ -119,8 +119,7 @@ def render_update_body(harness: str, arg: str) -> str:
             f"     - skills under `{HERMES_SKILLS_DIR}/` present here but not in\n"
             "       the reference: the user's own, unless the generator's history\n"
             "       says otherwise. Settle it with the orphan test below rather\n"
-            "       than assuming either way. A skill the reference renamed is\n"
-            "       not an orphan: move its directory instead of leaving both.\n")
+            "       than assuming either way.\n")
         verify_extra = (
             f"   - Every `{HERMES_SKILLS_DIR}/<name>/SKILL.md` starts with `---` at\n"
             "     byte zero and its `name` matches its directory. Reload them in a\n"
@@ -231,7 +230,7 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
 
 COMPOSED_BODIES = {
     "tidy-up": lambda harness, arg: render_tidy_up_body(harness, arg),
-    "update": lambda harness, arg: render_update_body(harness, arg),
+    "framework-update": lambda harness, arg: render_update_body(harness, arg),
 }
 
 def _split_frontmatter(raw: str):
@@ -277,7 +276,7 @@ def render_hermes_skills(specs) -> dict:
     characters, so the long template descriptions give way to
     HERMES_DESCRIPTIONS. `disable-model-invocation` is a claude key and is not
     emitted here; hermes has no equivalent, so the skills stay model-loadable
-    on that harness. Two of them are also renamed (HERMES_COMMAND_NAMES).
+    on that harness. One of them is also renamed (HERMES_COMMAND_NAMES).
 
     Hermes only discovers these once the repository is trusted, which the user
     does with `hermes skills trust`; the AGENTS.md note says so.

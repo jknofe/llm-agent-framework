@@ -63,7 +63,7 @@ ${goal_note}## Protocol
 | `/spec <id> <title>` | Write `.ai/changes/<id>/spec.md` for a non-trivial change. |
 | `/build <id>` | Implement the spec's tasks, review the diff, finish. |
 | `/tidy-up [scope]` | Hygiene sweep that may not change behavior: dead code, obsolete files, comments, em dashes. |
-| `/${cmd_update}` | Move this scaffold to the current framework version, keeping what the project knows. |
+| `/framework-update` | Move this scaffold to the current framework version, keeping what the project knows. |
 
 ## Changes layout
 ```

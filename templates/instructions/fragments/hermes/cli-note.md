@@ -9,10 +9,9 @@ Run one by typing its name as a slash command, with any argument after it
 (`/framework-update dry-run`): `/explore`, `/spec`, `/build`, `/import-kb`,
 `/import-agent`, `/tidy-up`, `/framework-update`.
 
-Two of them are named differently here than elsewhere in this framework.
-Hermes reserves `/import` and `/update` for built-in commands of its own, so
-this scaffold ships `/import-agent` and `/framework-update` instead. The
-workflows behind them are unchanged.
+One of them is named differently here than elsewhere in this framework.
+Hermes reserves `/import` for a built-in command of its own, so this scaffold
+ships `/import-agent` instead. The workflow behind it is unchanged.
 
 Whatever follows the command name reaches the agent as the user instruction;
 nothing is substituted into the skill file. Take change ids and paths from

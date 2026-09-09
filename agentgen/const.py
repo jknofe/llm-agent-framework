@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "5.24"
+FRAMEWORK_VERSION = "5.25"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -20,7 +20,7 @@ GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
 GEN_END = "<!-- END GENERATED:project-context -->"
 
 SKILLS = ["explore", "spec", "build", "import-kb", "import", "tidy-up",
-          "update"]
+          "framework-update"]
 
 # Where the hermes harness looks for project skills. Hermes reads both
 # `.hermes/skills/` and `.agents/skills/` under the nearest git root; the
@@ -42,14 +42,17 @@ HARNESS_ENTRY_PATHS = {
     "hermes": [HERMES_SKILLS_DIR],
 }
 
-# Hermes ships built-in slash commands, and two of the framework's names are
-# taken: /import and /update. A project skill cannot be counted on to reach
-# past a built-in, so on that harness those two are emitted under a different
-# name. Every other command keeps its name everywhere. Prose that names one of
-# the two goes through the `cmd_*` slots (see `content.command_slots`) so a
-# renamed command is not referred to by a name that does not exist there.
+# Hermes ships built-in slash commands, and /import is one of them. A project
+# skill cannot be counted on to reach past a built-in, so on that harness it is
+# emitted under a different name. Prose that names it goes through the `cmd_*`
+# slots (see `content.command_slots`) so a renamed command is not referred to
+# by a name that does not exist there.
+#
+# The framework's update command used to be renamed here too, from /update.
+# It is now called /framework-update on every harness instead: one command
+# with one name everywhere beats a name that depends on where you type it,
+# and only hermes could keep the shorter one anyway.
 HERMES_COMMAND_NAMES = {
-    "update": "framework-update",
     "import": "import-agent",
 }
 
@@ -63,7 +66,7 @@ HERMES_DESCRIPTIONS = {
     "spec": "Write a spec for a non-trivial change.",
     "build": "Implement a change spec, then review it.",
     "tidy-up": "Hygiene sweep that may not change behavior.",
-    "update": "Move this scaffold to the current framework.",
+    "framework-update": "Move this scaffold to the current framework.",
 }
 
 # What `$ARGUMENTS` (claude) and `${input:...}` (copilot) stand in for on
@@ -79,9 +82,9 @@ _SKILL_DESCRIPTIONS = {
     "tidy-up": ("Hygiene sweep that may not change behavior: remove "
                 "dead code, propose obsolete files, shorten "
                 "comments, drop em dashes"),
-    "update": ("Update this scaffold to the current framework "
-               "version: merge the framework files, migrate notes "
-               "and specs, never re-explore"),
+    "framework-update": ("Update this scaffold to the current framework "
+                         "version: merge the framework files, migrate notes "
+                         "and specs, never re-explore"),
 }
 
 ARG_HINTS = {
@@ -91,5 +94,5 @@ ARG_HINTS = {
     "spec": "<id> <title...>",
     "build": "<id>",
     "tidy-up": "[scope]",
-    "update": "[dry-run]",
+    "framework-update": "[dry-run]",
 }

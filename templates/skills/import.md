@@ -13,9 +13,9 @@ for in-flight changes; there is no KB node store. It is not
 dump) and ignores lifecycle state, whereas /${cmd_import} also carries
 ticket/change and notes state across. If the source is a docs/wiki
 dump rather than a `.ai/`-style working folder, use /import-kb. It
-is also not /${cmd_update}: that moves a scaffold this framework already
+is also not /framework-update: that moves a scaffold this framework already
 wrote (one carrying `.ai/agent/framework.json`) to the current
-version in place. Use /${cmd_update} when the folder is a stamped scaffold
+version in place. Use /framework-update when the folder is a stamped scaffold
 of an earlier version, /${cmd_import} when it is unstamped or foreign. Run
 this after scaffolding, against a copy of the old folder (e.g. move
 the pre-existing `.ai/` aside to `.ai.old/` before init, then
@@ -44,6 +44,6 @@ the pre-existing `.ai/` aside to `.ai.old/` before init, then
    facts, not the old AGENTS.md text. Never overwrite
    `.ai/agent/framework.json` with the source's copy: init already
    stamped this scaffold at the current version, and that stamp is
-   what /${cmd_update} reads later. Report a short mapping (source
+   what /framework-update reads later. Report a short mapping (source
    -> project-context / notes.md / changes / external / skipped). Do
    not delete the source. Commit `.ai` (`import: <source>`).
