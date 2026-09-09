@@ -9,10 +9,13 @@ covers ${owned}.
 
 1. Preflight.
    - Read `${framework_json}` for the recorded framework version,
-     profile, harness, and the list of framework files that version
-     emitted. If the file is missing, this scaffold predates the stamp:
-     run `python3 "$LLM_AGENT_HOME/init_agent.py" --detect` for
+     profile, harness, project name, description, and the list of
+     framework files that version emitted. If the file is missing, this
+     scaffold predates the stamp: run
+     `python3 "$LLM_AGENT_HOME/init_agent.py" --detect` for
      profile/harness/name and treat the recorded file list as empty.
+     A `description` of null means the scaffold predates the field; ask
+     the user for the one-liner rather than inventing one.
      Retirement then rests entirely on the orphan test in step 3, so do
      not skip it on a pre-stamp scaffold.
    - Commit anything pending in `.ai` so the update is one revertable
@@ -40,7 +43,12 @@ covers ${owned}.
    scaffold into a temp directory:
 
        python3 "$LLM_AGENT_HOME/init_agent.py" --emit-reference <tmpdir> \
-         --harness ${harness} --name <project-name>
+         --harness ${harness} --name <project> --desc <description>
+
+   Pass the `project` and `description` the stamp recorded, verbatim.
+   They are what the reference renders its title and seeded context
+   from, so substituting the directory name or a description of your own
+   makes the comparison report differences this project never had.
 
    The reference is a read-only comparison target. Never copy it over
    the project wholesale; that is the blind overwrite this skill exists
@@ -106,7 +114,10 @@ ${verify_extra}   - AGENTS.md still holds this project's context between its
 
 6. Record and report.
    - Write `${framework_json}` from the reference's copy: new version,
-     new file list, and this project's name.
+     new file list, and this project's name and description carried
+     across unchanged. Neither is derived from the codebase; they are
+     what the user answered at init, and only this file still holds
+     them.
    - Print one row per file: added / updated / merged (with what was
      kept) / retired / migrated / untouched, then anything left for the
      user to decide.

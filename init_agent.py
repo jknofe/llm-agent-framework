@@ -27,7 +27,10 @@ the agent through skills and folder conventions:
                          change; the rules live in AGENTS.md
 
 Prompts: project name, one-line description, harness (claude/copilot/hermes).
-Enter accepts the default. Pointing --harness at a different harness than the
+Enter accepts the default; on an existing scaffold the defaults are what the
+version stamp recorded, so Enter keeps the project as it is. The name and
+description are recorded there because nothing else keeps them: /explore
+overwrites the AGENTS.md section the description is seeded into. Pointing --harness at a different harness than the
 one an existing scaffold was built for switches it: the new entry files are
 written and the old ones the version stamp recorded are moved to
 .ai/agent/.harness-backup/<old-harness>/ (moved, not deleted; files the stamp
@@ -92,7 +95,8 @@ Usage:
   Two flags exist only to serve the agent's /update skill, which is how an
   existing scaffold moves to a newer framework version:
   --detect                print this directory's scaffold stamp as JSON
-                          (harness, framework version, file list)
+                          (harness, framework version, project name and
+                          description, file list)
   --emit-reference DIR    render a pristine scaffold of the current framework
                           into DIR, with no git or host-project side effects,
                           as the comparison target /update diffs against
@@ -224,15 +228,29 @@ def cmd_init(args=None) -> int:
     if args and getattr(args, "bootstrap_update", False):
         return bootstrap_update(root)
 
+    marker = root / "AGENTS.md"
+
+    # What a previous run recorded, read before prompting: a re-init that
+    # cannot see it falls back to the directory name and an empty description,
+    # which silently renames the project and drops its one-liner. The stamp is
+    # the only place either survives, since /explore overwrites the AGENTS.md
+    # section the description was seeded into.
+    previous = read_stamp(root) if marker.exists() else None
+    if previous is None and marker.exists():
+        detected = detect_scaffold(root)
+        previous = {"harness": detected[1], "project": detected[2]} if detected \
+            else None
+    prev = previous or {}
+
     name = (args.name if args and args.name is not None
-            else ask("Project name", root.name))
+            else ask("Project name", prev.get("project") or root.name))
     desc = (args.description if args and args.description is not None
-            else ask("Project description, one line"))
+            else ask("Project description, one line",
+                     prev.get("description") or ""))
     harness = (args.harness if args and args.harness
                else ask_choice("Harness", ["claude", "copilot", "hermes"],
-                               "claude"))
+                               prev.get("harness") or "claude"))
 
-    marker = root / "AGENTS.md"
     force = bool(args and args.yes)
 
     # A harness switch is an init, not an update: the entry files are pure
@@ -240,10 +258,6 @@ def cmd_init(args=None) -> int:
     # What it must not do is write the new set and leave the old one live.
     switch_from = None
     if marker.exists():
-        previous = read_stamp(root)
-        if previous is None:
-            detected = detect_scaffold(root)
-            previous = {"harness": detected[1]} if detected else None
         if previous and previous.get("harness") not in (None, harness):
             switch_from = previous
             old_harness = previous["harness"]

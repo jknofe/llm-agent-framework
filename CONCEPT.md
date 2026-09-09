@@ -1,6 +1,10 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-09-09, v5.23 (switching an existing scaffold's harness is
+State: 2026-09-09, v5.24 (the project name and one-line description are
+recorded in the version stamp. They were the only two init answers nothing
+kept: /explore overwrites the section the description is seeded into, so every
+later re-render invented both and renamed the project to its directory. §33).
+v5.23 (switching an existing scaffold's harness is
 tooling, not a manual chore: `init-agent --harness <name>` writes the new
 entry files and retires the recorded old ones into a backup, so the failure
 that mattered, two live command sets disagreeing about the protocol, cannot
@@ -1664,3 +1668,40 @@ not history.
 A switch also forces regeneration of the framework files. AGENTS.md and the
 skill bodies name the harness they were built for, so leaving them as "exists"
 would produce a scaffold describing the harness it just moved off.
+
+## 33. Recording the project's identity (2026-09-09, v5.24)
+
+Init asks three questions: project name, one-line description, harness. The
+harness was recorded in the stamp from the start, because /update needs it to
+render a matching reference. The other two were not, and there is no second
+copy of either.
+
+### Where they went
+
+The name reaches the AGENTS.md title, the description is seeded into the
+project-context section with a note telling Phase 1 to verify it against the
+code. Then /explore does exactly that and replaces the section with what it
+found. From that point the original one-liner exists nowhere, and the name
+exists only as prose in a heading.
+
+So any later re-render had to invent both. A harness switch or a plain re-init
+that did not repeat `--name` fell back to the directory name and silently
+retitled the project; without `--desc` it seeded an empty description. The
+`/update` skill had the same gap: it renders a reference to diff against, and
+was told to pass `<project-name>` with nothing authoritative to take it from.
+
+### The rule
+
+The stamp records what the user answered, not what the generator can re-derive.
+Framework version, harness, and the file list were already there on that
+principle; `project` and `description` belong to the same category and are now
+recorded beside them. Everything else in a scaffold is either derived from the
+codebase (/explore's output) or written by the user afterwards, and neither
+belongs in a machine-readable stamp.
+
+That makes the stamp the single source for re-rendering, so init reads it back
+before prompting: on an existing scaffold the recorded name, description and
+harness become the prompt defaults, and Enter keeps the project as it is
+rather than proposing a rename. A scaffold stamped before this revision has
+`"description": null`, which /update is told to treat as "ask the user", not
+as an empty description to write in.

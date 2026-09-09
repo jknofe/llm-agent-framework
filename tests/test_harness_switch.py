@@ -22,6 +22,11 @@ What it pins down, in order of how badly it would hurt to get wrong:
   not_a_switch       re-running with the same harness retires nothing.
   refusable          a switch is never silent: without -y it needs a yes, and
                      a non-TTY run (no yes available) writes nothing at all.
+  identity_kept      the project name and description survive a re-run that
+                     does not repeat them. They live only in the stamp once
+                     /explore has overwritten the seeded context, so a run
+                     that cannot read them back renames the project to its
+                     directory and blanks the one-liner.
 """
 
 import json
@@ -139,18 +144,58 @@ def test_refusable(tmp: Path):
         fail("refusable", "declining the switch changed the tree")
 
 
+def test_identity_kept(tmp: Path):
+    root = tmp / "fleet-repo"
+    root.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "."], cwd=str(root), check=True)
+    r = subprocess.run([sys.executable, str(FW), "--name", "Fleet Manager",
+                        "--description", "Terraform IaC for the fleet",
+                        "--harness", "claude", "-y"],
+                       cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        fail("identity_kept", f"scaffold failed: {r.stderr}")
+        return
+
+    # What /explore does: the seeded description is replaced by findings, so
+    # after this the stamp is the only place it still exists.
+    agents = root / "AGENTS.md"
+    body = agents.read_text()
+    start = body.index("-->", body.index("BEGIN GENERATED:project-context"))
+    end = body.index("<!-- END GENERATED:project-context")
+    agents.write_text(body[:start + 3] + "\nMODULE MAP: src/.\n" + body[end:])
+
+    # Re-run naming neither, then switch harness naming neither.
+    for args in (("--harness", "claude", "-y"), ("--harness", "hermes", "-y")):
+        r = subprocess.run([sys.executable, str(FW), *args],
+                           cwd=str(root), capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("identity_kept", f"{args} failed: {r.stderr}")
+            return
+        recorded = stamp(root)
+        if recorded["project"] != "Fleet Manager":
+            fail("identity_kept",
+                 f"{args}: project became {recorded['project']!r}")
+        if recorded["description"] != "Terraform IaC for the fleet":
+            fail("identity_kept",
+                 f"{args}: description became {recorded['description']!r}")
+        title = agents.read_text().splitlines()[0]
+        if title != "# Agent: Fleet Manager":
+            fail("identity_kept", f"{args}: AGENTS.md title is {title!r}")
+
+
 def main():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         test_switch(tmp)
         test_not_a_switch(tmp)
         test_refusable(tmp)
+        test_identity_kept(tmp)
     if failures:
         print(f"FAIL ({len(failures)})")
         for f in failures:
             print("  " + f)
         return 1
-    print("ok: 3 harness-switch tests passed")
+    print("ok: 4 harness-switch tests passed")
     return 0
 
 

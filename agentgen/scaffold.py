@@ -29,11 +29,21 @@ def write(path: Path, content: str, force: bool, created: list, skipped: list):
     path.write_text(content, encoding="utf-8")
     created.append(path)
 
-def render_framework_json(root: Path, name: str, harness: str) -> str:
+def render_framework_json(root: Path, name: str, harness: str,
+                          desc: str = "") -> str:
     """The scaffold's version stamp: which framework revision built it, under
-    which harness, and every framework-owned path it emitted. /update reads
-    this to know what to compare, migrate, and retire; without it an update
-    can only overwrite blindly. Call after all other writes.
+    which harness, for which project, and every framework-owned path it
+    emitted. /update reads this to know what to compare, migrate, and retire;
+    without it an update can only overwrite blindly. Call after all other
+    writes.
+
+    `project` and `description` are the two answers the user gave at init.
+    They are recorded because nothing else keeps them: the description is
+    seeded into the project-context section of AGENTS.md and /explore
+    overwrites that section with what it found, so by the first update the
+    original one-liner is gone. Anything that re-renders this scaffold later
+    (an update's reference, a harness switch) would otherwise have to invent
+    both, and would rename the project to its directory name.
 
     `profile` is still recorded, always "small". Framework 5.22 removed the
     large profile, and the field is what lets /update recognize a scaffold
@@ -45,6 +55,7 @@ def render_framework_json(root: Path, name: str, harness: str) -> str:
         "profile": "small",
         "harness": harness,
         "project": name,
+        "description": desc,
         "generated": TODAY,
         "framework_files": files,
     }, indent=2) + "\n"
@@ -334,6 +345,7 @@ def bootstrap_update(root: Path) -> int:
         "profile": "small",
         "harness": harness,
         "project": name,
+        "description": None,   # unrecoverable: /explore overwrote the seed
         "generated": None,
         "framework_files": [],       # unknown: nothing to retire from
         "bootstrapped": TODAY,
@@ -427,7 +439,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
 
     # Version stamp last: it records every framework path written above.
     write(root / FRAMEWORK_JSON,
-          render_framework_json(root, name, harness),
+          render_framework_json(root, name, harness, desc),
           force, created, skipped)
 
     if reference:

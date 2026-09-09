@@ -257,10 +257,16 @@ ones) is a lower-maintenance alternative; the allowlist is what keeps
 headless and CI runs deterministic. `AGENTS.md` and `.claude/` /
 `.agents/` / `.github/` belong to the host repo.
 
-The description prompted at init is seeded into the project-context section
-of `AGENTS.md`, so the agent's first ramp-up starts from a known project
-intent instead of discovering it from scratch. `/explore` verifies and
-refines it against the code.
+The name and description prompted at init are recorded in
+`.ai/agent/framework.json`, and the description is also seeded into the
+project-context section of `AGENTS.md`, so the agent's first ramp-up starts
+from a known project intent instead of discovering it from scratch.
+`/explore` verifies and refines it against the code, overwriting that
+section, which is why the stamp keeps its own copy: re-running init, switching
+harness and `/update` all read the name and description back from there
+instead of falling back to the directory name and a blank line. On an existing
+scaffold the prompts are pre-filled with them, so Enter keeps the project as
+it is.
 
 Re-running init never reverts agent or user work: `.ai/notes.md` and specs
 that differ from their stubs are reported as `preserved`, and an existing
