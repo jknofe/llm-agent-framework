@@ -2,10 +2,10 @@
 
 The prompt files under `.github/prompts/` are a VS Code feature. In VS Code
 Copilot Chat, run one by typing its name as a slash command: `/explore`,
-`/spec`, `/build`, `/import-kb`, `/import`, `/tidy-up`, `/framework-update`,
-with any argument after it (`/framework-update dry-run`). The name is the
-file's basename without
-`.prompt.md`. Typing the bare word without the slash does not run it.
+`/spec`, `/build`, `/import-kb`, `/import-agent`, `/tidy-up`,
+`/framework-update`, with any argument after it (`/framework-update dry-run`).
+The name is the file's basename without `.prompt.md`. Typing the bare word
+without the slash does not run it.
 `Chat: Run Prompt` in the Command Palette, and the play button in an open
 prompt file, do the same.
 

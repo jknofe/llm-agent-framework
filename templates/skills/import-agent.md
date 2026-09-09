@@ -10,16 +10,16 @@ profile. The small-profile targets are the GENERATED:project-context
 section of AGENTS.md, `.ai/notes.md`, and `.ai/changes/<id>/spec.md`
 for in-flight changes; there is no KB node store. It is not
 /import-kb: that transforms arbitrary curated knowledge (a docs/wiki
-dump) and ignores lifecycle state, whereas /${cmd_import} also carries
+dump) and ignores lifecycle state, whereas /import-agent also carries
 ticket/change and notes state across. If the source is a docs/wiki
 dump rather than a `.ai/`-style working folder, use /import-kb. It
 is also not /framework-update: that moves a scaffold this framework already
 wrote (one carrying `.ai/agent/framework.json`) to the current
 version in place. Use /framework-update when the folder is a stamped scaffold
-of an earlier version, /${cmd_import} when it is unstamped or foreign. Run
+of an earlier version, /import-agent when it is unstamped or foreign. Run
 this after scaffolding, against a copy of the old folder (e.g. move
 the pre-existing `.ai/` aside to `.ai.old/` before init, then
-`/${cmd_import} .ai.old`).
+`/import-agent .ai.old`).
 
 1. Survey without bulk-loading: list the source tree; sample its
    entry/index files and any manifest, notes, `changes/`, `tickets/`,

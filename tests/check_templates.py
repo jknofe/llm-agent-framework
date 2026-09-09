@@ -12,7 +12,8 @@ unanswerable while the content lived inside string literals:
   python     do the rendered tools and hooks parse as Python?
   json       does the rendered settings.json parse as JSON?
   register   do the templates honor the no-em-dash rule (CONCEPT section 8)?
-  hermes     do the hermes skill descriptions fit that harness's 60-char cap?
+  hermes     do the hermes skill descriptions fit that harness's 60-char cap,
+             and does every harness expose the same command names?
 
 The byte-identity harness lives outside this file: it renders all four
 variants and diffs them against a known-good capture. This file checks
@@ -140,9 +141,21 @@ def check_hermes():
         if f"\nname: {cmd}\n" not in text:
             fail("hermes", f"{cmd}: name does not match its directory")
     names = {rel.split("/")[0] for rel in emitted}
-    for reserved in ("update", "import", "plan"):
+    for reserved in ("update", "import", "plan", "init", "review", "learn",
+                     "memory", "skills", "config", "model", "help", "new",
+                     "clear", "resume", "goal", "diff", "status", "export"):
         if reserved in names:
             fail("hermes", f"/{reserved} collides with a hermes built-in")
+
+    # The same names on every harness (CONCEPT.md section 35). A per-harness
+    # rename is what this used to do, and re-introducing one silently is the
+    # regression worth catching.
+    for harness in ("claude", "copilot"):
+        other = {name for name, _d, _b in
+                 content.command_specs(harness, "$F", "$T")}
+        if other != names:
+            fail("hermes", f"{harness} emits {sorted(other)}, "
+                           f"hermes emits {sorted(names)}")
 
 
 def main():

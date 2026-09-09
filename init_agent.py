@@ -13,7 +13,7 @@ the agent through skills and folder conventions:
   /import-kb <source>    import an existing knowledge base of any structure:
                          read, classify, and distill it into the project
                          context + notes.md
-  /import <source>       migrate an existing .ai/ folder (older framework
+  /import-agent <source> migrate an existing .ai/ folder (older framework
                          version or other layout) into the current structure:
                          knowledge and in-flight change specs
   /tidy-up [scope]       hygiene sweep that may not change behavior: remove
@@ -66,9 +66,10 @@ Context layout:
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
                                loaded once `hermes skills trust` has run in the
-                               repo. /import is a hermes built-in, so it
-                               ships as /import-agent there; every other
-                               command has one name on every harness
+                               repo. Same command names as the other
+                               harnesses: /framework-update and /import-agent
+                               are spelled out everywhere because hermes
+                               reserves /update and /import
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
   .claude/settings.json        permission allow list + Stop hook (claude only)
   .claude/hooks/*.py           hook scripts: remind about uncommitted .ai

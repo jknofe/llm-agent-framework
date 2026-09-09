@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "5.25"
+FRAMEWORK_VERSION = "5.26"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -19,7 +19,7 @@ GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
 
 GEN_END = "<!-- END GENERATED:project-context -->"
 
-SKILLS = ["explore", "spec", "build", "import-kb", "import", "tidy-up",
+SKILLS = ["explore", "spec", "build", "import-kb", "import-agent", "tidy-up",
           "framework-update"]
 
 # Where the hermes harness looks for project skills. Hermes reads both
@@ -42,19 +42,12 @@ HARNESS_ENTRY_PATHS = {
     "hermes": [HERMES_SKILLS_DIR],
 }
 
-# Hermes ships built-in slash commands, and /import is one of them. A project
-# skill cannot be counted on to reach past a built-in, so on that harness it is
-# emitted under a different name. Prose that names it goes through the `cmd_*`
-# slots (see `content.command_slots`) so a renamed command is not referred to
-# by a name that does not exist there.
-#
-# The framework's update command used to be renamed here too, from /update.
-# It is now called /framework-update on every harness instead: one command
-# with one name everywhere beats a name that depends on where you type it,
-# and only hermes could keep the shorter one anyway.
-HERMES_COMMAND_NAMES = {
-    "import": "import-agent",
-}
+# A command name that collides with a harness built-in is renamed on every
+# harness, not just the one that reserves it (CONCEPT.md sections 34 and 35).
+# Hermes reserves /update and /import, so this framework ships
+# /framework-update and /import-agent everywhere. There is deliberately no
+# per-harness name table any more: one command, one name, so every document
+# can name a command without asking where it is being read.
 
 # Hermes caps a skill description at 60 characters, which the descriptions in
 # the skill templates (written for the claude and copilot frontmatter) exceed.
@@ -62,7 +55,7 @@ HERMES_COMMAND_NAMES = {
 HERMES_DESCRIPTIONS = {
     "explore": "Survey the codebase and record what it finds.",
     "import-kb": "Import an existing knowledge base.",
-    "import": "Migrate an existing agent folder into .ai.",
+    "import-agent": "Migrate an existing agent folder into .ai.",
     "spec": "Write a spec for a non-trivial change.",
     "build": "Implement a change spec, then review it.",
     "tidy-up": "Hygiene sweep that may not change behavior.",
@@ -90,7 +83,7 @@ _SKILL_DESCRIPTIONS = {
 ARG_HINTS = {
     "explore": "[focus]",
     "import-kb": "<source>",
-    "import": "<source>",
+    "import-agent": "<source>",
     "spec": "<id> <title...>",
     "build": "<id>",
     "tidy-up": "[scope]",

@@ -1,6 +1,10 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-09-09, v5.25 (the update command is `/framework-update` on every
+State: 2026-09-09, v5.26 (`/import` becomes `/import-agent` on every harness,
+finishing what v5.25 started: no command's name depends on where it is typed,
+and the per-harness rename table is gone rather than left carrying one entry.
+§35).
+v5.25 (the update command is `/framework-update` on every
 harness. It was `/update` on two of them and `/framework-update` on hermes,
 which reserves the short name; a command whose name depends on where you type
 it is worse than a longer name that is always right. §34).
@@ -1746,3 +1750,32 @@ they gain one clause saying a renamed command is a move, not an addition
 beside the old one. So the last act of the old command is to replace itself,
 which is the only sequencing that works: there is no version at which both
 names should answer.
+
+## 35. No per-harness names left (2026-09-09, v5.26)
+
+§34 unified the update command and left `/import` renamed on hermes alone,
+reasoning that renaming it on all three would be routing two harnesses around
+a third's built-in. That reasoning was wrong in a way worth recording, because
+it weighed the wrong cost.
+
+The cost of a longer name is paid once, when the user reads it. The cost of a
+name that varies by harness is paid by every document that mentions the
+command, every time it is written or read, forever: the README needs a table,
+the skill bodies need a slot, and a user who moves between two projects has to
+remember which one they are in. §34 established that; keeping one exception
+meant keeping the entire mechanism, and a mechanism with one user is a
+mechanism that will grow a second.
+
+So `/import` is `/import-agent` everywhere, and the per-harness name table,
+the `command_name` and `command_slots` helpers, and the `${cmd_*}` slots are
+deleted rather than left holding a single entry. `/import-agent` also pairs
+with `/import-kb`, which it is routinely confused with: both are now
+`import-<what>`, and the difference in the name is the difference in what they
+read.
+
+### The rule this settles
+A command name that collides with a harness built-in is renamed on every
+harness. The framework does not carry per-harness names. `check_templates`
+asserts it: the three harnesses must emit the same set of command names, so
+re-introducing a rename for one of them fails the mechanical checks rather
+than quietly shipping.

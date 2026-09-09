@@ -127,7 +127,7 @@ synced index of it.
 
 **Existing large-profile scaffolds** cannot be carried across with `/framework-update`:
 there is no reference to render for them, so it stops and says so. Scaffold
-fresh with `init-agent` and run `/import <old-.ai>`, which distills the KB
+fresh with `init-agent` and run `/import-agent <old-.ai>`, which distills the KB
 into the project-context section and `notes.md` and carries in-flight change
 state over.
 
@@ -141,8 +141,7 @@ harness as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
 the skills carry `disable-model-invocation: true`: they are pipeline steps
 with side effects (notes writes, code changes, `.ai` commits), so only an
 explicit `/name` from you triggers them, never the model mid-conversation.
-All three harnesses invoke them the same way (hermes renames two of them,
-see [Hermes support](#hermes-support)):
+All three harnesses invoke them the same way, under the same names:
 
 | Command | What it does |
 |---|---|
@@ -150,7 +149,7 @@ see [Hermes support](#hermes-support)):
 | `/spec <id> <title...>` | Writes `.ai/changes/<id>/spec.md` for a non-trivial change: goal, acceptance criteria, task checklist. No implementation yet. |
 | `/build <id>` | Works the spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
 | `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and distills it into the project-context section and `notes.md`, routing gotchas and runbooks to `notes.md`. |
-| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/framework-update`, which upgrades a scaffold this framework already stamped. |
+| `/import-agent <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/framework-update`, which upgrades a scaffold this framework already stamped. |
 | `/tidy-up [scope]` | Hygiene sweep over the host code in four passes: removes dead code with evidence (a library's exported surface counts as used), **proposes** obsolete files without deleting them, compresses overlong comments to 1-2 lines while relocating rather than discarding the knowledge in them, and rewrites em dashes out of prose. Gated on a green build/test/lint baseline captured before the sweep and re-checked after; it may not change behavior, and anything that would is a change spec instead. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
@@ -227,17 +226,12 @@ Hermes loads project skills only from a repository you have trusted, so run
 `hermes skills trust` once in the project root; in a running session
 `/reload-skills` picks up edited skills.
 
-One command is renamed there, because Hermes reserves that name for a
-built-in command of its own:
-
-| Elsewhere | On hermes |
-|---|---|
-| `/import <source>` | `/import-agent <source>` |
-
-`/framework-update` carries the same name on every harness. It is spelled out
-rather than shortened to `/update` precisely because Hermes reserves the short
-one, and a command whose name depends on the harness is worse than a longer
-name that is always right.
+Every command carries the same name here as on the other harnesses. Two of
+them are spelled out rather than shortened, `/framework-update` and
+`/import-agent`, because Hermes reserves `/update` and `/import` for built-in
+commands of its own. A name that collides with a harness built-in is renamed
+on **every** harness: a command whose name depends on where you type it is
+worse than a longer name that is always right.
 
 Hermes substitutes nothing into a skill: whatever you type after the command
 name reaches the agent as your instruction, and the skill says so.

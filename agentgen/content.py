@@ -13,26 +13,6 @@ from agentgen.const import *  # noqa: F403  shared paths, markers, roster
 # `import *` skips underscore names; this one is internal but shared.
 from agentgen.const import _SKILL_DESCRIPTIONS
 
-def command_name(name: str, harness: str) -> str:
-    """The slash-command name a roster entry is emitted under.
-
-    Identity everywhere except hermes, which reserves /import for a built-in
-    command of its own (see HERMES_COMMAND_NAMES).
-    """
-    if harness == "hermes":
-        return HERMES_COMMAND_NAMES.get(name, name)
-    return name
-
-def command_slots(harness: str) -> dict:
-    """`cmd_<name>` slots for the commands that can be renamed.
-
-    Prose that points at a sibling command (`/plan <id>`, "not /import-kb")
-    would otherwise name a command that does not exist on hermes. Only the
-    three renamable names get a slot; the rest stay literal in the templates.
-    """
-    return {f"cmd_{name}": command_name(name, harness)
-            for name in HERMES_COMMAND_NAMES}
-
 def _entry_note(harness: str) -> str:
     """Where AGENTS.md tells the reader the commands live, per harness."""
     if harness == "claude":
@@ -77,8 +57,7 @@ def render_agents_md(project_name: str, description: str = "",
                        generated_body=generated_body,
                        goal_note=goal_note,
                        hook_note=hook_note,
-                       project_name=project_name,
-                       **command_slots(harness))
+                       project_name=project_name)
 
 def render_notes_stub() -> str:
     return render.fill("config/notes-stub.md")
@@ -156,8 +135,7 @@ def render_update_body(harness: str, arg: str) -> str:
                        migrate=migrate,
                        owned=owned,
                        verify_extra=verify_extra,
-                       verify_tools=f"`{TOOLS_DIR}/probe.py`",
-                       **command_slots(harness))
+                       verify_tools=f"`{TOOLS_DIR}/probe.py`")
 
 def render_tidy_up_body(harness: str, arg: str) -> str:
     """Body of the /tidy-up skill: a bounded hygiene sweep over the host code.
@@ -199,8 +177,7 @@ def render_tidy_up_body(harness: str, arg: str) -> str:
                        arg=arg,
                        record=record,
                        review_note=review_note,
-                       survey_note=survey_note,
-                       **command_slots(harness))
+                       survey_note=survey_note)
 
 def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     """(name, description, body) for each command, in roster order.
@@ -223,8 +200,7 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
             desc, body = _split_frontmatter(raw)
             body = render.render(body, tools_dir=TOOLS_DIR,
                                  arg_focus=arg_focus, arg_ticket=arg_ticket,
-                                 hook_offer=hook_offer,
-                                 **command_slots(harness))
+                                 hook_offer=hook_offer)
         specs.append((name, desc, body))
     return specs
 
@@ -276,17 +252,18 @@ def render_hermes_skills(specs) -> dict:
     characters, so the long template descriptions give way to
     HERMES_DESCRIPTIONS. `disable-model-invocation` is a claude key and is not
     emitted here; hermes has no equivalent, so the skills stay model-loadable
-    on that harness. One of them is also renamed (HERMES_COMMAND_NAMES).
+    on that harness. Names match the other harnesses exactly; where a name
+    would collide with a hermes built-in the framework renames it everywhere
+    rather than only here (CONCEPT.md section 35).
 
     Hermes only discovers these once the repository is trusted, which the user
     does with `hermes skills trust`; the AGENTS.md note says so.
     """
     out = {}
     for name, _desc, body in specs:
-        cmd = command_name(name, "hermes")
-        out[f"{cmd}/SKILL.md"] = (
+        out[f"{name}/SKILL.md"] = (
             "---\n"
-            f"name: {cmd}\n"
+            f"name: {name}\n"
             f"description: {HERMES_DESCRIPTIONS[name]}\n"
             f"version: {FRAMEWORK_VERSION}.0\n"
             # Audited rather than copied: every skill drives the agent's own
