@@ -192,7 +192,8 @@ def detect_scaffold(root: Path):
     built before framework.json existed.
 
     size: 'large' when the KB manifest exists, else 'small' when AGENTS.md does.
-    harness: 'claude' when `.claude/` exists, else 'copilot' when
+    harness: 'claude' when `.claude/` exists, else 'hermes' when
+             `.agents/skills/` exists, else 'copilot' when
              `.github/prompts/` exists, else 'claude'.
     name: parsed from the AGENTS.md '# Agent: <name>' title, else the dir name.
     """
@@ -205,6 +206,8 @@ def detect_scaffold(root: Path):
         return None
     if (root / ".claude").exists():
         harness = "claude"
+    elif (root / HERMES_SKILLS_DIR).exists():
+        harness = "hermes"
     elif (root / ".github" / "prompts").exists():
         harness = "copilot"
     else:
@@ -274,6 +277,11 @@ def bootstrap_update(root: Path) -> int:
     if harness == "claude":
         rel = Path(".claude") / "skills" / "update" / "SKILL.md"
         body = content.render_skills(update_spec)["update/SKILL.md"]
+    elif harness == "hermes":
+        # Renamed: hermes reserves /update for a built-in command of its own.
+        cmd = content.command_name("update", harness)
+        rel = Path(HERMES_SKILLS_DIR) / cmd / "SKILL.md"
+        body = content.render_hermes_skills(update_spec, size)[f"{cmd}/SKILL.md"]
     else:
         rel = Path(".github") / "prompts" / "update.prompt.md"
         body = content.render_prompt_files(update_spec)["update.prompt.md"]
@@ -300,6 +308,9 @@ def bootstrap_update(root: Path) -> int:
           "with:")
     if harness == "claude":
         print("  /update")
+    elif harness == "hermes":
+        print("  hermes skills trust     (once, in this repository)")
+        print(f"  /{content.command_name('update', harness)}")
     else:
         # Prompt files are a VS Code feature. Copilot CLI does not read
         # .github/prompts/ at all, so it needs the kickoff sentence instead.
@@ -382,6 +393,12 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
               force, created, skipped)
         write(root / ".claude" / "settings.json", render_settings_json(),
               force, created, skipped)
+    elif harness == "hermes":
+        for rel, body in render_hermes_skills(
+                command_specs(harness, HERMES_ARG_FOCUS, HERMES_ARG_TICKET),
+                "large").items():
+            write(root / HERMES_SKILLS_DIR / rel, body,
+                  force, created, skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}",
@@ -405,6 +422,13 @@ def scaffold_large(root: Path, name: str, desc: str, harness: str,
     print(f"\nKB: {kb.relative_to(root)}  |  phases: {PHASES_DIR}"
           f"  |  nodes: {len(ALL_NODES)}  |  project: {name}"
           f"  |  harness: {harness}")
+    if harness == "hermes":
+        print(f"\nSkills live in {HERMES_SKILLS_DIR}/. Hermes loads project "
+              "skills only from a trusted repo:")
+        print("  hermes skills trust     (once, in this repository)")
+        print("  /reload-skills          (in a running session)")
+        print("Renamed to clear hermes built-ins: /plan-ticket, "
+              "/import-agent, /framework-update.")
     if harness == "copilot":
         print("\nPrompt files (/explore, /plan, /implement) work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; kickoff lines (copy-paste, also "
@@ -457,6 +481,12 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "settings.json",
               render_settings_json(small=True), force, created, skipped)
+    elif harness == "hermes":
+        for rel, body in render_hermes_skills(
+                command_specs_small(harness, HERMES_ARG_FOCUS,
+                                    HERMES_ARG_TICKET), "small").items():
+            write(root / HERMES_SKILLS_DIR / rel, body,
+                  force, created, skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs_small(harness, "${input:focus}",
@@ -477,9 +507,17 @@ def scaffold_small(root: Path, name: str, desc: str, harness: str,
     ai_commit(root, commit_message or f"init: small-profile scaffold ({name})")
 
     report(root, created, skipped, preserved)
-    entry = ".claude" if harness == "claude" else ".github/prompts"
+    entry = {"claude": ".claude", "hermes": HERMES_SKILLS_DIR}.get(
+        harness, ".github/prompts")
     print(f"\n.ai: notes.md + changes/  |  AGENTS.md + {entry}"
           f"  |  profile: small  |  project: {name}  |  harness: {harness}")
+    if harness == "hermes":
+        print(f"\nSkills live in {HERMES_SKILLS_DIR}/. Hermes loads project "
+              "skills only from a trusted repo:")
+        print("  hermes skills trust     (once, in this repository)")
+        print("  /reload-skills          (in a running session)")
+        print("Renamed to clear hermes built-ins: /import-agent, "
+              "/framework-update.")
     if harness == "copilot":
         print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")

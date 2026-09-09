@@ -29,7 +29,7 @@ the agent through skills and folder conventions:
                          ticket; the rules live in AGENTS.md
 
 Prompts: project name, one-line description, project size (auto/large/small),
-harness (claude/copilot). Enter accepts the default. The size prompt defaults
+harness (claude/copilot/hermes). Enter accepts the default. The size prompt defaults
 to auto: the profile auto-detected from the codebase LOC (small <=10k, large
 above); pick large or small to override. --size auto selects it without
 prompting and --size large|small forces a profile. Non-TTY runs use the
@@ -72,6 +72,11 @@ Context layout:
   .claude/skills/*/SKILL.md    Agent Skills (open standard): thin pointers to
                                the phase docs, self-contained add-* helpers
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
+  .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
+                               loaded once `hermes skills trust` has run in the
+                               repo. /plan, /import and /update are hermes
+                               built-ins, so those three ship as /plan-ticket,
+                               /import-agent and /framework-update
   .claude/settings.json        permission allow list + hooks (claude only)
   .claude/hooks/*.py           hook scripts: protect generated files, remind
                                about uncommitted .ai changes
@@ -92,7 +97,8 @@ Usage:
   python init_agent.py --size auto  --name foo --desc "…"  auto-pick profile
   python init_agent.py --size small --name foo --desc "…" force small profile
   Flags: --name, --description/--desc, --size {large,small,auto}, --harness
-  {claude,copilot}, -y/--yes (overwrite framework files without prompting).
+  {claude,copilot,hermes}, -y/--yes (overwrite framework files without
+  prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 
   Two flags exist only to serve the agent's /update skill, which is how an
@@ -253,7 +259,8 @@ def cmd_init(args=None) -> int:
                                 "auto")
             size = auto_size if choice == "auto" else choice
     harness = (args.harness if args and args.harness
-               else ask_choice("Harness", ["claude", "copilot"], "claude"))
+               else ask_choice("Harness", ["claude", "copilot", "hermes"],
+                               "claude"))
 
     marker = (root / ".ai" / "knowledgebase" / "manifest.yaml"
               if size == "large" else root / "AGENTS.md")
@@ -284,7 +291,7 @@ def main() -> int:
                     help="size profile (skip the prompt). Omit or use 'auto' "
                          "to pick automatically from the codebase LOC "
                          "(small <=10k, large above)")
-    ap.add_argument("--harness", choices=["claude", "copilot"],
+    ap.add_argument("--harness", choices=["claude", "copilot", "hermes"],
                     help="target harness (skip the prompt); default claude")
     ap.add_argument("-y", "--yes", action="store_true",
                     help="overwrite framework files without prompting")

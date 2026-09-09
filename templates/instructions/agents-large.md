@@ -16,7 +16,7 @@ and commands verbatim.
 | 3 Implementation | `${phases_dir}/implementation.md` |
 | 4 Operational | none. Protocol below = default behavior |
 
-Maintenance is not a phase. `/update` moves this scaffold to the current
+Maintenance is not a phase. `/${cmd_update}` moves this scaffold to the current
 framework version, merging the framework files and migrating the KB in place;
 it never re-runs Phase 1. `/tidy-up [scope]` sweeps the host code for dead
 code, obsolete files, overlong comments, and em dashes, and may not change
@@ -87,7 +87,7 @@ ${goal_note}
 ```
 
 Status in frontmatter (`planned|in-progress|done|blocked`), never in folder
-names. `/plan <id>` turns an inbox ticket into `.ai/knowledgebase/tasks/<id>/`
+names. `/${cmd_plan} <id>` turns an inbox ticket into `.ai/knowledgebase/tasks/<id>/`
 (and promotes its `status` from `new` to `planned`).
 
 Archive only when the user asks for it, then: verify every task file in

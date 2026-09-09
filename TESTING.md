@@ -19,7 +19,9 @@ themselves.
    shallow clone.
    Asserts no orphaned template, every declared slot filled, no `${...}` left
    in any rendered artifact, rendered tools parse as Python, rendered settings
-   parse as JSON, and no em dash in a template (CONCEPT.md section 8).
+   parse as JSON, no em dash in a template (CONCEPT.md section 8), and the
+   hermes skill descriptions inside that harness's 60-character cap with no
+   command name colliding with a hermes built-in.
    `safe_substitute` leaves a mistyped slot in place silently, so the slot
    check is the only thing between a typo and a broken scaffold.
 1. **Syntax**
@@ -27,11 +29,11 @@ themselves.
    python3 -c "import ast; ast.parse(open('init_agent.py').read())"
    for f in agentgen/*.py; do python3 -c "import ast; ast.parse(open('$f').read())"; done
    ```
-2. **Scaffold all four variants** into a throwaway dir (init writes to CWD;
+2. **Scaffold all six variants** into a throwaway dir (init writes to CWD;
    never scaffold into this repo root):
    ```bash
    d=$(mktemp -d)
-   for size in small large; do for h in claude copilot; do
+   for size in small large; do for h in claude copilot hermes; do
      mkdir -p "$d/$size-$h"
      ( cd "$d/$size-$h" && python3 /path/to/init_agent.py \
          --name t --description d --size $size --harness $h -y >/dev/null )
@@ -53,7 +55,7 @@ themselves.
    `write()` call: verify the old scaffold's `framework_files` still lists it
    so `/update` can delete it.
 7. **Byte-identity** (after any refactor that must not change output):
-   capture all four rendered variants before the change, re-render after, and
+   capture all six rendered variants before the change, re-render after, and
    require an empty diff. This is the only cheap guard against silent
    corruption when moving content between templates and code; it caught two
    real defects during the v5.17 restructuring that reading the diff did not.

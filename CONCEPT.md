@@ -1,6 +1,11 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-08-26, v5.20 (review gates sized to the change: right-sizing now
+State: 2026-09-09, v5.21 (hermes as a third harness: the same skill bodies
+emitted as project skills under `.agents/skills/`, with hermes frontmatter and
+three commands renamed because hermes reserves `/plan`, `/import` and
+`/update` for built-ins of its own. The harness axis was two-valued in code
+but not in principle, so this is a third value, not a fork. §30).
+v5.20 (review gates sized to the change: right-sizing now
 reaches the gates, not just the pipeline entrance. A right-sized small-profile
 change gets no gate at all, the large trivial path sizes both gates down to an
 inline criteria check, and the reviewer brief scales depth to the artifact
@@ -1489,3 +1494,66 @@ cheap-execution modes safe (§9, §23). The change is proportionality, not
 removal, and it does not touch the plan-review gate for non-trivial tickets:
 a weak plan still poisons every downstream task, and that is the gate with the
 highest leverage per token in the whole framework.
+
+## 30. Hermes as a third harness (2026-09-09, v5.21)
+
+The harness axis (§27) had two values, claude and copilot, and every branch in
+the generator was written as `if harness == "claude": ... else: ...`. Hermes,
+which discovers SKILL.md skills under `.agents/skills/` in a trusted git
+repository and exposes each one as a slash command, is a third value. Adding it
+is the first real test of whether the axis was a genuine axis or just two
+hard-coded cases.
+
+### What hermes shares and what it does not
+
+It shares the bodies. A hermes scaffold emits exactly the same skill bodies,
+AGENTS.md, phase docs and KB tools as the other harnesses; no document is
+duplicated per harness, per §27. What differs is mechanism, and only
+mechanism:
+
+- **Location and frontmatter.** `.agents/skills/<name>/SKILL.md` rather than
+  `.claude/skills/` or `.github/prompts/`. Hermes wants `name`, a `version`
+  (the framework version, so a scaffold reports which revision built it),
+  an audited `platforms` list, and its own `metadata.hermes` block. It caps
+  `description` at 60 characters, which the descriptions carried in the skill
+  templates exceed, so hermes gets a second, short description per command in
+  `HERMES_DESCRIPTIONS`. `disable-model-invocation` is a claude key and is not
+  emitted; hermes has no equivalent.
+- **No hooks, settings, or reviewer sub-agent.** Those are claude mechanisms.
+  Hermes falls on the non-claude side of the branches that already existed,
+  the same way copilot does.
+- **Arguments.** Claude substitutes `$ARGUMENTS`, copilot prompts through
+  `${input:...}`, hermes substitutes nothing: text after the command name
+  reaches the agent as the user instruction. So the skill has to say where its
+  argument comes from, in prose, which is what `HERMES_ARG_FOCUS` and
+  `HERMES_ARG_TICKET` fill the argument slot with.
+
+### Reserved names
+
+Hermes ships built-in slash commands, and three framework command names
+collide with them: `/plan`, `/import` and `/update`. A project skill cannot be
+relied on to shadow a built-in, so on that harness those three are emitted as
+`/plan-ticket`, `/import-agent` and `/framework-update`. The workflows are
+unchanged; only the name is.
+
+The renaming is not free: several documents name a sibling command in prose
+("that begins with /plan <ID>", "it is also not /update"). A per-harness name
+that only the emitter knows would leave that prose pointing at commands the
+user cannot run. So the three renamable names became slots (`${cmd_plan}`,
+`${cmd_import}`, `${cmd_update}`) filled from one table. Only those three;
+every other command keeps its name on every harness and stays literal in the
+templates, because a slot per command name would be ceremony around a constant.
+
+### Trust
+
+Hermes loads project skills only from a repository the user has trusted with
+`hermes skills trust`, and re-reads changed skills on `/reload-skills`. That is
+a step init cannot take on the user's behalf, so the generated AGENTS.md states
+it and the init report prints it.
+
+### What this validates
+The claude/copilot branching held: adding a third value changed the generator
+in the places the axis already existed and nowhere else, and byte-identity
+across the four pre-existing variants is unchanged. The rule from §27 stands
+and now has evidence behind it: branch in Python, keep conditional prose in
+fragment files, never duplicate a document per variant.

@@ -28,6 +28,26 @@ def seed_description(description: str):
         "## Modules\n\n## Data Flow\n\n## Entry Points\n"
     )
 
+def command_name(name: str, harness: str) -> str:
+    """The slash-command name a roster entry is emitted under.
+
+    Identity everywhere except hermes, which reserves /update, /import and
+    /plan for built-in commands of its own (see HERMES_COMMAND_NAMES).
+    """
+    if harness == "hermes":
+        return HERMES_COMMAND_NAMES.get(name, name)
+    return name
+
+def command_slots(harness: str) -> dict:
+    """`cmd_<name>` slots for the commands that can be renamed.
+
+    Prose that points at a sibling command (`/plan <id>`, "not /import-kb")
+    would otherwise name a command that does not exist on hermes. Only the
+    three renamable names get a slot; the rest stay literal in the templates.
+    """
+    return {f"cmd_{name}": command_name(name, harness)
+            for name in HERMES_COMMAND_NAMES}
+
 def frontmatter(meta: dict) -> str:
     tags = ", ".join(meta["tags"])
     covers = ", ".join(f'"{c}"' for c in meta["covers"])
@@ -87,6 +107,14 @@ def render_index(project_name: str) -> str:
         lines.append(f"| `{path}` | {meta['tier']} | {meta['summary']} |")
     return "\n".join(lines) + "\n"
 
+def _entry_note(harness: str) -> str:
+    """Where AGENTS.md tells the reader the commands live, per harness."""
+    if harness == "claude":
+        return "packaged as Agent Skills under `.claude/skills/`"
+    if harness == "hermes":
+        return f"packaged as Agent Skills under `{HERMES_SKILLS_DIR}/`"
+    return "exposed as prompt files under `.github/prompts/`"
+
 def render_agents_md(project_name: str, description: str = "",
                      harness: str = "claude",
                      generated_body: str = None) -> str:
@@ -97,14 +125,14 @@ def render_agents_md(project_name: str, description: str = "",
     if harness == "copilot":
         cli_note = render.fill("instructions/fragments/copilot/cli-note-large.md",
                               phases_dir=PHASES_DIR)
+    elif harness == "hermes":
+        cli_note = render.load("instructions/fragments/hermes/cli-note-large.md")
     hook_note = (render.load("instructions/fragments/claude/hook-note.md")
                  if harness == 'claude' else '')
     rules_note = (render.fill("instructions/fragments/claude/rules-note.md",
                               tools_dir=TOOLS_DIR)
                  if harness == 'claude' else '')
-    entry_note = ("packaged as Agent Skills under `.claude/skills/`"
-                  if harness == "claude"
-                  else "exposed as prompt files under `.github/prompts/`")
+    entry_note = _entry_note(harness)
     goal_note = ""
     if harness == "claude":
         goal_note = render.load("instructions/fragments/claude/goal-note-large.md")
@@ -119,7 +147,8 @@ def render_agents_md(project_name: str, description: str = "",
                        phases_dir=PHASES_DIR,
                        project_name=project_name,
                        rules_note=rules_note,
-                       tools_dir=TOOLS_DIR)
+                       tools_dir=TOOLS_DIR,
+                       **command_slots(harness))
 
 def render_claude_pointer() -> str:
     return (
@@ -141,12 +170,12 @@ def render_agents_md_small(project_name: str, description: str = "",
                           "Do not edit by hand. -->")
     hook_note = (render.load("instructions/fragments/claude/hook-note-small.md")
                  if harness == 'claude' else '')
-    entry_note = ("packaged as Agent Skills under `.claude/skills/`"
-                  if harness == "claude"
-                  else "exposed as prompt files under `.github/prompts/`")
+    entry_note = _entry_note(harness)
     cli_note = ""
     if harness == "copilot":
         cli_note = render.load("instructions/fragments/copilot/cli-note-small.md")
+    elif harness == "hermes":
+        cli_note = render.load("instructions/fragments/hermes/cli-note-small.md")
     goal_note = ""
     if harness == "claude":
         goal_note = render.load("instructions/fragments/claude/goal-note-small.md")
@@ -158,7 +187,8 @@ def render_agents_md_small(project_name: str, description: str = "",
                        generated_body=generated_body,
                        goal_note=goal_note,
                        hook_note=hook_note,
-                       project_name=project_name)
+                       project_name=project_name,
+                       **command_slots(harness))
 
 def render_notes_stub() -> str:
     return render.fill("config/notes-stub.md")
@@ -223,6 +253,20 @@ def render_update_body(size: str, harness: str, arg: str) -> str:
         verify_extra = (
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
             "     it names points at a file that exists.\n")
+    elif harness == "hermes":
+        backup_paths = f"AGENTS.md and `{HERMES_SKILLS_DIR}/`"
+        merge_cases = (
+            "     - AGENTS.md outside the GENERATED markers: project-specific\n"
+            "       rules a user appended below the framework text.\n"
+            f"     - skills under `{HERMES_SKILLS_DIR}/` present here but not in\n"
+            "       the reference: the user's own, unless the generator's history\n"
+            "       says otherwise. Settle it with the orphan test below rather\n"
+            "       than assuming either way. A skill the reference renamed is\n"
+            "       not an orphan: move its directory instead of leaving both.\n")
+        verify_extra = (
+            f"   - Every `{HERMES_SKILLS_DIR}/<name>/SKILL.md` starts with `---` at\n"
+            "     byte zero and its `name` matches its directory. Reload them in a\n"
+            "     running session with `/reload-skills`.\n")
     else:
         backup_paths = "AGENTS.md and `.github/prompts/`"
         merge_cases = (
@@ -276,7 +320,8 @@ def render_update_body(size: str, harness: str, arg: str) -> str:
                        regen=regen,
                        size=size,
                        verify_extra=verify_extra,
-                       verify_tools=verify_tools)
+                       verify_tools=verify_tools,
+                       **command_slots(harness))
 
 def render_tidy_up_body(size: str, harness: str, arg: str) -> str:
     """Body of the /tidy-up skill: a bounded hygiene sweep over the host code.
@@ -328,7 +373,8 @@ def render_tidy_up_body(size: str, harness: str, arg: str) -> str:
                        arg=arg,
                        record=record,
                        review_note=review_note,
-                       survey_note=survey_note)
+                       survey_note=survey_note,
+                       **command_slots(harness))
 
 def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     """(name, description, body) for each large-profile command.
@@ -378,7 +424,7 @@ def _load_specs(profile: str, order: list, harness: str, arg_focus: str,
             desc, body = _split_frontmatter(raw)
             body = render.render(body, phases_dir=PHASES_DIR, tools_dir=TOOLS_DIR,
                                  arg_focus=arg_focus, arg_ticket=arg_ticket,
-                                 **extra)
+                                 **command_slots(harness), **extra)
         specs.append((name, desc, body))
     return specs
 
@@ -411,6 +457,39 @@ def render_skills(specs) -> dict:
             f'description: "{desc}"\n'
             f"{hint_line}"
             "disable-model-invocation: true\n"
+            "---\n"
+            f"{body}"
+        )
+    return out
+
+def render_hermes_skills(specs, profile: str) -> dict:
+    """Hermes project skills: `.agents/skills/<name>/SKILL.md`.
+
+    Same open SKILL.md standard as the claude harness and the same bodies; the
+    frontmatter is what differs. Hermes wants a semantic version, a platform
+    list and its own metadata block, and it caps the description at 60
+    characters, so the long template descriptions give way to
+    HERMES_DESCRIPTIONS. `disable-model-invocation` is a claude key and is not
+    emitted here; hermes has no equivalent, so the skills stay model-loadable
+    on that harness. Three of them are also renamed (HERMES_COMMAND_NAMES).
+
+    Hermes only discovers these once the repository is trusted, which the user
+    does with `hermes skills trust`; the AGENTS.md note says so.
+    """
+    out = {}
+    for name, _desc, body in specs:
+        cmd = command_name(name, "hermes")
+        out[f"{cmd}/SKILL.md"] = (
+            "---\n"
+            f"name: {cmd}\n"
+            f"description: {HERMES_DESCRIPTIONS[name]}\n"
+            f"version: {FRAMEWORK_VERSION}.0\n"
+            # Audited rather than copied: every skill drives the agent's own
+            # tools plus python3 and git, and all three platforms have those.
+            "platforms: [linux, macos, windows]\n"
+            "metadata:\n"
+            "  hermes:\n"
+            f"    tags: [agent-framework, workflow, {profile}]\n"
             "---\n"
             f"{body}"
         )

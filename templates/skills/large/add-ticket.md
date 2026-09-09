@@ -10,6 +10,6 @@ Add a ticket to the inbox. Ticket id, title, description: ${arg_ticket}
    Ask for a one-line description if none was given.
 3. Commit the `.ai` repo (`add-ticket: <ID>`).
 
-Do not start planning or implementing; that begins with /plan <ID>,
+Do not start planning or implementing; that begins with /${cmd_plan} <ID>,
 which moves the ticket into `.ai/knowledgebase/tasks/<ID>/` and
 promotes its status from `new` to `planned`.

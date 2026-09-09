@@ -9,16 +9,16 @@ This converts a whole prior `.ai/` working directory - both the
 knowledge AND the lifecycle state - into the current layout. It is
 not /import-kb: that transforms arbitrary curated knowledge (a
 docs/wiki dump) into KB nodes and deliberately ignores task and
-ticket state. /import additionally carries the ticket, task, plan,
+ticket state. /${cmd_import} additionally carries the ticket, task, plan,
 decision, and notes state across. If the source is a docs/wiki dump
 rather than a `.ai/`-style working folder, use /import-kb instead.
-It is also not /update: that moves a scaffold this framework already
+It is also not /${cmd_update}: that moves a scaffold this framework already
 wrote (one carrying `.ai/agent/framework.json`) to the current
-version in place. Use /update when the folder is a stamped scaffold
-of an earlier version, /import when it is unstamped or foreign.
+version in place. Use /${cmd_update} when the folder is a stamped scaffold
+of an earlier version, /${cmd_import} when it is unstamped or foreign.
 Run this after scaffolding, against a copy of the old folder: move
 the pre-existing `.ai/` aside (e.g. to `.ai.old/`) before init, then
-`/import .ai.old`.
+`/${cmd_import} .ai.old`.
 
 1. Survey without bulk-loading. List the source tree; sample its
    entry points (`manifest.yaml`, `INDEX.md`, `AGENTS.md`,
@@ -65,7 +65,7 @@ the pre-existing `.ai/` aside (e.g. to `.ai.old/`) before init, then
    Never carry the source's INDEX.md or generated section over
    verbatim, and never overwrite `.ai/agent/framework.json` with the
    source's copy: init already stamped this scaffold at the current
-   version, and that stamp is what /update reads later.
+   version, and that stamp is what /${cmd_update} reads later.
 5. Record provenance: note the source origin in each migrated node so
    the migration is auditable.
 6. Report a mapping table: source item -> target

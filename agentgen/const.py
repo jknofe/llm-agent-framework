@@ -10,7 +10,7 @@ from agentgen import render
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "5.20"
+FRAMEWORK_VERSION = "5.21"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -113,6 +113,50 @@ SKILLS_LARGE = ["explore", "add-ticket", "plan", "implement", "add-reference",
 
 SKILLS_SMALL = ["explore", "spec", "build", "import-kb", "import",
                 "tidy-up", "update"]
+
+# Where the hermes harness looks for project skills. Hermes reads both
+# `.hermes/skills/` and `.agents/skills/` under the nearest git root; the
+# scaffold uses the second because it is the cross-tool location, so a project
+# that later adds another SKILL.md reader does not need a second copy.
+HERMES_SKILLS_DIR = ".agents/skills"
+
+# Hermes ships built-in slash commands, and three of the framework's names are
+# taken: /update, /import and /plan. A project skill cannot be counted on to
+# reach past a built-in, so on that harness those three are emitted under a
+# different name. Every other command keeps its name everywhere. Prose that
+# names one of the three goes through the `cmd_*` slots (see
+# `content.command_slots`) so a renamed command is not referred to by a name
+# that does not exist there.
+HERMES_COMMAND_NAMES = {
+    "update": "framework-update",
+    "import": "import-agent",
+    "plan": "plan-ticket",
+}
+
+# Hermes caps a skill description at 60 characters, which the descriptions in
+# the skill templates (written for the claude and copilot frontmatter) exceed.
+# One short, self-contained, period-terminated line per command; the roster
+# names, not the hermes names, are the keys.
+HERMES_DESCRIPTIONS = {
+    "explore": "Survey the codebase and record what it finds.",
+    "add-ticket": "Add a ticket to the inbox.",
+    "plan": "Turn an inbox ticket into a task plan.",
+    "implement": "Implement a planned ticket.",
+    "add-reference": "Register external material as a reference.",
+    "import-kb": "Import an existing knowledge base.",
+    "import": "Migrate an existing agent folder into .ai.",
+    "spec": "Write a spec for a non-trivial change.",
+    "build": "Implement a change spec, then review it.",
+    "tidy-up": "Hygiene sweep that may not change behavior.",
+    "update": "Move this scaffold to the current framework.",
+}
+
+# What `$ARGUMENTS` (claude) and `${input:...}` (copilot) stand in for on
+# hermes: nothing is substituted there, the text after the command name simply
+# reaches the agent as the user instruction, so the skill has to say so.
+HERMES_ARG_FOCUS = ("Focus: the text after the command name, if there was "
+                    "any.\nWith none, cover the whole project.")
+HERMES_ARG_TICKET = "the text after the command name, verbatim"
 
 _SKILL_DESCRIPTIONS = {
     ("large", "tidy-up"): ("Hygiene sweep that may not change behavior: remove "

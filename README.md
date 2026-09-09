@@ -26,7 +26,8 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, project size, claude or copilot); Enter accepts the defaults.
+description, project size, claude/copilot/hermes); Enter accepts the
+defaults.
 The size prompt is pre-filled with the profile auto-detected from your
 codebase LOC, so Enter accepts the recommendation; `--size auto` selects it
 without prompting and `--size large|small` forces a profile. If a scaffold
@@ -154,12 +155,14 @@ into KB nodes by hand.
 
 `init` scaffolds the workflow as Agent Skills, the open SKILL.md standard
 read by Claude Code and a growing set of other harnesses
-(`.claude/skills/<name>/SKILL.md`); the copilot harness gets the same
-content as VS Code prompt files (`.github/prompts/*.prompt.md`). All
-skills carry `disable-model-invocation: true`: they are pipeline steps
+(`.claude/skills/<name>/SKILL.md`); the hermes harness gets the same
+bodies as project skills (`.agents/skills/<name>/SKILL.md`) and the copilot
+harness as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
+the skills carry `disable-model-invocation: true`: they are pipeline steps
 with side effects (KB writes, code changes, `.ai` commits), so only an
 explicit `/name` from you triggers them, never the model mid-conversation.
-Both harnesses invoke them the same way:
+All three harnesses invoke them the same way (hermes renames three of them,
+see [Hermes support](#hermes-support)):
 
 | Command | What it does |
 |---|---|
@@ -231,7 +234,8 @@ obedience:
 During Phase 1 the agent additionally offers a project-specific Stop hook
 that runs your lint/tests, turning "done = checks pass" into a hard gate.
 Hooks and the reviewer subagent are scaffolded for the claude harness;
-Copilot has no equivalent mechanism, there the rules stay protocol text.
+Copilot and Hermes have no equivalent mechanism, there the rules stay
+protocol text.
 
 These hooks only fire when the scaffolded repo is the **active Claude Code
 project directory**. Driving the agent from a parent directory, a monorepo
@@ -256,7 +260,34 @@ therefore contains the phase kickoff lines to type instead (also printed
 at the end of `init`), e.g.
 `Run Phase 1: read .ai/agent/phases/init.md first and follow it exactly.`
 
-The `.ai/` knowledge base and phase docs are identical for both harnesses;
+## Hermes support
+
+Choosing `hermes` at the harness prompt targets the Hermes agent:
+
+- instructions file: `AGENTS.md` (read natively, no pointer file)
+- project skills: `.agents/skills/<name>/SKILL.md`, the same SKILL.md
+  standard and the same bodies as the claude harness, with hermes
+  frontmatter (`version`, `platforms`, `metadata.hermes.tags`, and a
+  description trimmed to the 60-character cap)
+- no `.claude/settings.json`, hooks or reviewer subagent (no equivalent)
+
+Hermes loads project skills only from a repository you have trusted, so run
+`hermes skills trust` once in the project root; in a running session
+`/reload-skills` picks up edited skills.
+
+Three commands are renamed there, because Hermes reserves those names for
+built-in commands of its own:
+
+| Elsewhere | On hermes |
+|---|---|
+| `/plan <id>` | `/plan-ticket <id>` |
+| `/import <source>` | `/import-agent <source>` |
+| `/update [dry-run]` | `/framework-update [dry-run]` |
+
+Hermes substitutes nothing into a skill: whatever you type after the command
+name reaches the agent as your instruction, and the skill says so.
+
+The `.ai/` knowledge base and phase docs are identical for all harnesses;
 only the entry files differ.
 
 ## What init creates

@@ -12,6 +12,7 @@ unanswerable while the content lived inside string literals:
   python     do the rendered tools and hooks parse as Python?
   json       does the rendered settings.json parse as JSON?
   register   do the templates honor the no-em-dash rule (CONCEPT section 8)?
+  hermes     do the hermes skill descriptions fit that harness's 60-char cap?
 
 The byte-identity harness lives outside this file: it renders all four
 variants and diffs them against a known-good capture. This file checks
@@ -28,9 +29,11 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from agentgen import content, render  # noqa: E402
-from agentgen.const import SKILLS_LARGE, SKILLS_SMALL  # noqa: E402
+from agentgen.const import (HERMES_DESCRIPTIONS, SKILLS_LARGE,  # noqa: E402
+                            SKILLS_SMALL)
 
-VARIANTS = [(s, h) for s in ("large", "small") for h in ("claude", "copilot")]
+VARIANTS = [(s, h) for s in ("large", "small")
+            for h in ("claude", "copilot", "hermes")]
 failures = []
 
 
@@ -135,9 +138,41 @@ def check_register():
             fail("register", f"em dash in template: {rel}")
 
 
+def check_hermes():
+    """Hermes frontmatter rules the generator must not break: one short
+    description per rostered command, at or below 60 characters, ending in a
+    period, and a lowercase-hyphenated skill name matching its directory."""
+    for name in sorted(set(SKILLS_LARGE) | set(SKILLS_SMALL)):
+        desc = HERMES_DESCRIPTIONS.get(name)
+        if desc is None:
+            fail("hermes", f"no hermes description for /{name}")
+            continue
+        if len(desc) > 60:
+            fail("hermes", f"/{name} description is {len(desc)} chars (max 60)")
+        if not desc.endswith("."):
+            fail("hermes", f"/{name} description does not end with a period")
+    for size, order in (("large", SKILLS_LARGE), ("small", SKILLS_SMALL)):
+        specs = (content.command_specs("hermes", "$F", "$T") if size == "large"
+                 else content.command_specs_small("hermes", "$F", "$T"))
+        for rel, text in content.render_hermes_skills(specs, size).items():
+            cmd = rel.split("/")[0]
+            if not re.fullmatch(r"[a-z][a-z0-9-]*", cmd):
+                fail("hermes", f"{size}: skill name not lowercase-hyphenated: {cmd}")
+            if not text.startswith("---\n"):
+                fail("hermes", f"{size}/{cmd}: SKILL.md does not open with ---")
+            if f"\nname: {cmd}\n" not in text:
+                fail("hermes", f"{size}/{cmd}: name does not match its directory")
+        emitted = {rel.split("/")[0] for rel in
+                   content.render_hermes_skills(specs, size)}
+        for reserved in ("update", "import", "plan"):
+            if reserved in emitted:
+                fail("hermes",
+                     f"{size}: /{reserved} collides with a hermes built-in")
+
+
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_register):
+                  check_json, check_register, check_hermes):
         check()
     if failures:
         print(f"FAIL ({len(failures)})")
@@ -145,7 +180,7 @@ def main():
             print("  " + f)
         return 1
     print(f"ok: {len(all_templates())} templates, "
-          f"{len(rendered_artifacts())} rendered artifacts, 6 checks passed")
+          f"{len(rendered_artifacts())} rendered artifacts, 7 checks passed")
     return 0
 
 
