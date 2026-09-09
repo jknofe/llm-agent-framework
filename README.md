@@ -65,6 +65,19 @@ A plain re-run of `init-agent` regenerates framework files if you confirm the
 overwrite prompt (or pass `-y`), but it cannot merge or retire, which is why
 `/update` exists.
 
+**Switching harness** (say claude to hermes) is not an update either: the
+entry files are pure framework output with nothing to merge, so the CLI does
+it. Run `init-agent --harness hermes` in the project. It writes the new
+command set, then retires the old one: every file the version stamp recorded
+for the previous harness is **moved** to
+`.ai/agent/.harness-backup/<old-harness>/`, never deleted, and directories it
+empties are removed. Files it did not record are yours, so a skill you added
+next to the framework's stays where it is and is reported. Notes, change
+specs and the generated project-context section are preserved as in any
+re-init, and AGENTS.md is regenerated so it describes the harness you are
+actually on. It asks first unless you pass `-y`; a scaffold with no recorded
+file list retires nothing and prints what to remove by hand.
+
 1. **Ground the agent**: run `/explore`. It runs the deterministic inventory,
    samples the codebase, fills the project-context section of `AGENTS.md` and
    `.ai/notes.md`, and asks you about non-derivable knowledge (domain terms,

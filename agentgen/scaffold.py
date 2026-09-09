@@ -112,16 +112,18 @@ def ensure_gitignore(root: Path):
 def ensure_ai_gitignore(root: Path):
     """Keep volatile working state out of .ai's own repo: raw external copies
     (re-fetchable, would bloat KB history), the `.current` task cursor
-    (per-checkout session state, not shared knowledge), and the /update
-    rescue copy of the host-repo framework files (a throwaway snapshot, not
-    history - the `.ai` repo already versions everything it owns)."""
+    (per-checkout session state, not shared knowledge), and the two rescue
+    copies of host-repo framework files, from /update and from a harness
+    switch (throwaway snapshots, not history - the `.ai` repo already versions
+    everything it owns)."""
     ai_dir = root / ".ai"
     if not ai_dir.is_dir():
         return
     gi = ai_dir / ".gitignore"
     lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
     have = {line.strip().rstrip("/") for line in lines}
-    add = [e for e in ("external/", ".current", "agent/.update-backup/")
+    add = [e for e in ("external/", ".current", "agent/.update-backup/",
+                       "agent/.harness-backup/")
            if e.rstrip("/") not in have]
     if not add:
         return
@@ -152,6 +154,70 @@ def ai_commit(root: Path, message: str):
         print(f"warning: commit in .ai failed: {r.stderr.strip() or r.stdout.strip()}")
     else:
         print(f"committed in .ai: {message}")
+
+def read_stamp(root: Path):
+    """The scaffold's recorded version stamp as a dict, or None if this
+    directory has none or it is unreadable."""
+    stamp = root / FRAMEWORK_JSON
+    if not stamp.exists():
+        return None
+    try:
+        recorded = json.loads(stamp.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return recorded if isinstance(recorded, dict) else None
+
+def retire_harness_files(root: Path, previous: dict, old_harness: str) -> tuple:
+    """Move the previous harness's entry files out of the way after a switch.
+
+    Left in place they keep answering the same slash commands out of a
+    document AGENTS.md no longer describes, which is the failure this exists
+    to prevent: two live command sets disagreeing about the protocol.
+
+    Only files the stamp actually recorded are retired. Anything the user put
+    next to them is theirs, stays, and is reported instead, because the
+    generator cannot tell a hand-written skill from one it forgot it wrote and
+    guessing wrong costs the user work.
+
+    They are moved to `.ai/agent/.harness-backup/<old-harness>/`, not deleted.
+    The realistic loss is a `.claude/settings.json` carrying hand-added
+    permissions, and a move is recoverable where a delete is not.
+
+    Returns (retired, left_behind, backup_dir): paths relative to root.
+    """
+    recorded = previous.get("framework_files") or []
+    written = {str(p.relative_to(root)) for p in _framework_paths}
+    backup = root / HARNESS_BACKUP_DIR / old_harness
+    retired = []
+    for rel in sorted(set(recorded) - written - {FRAMEWORK_JSON}):
+        src = root / rel
+        if not src.is_file():
+            continue
+        dest = backup / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dest))
+        retired.append(rel)
+    _prune_empty_dirs(root, retired)
+
+    left = []
+    for entry in HARNESS_ENTRY_PATHS.get(old_harness, []):
+        path = root / entry
+        if path.is_file():
+            left.append(entry)
+        elif path.is_dir():
+            left += sorted(str(f.relative_to(root)) for f in path.rglob("*")
+                           if f.is_file())
+    return retired, left, Path(HARNESS_BACKUP_DIR) / old_harness
+
+def _prune_empty_dirs(root: Path, moved: list):
+    """Remove directories a retirement emptied, deepest first. Only ever
+    removes a directory that has nothing left in it, so a user file anywhere
+    under it keeps the whole chain."""
+    parents = {(root / rel).parent for rel in moved}
+    for path in sorted(parents, key=lambda p: len(p.parts), reverse=True):
+        while path != root and path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+            path = path.parent
 
 def detect_scaffold(root: Path):
     """Inspect an existing scaffold and return (size, harness, name), or None
@@ -294,11 +360,16 @@ def bootstrap_update(root: Path) -> int:
 
 def scaffold(root: Path, name: str, desc: str, harness: str,
              force: bool, commit_message: str = None,
-             reference: bool = False) -> int:
+             reference: bool = False, switch_from: dict = None) -> int:
     """Write the scaffold: a dense AGENTS.md, running notes, per-change specs,
     one deterministic inventory tool, and the harness entry files. `.ai/` is a
     private nested repo (notes + specs); AGENTS.md and the harness directory
-    live in the host repo."""
+    live in the host repo.
+
+    `switch_from` is the previous version stamp when this run changes the
+    scaffold's harness. The new harness's files are written normally; the old
+    harness's recorded files are then retired, which is the whole difference
+    between switching and layering a second command set on top of the first."""
     created, skipped, preserved = [], [], []
     _framework_paths.clear()
 
@@ -347,6 +418,13 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
 
+    # Retire before the stamp: the stamp must record only what is now live,
+    # and the retirement reads the paths this run wrote.
+    retired, left_behind, backup = [], [], None
+    if switch_from:
+        retired, left_behind, backup = retire_harness_files(
+            root, switch_from, switch_from.get("harness"))
+
     # Version stamp last: it records every framework path written above.
     write(root / FRAMEWORK_JSON,
           render_framework_json(root, name, harness),
@@ -357,9 +435,31 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
+    if switch_from:
+        commit_message = commit_message or (
+            f"init: switch harness {switch_from.get('harness')} -> {harness}")
     ai_commit(root, commit_message or f"init: scaffold ({name})")
 
     report(root, created, skipped, preserved)
+    for rel in retired:
+        print(f"retired   {rel} (moved to {backup}/)")
+    if switch_from:
+        old_harness = switch_from.get("harness")
+        print(f"\nSwitched harness: {old_harness} -> {harness}.")
+        if retired:
+            print(f"The {old_harness} entry files are in {backup}/; delete "
+                  "that directory once you are\nsatisfied with the switch.")
+        elif switch_from.get("framework_files"):
+            print(f"Nothing to retire: no recorded {old_harness} file was "
+                  "still present.")
+        else:
+            print(f"This scaffold recorded no file list, so no {old_harness} "
+                  "file could be retired\nsafely. Remove them by hand: "
+                  + ", ".join(HARNESS_ENTRY_PATHS.get(old_harness, [])) + ".")
+        if left_behind:
+            print(f"\nLeft in place under the old harness (not framework-"
+                  "owned, so yours to keep or\nremove): "
+                  + ", ".join(left_behind))
     entry = {"claude": ".claude", "hermes": HERMES_SKILLS_DIR}.get(
         harness, ".github/prompts")
     print(f"\n.ai: notes.md + changes/  |  AGENTS.md + {entry}"

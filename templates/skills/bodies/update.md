@@ -116,6 +116,11 @@ ${verify_extra}   - AGENTS.md still holds this project's context between its
    - Delete the temp reference directory. Keep
      `.ai/agent/.update-backup/` until the user confirms the result.
 
+Switching harness is not an update either: the entry files are pure
+framework output with nothing to merge, so `init-agent --harness <name>`
+does it, writing the new set and retiring the old one. If the user asks
+for a different harness, say that and stop.
+
 A scaffold stamped `"profile": "large"` predates framework 5.22, which
 removed the large profile. There is no reference to render for it, so
 stop and report that: moving such a project across is a deliberate

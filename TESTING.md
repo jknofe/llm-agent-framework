@@ -12,7 +12,11 @@ themselves.
    ```bash
    python3 tests/check_templates.py
    python3 tests/test_bootstrap_update.py
+   python3 tests/test_harness_switch.py
    ```
+   The third scaffolds one harness, switches to another, and checks that the
+   old command set is gone, that a user-added skill next to it is not, that
+   retired files land in the backup, and that a switch is never silent.
    The second builds real v5.12/v5.13 scaffolds from this repo's git history
    and checks that `--bootstrap-update` delivers `/update`, stamps
    `framework_version: null`, and modifies nothing else. It skips cleanly on a

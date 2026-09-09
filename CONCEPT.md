@@ -1,6 +1,11 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-09-09, v5.22 (the large profile is removed; the framework is what
+State: 2026-09-09, v5.23 (switching an existing scaffold's harness is
+tooling, not a manual chore: `init-agent --harness <name>` writes the new
+entry files and retires the recorded old ones into a backup, so the failure
+that mattered, two live command sets disagreeing about the protocol, cannot
+happen by accident. §32).
+v5.22 (the large profile is removed; the framework is what
 used to be the small profile, for every harness. The knowledge base, phase
 docs, KB tools, ticket pipeline and second review gate are gone, and with them
 the profile axis: one shape, three harnesses. Sections 1, 2, 4, 5, 13 and 20
@@ -1614,3 +1619,48 @@ refuses the same case. The supported route is a fresh `init-agent` plus
 it distills the KB into the project-context digest and `notes.md` and carries
 in-flight change state across. That skill is deliberately kept pointed at the
 old shape, and is the only place in the framework that still describes it.
+
+## 32. Switching harness in place (2026-09-09, v5.23)
+
+With three harnesses (§30) and one profile (§31), the harness is the only
+thing left to choose, and there was no supported way to change it. Re-running
+init with a different `--harness` wrote the new entry files and left the old
+ones exactly where they were.
+
+### The failure that motivates it
+
+Not the stale files themselves, which are harmless clutter. It is that the old
+files still answer the same slash commands. A project switched from claude to
+hermes would have `.claude/skills/build/SKILL.md` and
+`.agents/skills/build/SKILL.md` both live, both claiming `/build`, while
+AGENTS.md now documents only the hermes half. Whichever the harness picks up,
+the user cannot tell which one ran, and the two drift apart from the first
+framework update onward. One command must have one definition.
+
+### Why the generator, not the agent
+
+§24 draws the line: a merge belongs to the agent, a whole-file operation
+belongs to the scaffolder. The harness entry files are pure framework output.
+They have no GENERATED region, no user-edited part, nothing to reconcile, and
+the new set is rendered from the same bodies as the old one. So a switch is an
+init, and `init-agent --harness <name>` on an existing scaffold performs it.
+`/update` says so and stops if asked.
+
+### Retire by moving, and only what was recorded
+
+Two rules keep it from costing anyone work.
+
+Only files the version stamp actually recorded are retired. A skill the user
+wrote next to the framework's is indistinguishable from one the generator
+forgot it wrote, so it stays and is reported instead. A scaffold with no
+recorded file list retires nothing at all and prints what to remove by hand.
+
+Retired files are moved to `.ai/agent/.harness-backup/<old-harness>/`, not
+deleted. The realistic loss is a `.claude/settings.json` carrying permissions
+a user added by hand, and a move is recoverable where a delete is not. The
+backup is gitignored inside `.ai`, like the `/update` one: a rescue snapshot,
+not history.
+
+A switch also forces regeneration of the framework files. AGENTS.md and the
+skill bodies name the harness they were built for, so leaving them as "exists"
+would produce a scaffold describing the harness it just moved off.

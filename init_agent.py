@@ -27,7 +27,11 @@ the agent through skills and folder conventions:
                          change; the rules live in AGENTS.md
 
 Prompts: project name, one-line description, harness (claude/copilot/hermes).
-Enter accepts the default. Non-TTY runs use the defaults unless overridden by
+Enter accepts the default. Pointing --harness at a different harness than the
+one an existing scaffold was built for switches it: the new entry files are
+written and the old ones the version stamp recorded are moved to
+.ai/agent/.harness-backup/<old-harness>/ (moved, not deleted; files the stamp
+never recorded are left alone and reported). It asks first unless -y is given. Non-TTY runs use the defaults unless overridden by
 the flags below. If a scaffold already exists, init asks before overwriting
 framework files; hand-filled content (notes, specs, the generated
 project-context section) is always preserved, never reverted to stubs. To move
@@ -230,6 +234,39 @@ def cmd_init(args=None) -> int:
 
     marker = root / "AGENTS.md"
     force = bool(args and args.yes)
+
+    # A harness switch is an init, not an update: the entry files are pure
+    # framework output with nothing to merge, so the generator owns the move.
+    # What it must not do is write the new set and leave the old one live.
+    switch_from = None
+    if marker.exists():
+        previous = read_stamp(root)
+        if previous is None:
+            detected = detect_scaffold(root)
+            previous = {"harness": detected[1]} if detected else None
+        if previous and previous.get("harness") not in (None, harness):
+            switch_from = previous
+            old_harness = previous["harness"]
+            if not force:
+                print(f"This scaffold is set up for the {old_harness} harness.")
+                print(f"Switching to {harness} regenerates the framework files "
+                      f"and retires the {old_harness}\nentry files it recorded "
+                      f"into {HARNESS_BACKUP_DIR}/{old_harness}/ (moved, not "
+                      "deleted).\nNotes, specs and the project context are "
+                      "preserved.")
+                answer = ask(f"Switch harness {old_harness} -> {harness}? "
+                             "(y/N)", "n")
+                if answer.lower() not in ("y", "yes"):
+                    print(f"Aborted; nothing was written. Re-run with "
+                          f"--harness {old_harness} to keep the current one.",
+                          file=sys.stderr)
+                    return 1
+            # A switch has to regenerate: AGENTS.md, and every skill body that
+            # names a renamed command, describe the harness they were built
+            # for. Skipping them as "exists" would leave the scaffold talking
+            # about the harness it just moved off.
+            force = True
+
     if marker.exists() and not force:
         answer = ask("Scaffold exists. Overwrite regenerates framework files "
                      "(instructions, skills, hooks, settings); hand-filled "
@@ -237,7 +274,7 @@ def cmd_init(args=None) -> int:
                      "Overwrite? (y/N)", "n")
         force = answer.lower() in ("y", "yes")
 
-    rc = scaffold(root, name, desc, harness, force)
+    rc = scaffold(root, name, desc, harness, force, switch_from=switch_from)
     if rc == 0 and args and getattr(args, "debug_probe", False):
         write_debug_probe(root)
     return rc
@@ -255,7 +292,12 @@ def main() -> int:
                                               # keep working; there is only
                                               # one profile now
     ap.add_argument("--harness", choices=["claude", "copilot", "hermes"],
-                    help="target harness (skip the prompt); default claude")
+                    help="target harness (skip the prompt); default claude. "
+                         "On an existing scaffold built for a different "
+                         "harness this switches it: the new entry files are "
+                         "written and the old ones the version stamp recorded "
+                         "are moved to .ai/agent/.harness-backup/<old>/. "
+                         "Confirmed interactively unless -y is given")
     ap.add_argument("-y", "--yes", action="store_true",
                     help="overwrite framework files without prompting")
     ap.add_argument("--detect", action="store_true",

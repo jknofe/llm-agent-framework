@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "5.22"
+FRAMEWORK_VERSION = "5.23"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -27,6 +27,20 @@ SKILLS = ["explore", "spec", "build", "import-kb", "import", "tidy-up",
 # scaffold uses the second because it is the cross-tool location, so a project
 # that later adds another SKILL.md reader does not need a second copy.
 HERMES_SKILLS_DIR = ".agents/skills"
+
+# Where a harness switch parks the entry files of the harness it replaces.
+# Inside `.ai` so it travels with the scaffold, gitignored there because it is
+# a rescue snapshot rather than history.
+HARNESS_BACKUP_DIR = ".ai/agent/.harness-backup"
+
+# The directories and files each harness owns as its command entry points.
+# Used to report what a switch left behind: anything still sitting there that
+# the version stamp did not record is the user's own, not the framework's.
+HARNESS_ENTRY_PATHS = {
+    "claude": [".claude", "CLAUDE.md"],
+    "copilot": [".github/prompts"],
+    "hermes": [HERMES_SKILLS_DIR],
+}
 
 # Hermes ships built-in slash commands, and two of the framework's names are
 # taken: /import and /update. A project skill cannot be counted on to reach
