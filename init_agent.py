@@ -4,82 +4,68 @@ init_agent.py - Scaffold a project-aware LLM agent (interactive, run in the
 project root). The script only initializes; everything afterwards is done by
 the agent through skills and folder conventions:
 
-  /explore               Phase 1: build the knowledge base
-  /add-ticket            store a ticket as markdown in the .ai/tickets/ inbox
-                         (or drop a <ID>-<slug>.md file there yourself)
-  /plan <id>             Phase 2: turn an inbox ticket into tasks/<id>/
-  /implement <id>        Phase 3: work the planned task files
-  /add-reference         register external material (repos, docs) under
-                         .ai/external/ + a references/<name> KB node
-                         (or place material in .ai/external/ yourself)
+  /explore [focus]       sample the codebase; fill the AGENTS.md project
+                         context and .ai/notes.md
+  /spec <id> <title>     write .ai/changes/<id>/spec.md for a non-trivial
+                         change (goal, acceptance criteria, task checklist)
+  /build <id>            implement the spec's tasks, review the diff against
+                         the criteria, finish
   /import-kb <source>    import an existing knowledge base of any structure:
-                         read, classify, and transform it into .ai (KB nodes +
-                         notes.md large; project-context + notes.md small)
+                         read, classify, and distill it into the project
+                         context + notes.md
   /import <source>       migrate an existing .ai/ folder (older framework
                          version or other layout) into the current structure:
-                         knowledge and lifecycle state (tickets, tasks, changes)
+                         knowledge and in-flight change specs
   /tidy-up [scope]       hygiene sweep that may not change behavior: remove
                          dead code, propose obsolete files for removal,
                          shorten overlong comments, drop em dashes from prose
   /update                move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
-                         shape. Never re-explores; the KB is carried forward
+                         shape. Never re-explores
   archive                no command: ask the agent to archive a finished
-                         ticket; the rules live in AGENTS.md
+                         change; the rules live in AGENTS.md
 
-Prompts: project name, one-line description, project size (auto/large/small),
-harness (claude/copilot/hermes). Enter accepts the default. The size prompt defaults
-to auto: the profile auto-detected from the codebase LOC (small <=10k, large
-above); pick large or small to override. --size auto selects it without
-prompting and --size large|small forces a profile. Non-TTY runs use the
-auto-detected size (and the other defaults) unless overridden by the flags
-below. If a scaffold
-already exists, init asks before
-overwriting framework files; hand-filled content (KB nodes, manifest, INDEX,
-notes, specs, the generated project-context section) is always preserved,
-never reverted to stubs. To move an existing scaffold to a newer framework
-version, run the agent's /update skill rather than re-running init: updating
-is a merge (keep user edits, retire dropped files, migrate hand-filled content
-into a changed shape), and merges need judgment this script does not have.
+Prompts: project name, one-line description, harness (claude/copilot/hermes).
+Enter accepts the default. Non-TTY runs use the defaults unless overridden by
+the flags below. If a scaffold already exists, init asks before overwriting
+framework files; hand-filled content (notes, specs, the generated
+project-context section) is always preserved, never reverted to stubs. To move
+an existing scaffold to a newer framework version, run the agent's /update
+skill rather than re-running init: updating is a merge (keep user edits,
+retire dropped files, migrate hand-filled content into a changed shape), and
+merges need judgment this script does not have.
 
-Size profiles (auto-selected from codebase LOC when --size is omitted or auto):
-  large            Full framework: KB (manifest, hot/cold nodes, INDEX),
-                   on-demand phase docs, deterministic KB tools, ticket
-                   pipeline. For large codebases where context must be rationed.
-  small            For codebases up to ~10k LOC, where the source is small
-                   enough to read on demand. No KB/manifest/phase docs/tools:
-                   a dense AGENTS.md (commands + conventions + generated
-                   project-context), running memory in .ai/notes.md, a
-                   lightweight per-change spec (.ai/changes/<id>/spec.md) and
-                   one fresh-context review gate. Skills: /explore /spec /build
-                   /import-kb /import /tidy-up /update.
+There is one profile. Framework 5.22 removed the large profile (KB manifest,
+hot/cold nodes, INDEX, on-demand phase docs, deterministic KB tools, ticket
+pipeline): the source is read on demand instead, knowledge lives in a dense
+AGENTS.md plus .ai/notes.md, and each non-trivial change gets a lightweight
+spec and one fresh-context review gate.
 
 Context layout:
-  AGENTS.md                    canonical instructions (vendor-neutral): KB
-                               protocol, budgets, generated project-context,
-                               phase pointers. Read natively by Copilot;
-                               imported via CLAUDE.md for Claude Code
+  AGENTS.md                    canonical instructions (vendor-neutral):
+                               conventions, right-sizing rules, commands, and
+                               the generated project-context section. Read
+                               natively by Copilot and Hermes; imported via
+                               CLAUDE.md for Claude Code
   CLAUDE.md (claude)           one-line pointer: @AGENTS.md
-  .ai/notes.md                 running memory (both profiles): gotchas,
-                               runbooks, unwritten rules; promote durable
-                               items into KB nodes (large profile)
+  .ai/notes.md                 running memory: gotchas, runbooks, unwritten
+                               rules
+  .ai/changes/<id>/spec.md     per-change spec: goal, acceptance criteria,
+                               task checklist
   .ai/.current                 gitignored task cursor: cross-session resume
-                               pointer (active ticket/change, task file, files)
-  .ai/agent/phases/*.md        phase docs, single source of truth, loaded on
-                               demand only when the phase runs
-  .ai/agent/tools/*.py         deterministic helpers (gen_index, check_stale)
-  .claude/skills/*/SKILL.md    Agent Skills (open standard): thin pointers to
-                               the phase docs, self-contained add-* helpers
-  .github/prompts/*.prompt.md  copilot harness: same content as prompt files
+                               pointer (active change, files)
+  .ai/agent/tools/probe.py     deterministic repo inventory, used by /explore
+  .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
                                loaded once `hermes skills trust` has run in the
-                               repo. /plan, /import and /update are hermes
-                               built-ins, so those three ship as /plan-ticket,
-                               /import-agent and /framework-update
-  .claude/settings.json        permission allow list + hooks (claude only)
-  .claude/hooks/*.py           hook scripts: protect generated files, remind
-                               about uncommitted .ai changes
+                               repo. /import and /update are hermes built-ins,
+                               so those two ship as /import-agent and
+                               /framework-update
+  .github/prompts/*.prompt.md  copilot harness: same content as prompt files
+  .claude/settings.json        permission allow list + Stop hook (claude only)
+  .claude/hooks/*.py           hook scripts: remind about uncommitted .ai
+                               changes
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
 
 Versioning:
@@ -89,22 +75,20 @@ Versioning:
   (protocol rule in AGENTS.md, enforced by a Stop hook on claude).
 
 Generated docs use two language registers (concept v5, CONCEPT.md section 8):
-normative docs (AGENTS.md, phase docs) in plain imperative English, KB
-content (node summaries, tickets) telegraphic. Identifiers verbatim.
+normative docs in plain imperative English, recorded knowledge (notes, specs)
+telegraphic. Identifiers verbatim.
 
 Usage:
   python init_agent.py        (or: init-agent)            interactive
-  python init_agent.py --size auto  --name foo --desc "…"  auto-pick profile
-  python init_agent.py --size small --name foo --desc "…" force small profile
-  Flags: --name, --description/--desc, --size {large,small,auto}, --harness
-  {claude,copilot,hermes}, -y/--yes (overwrite framework files without
-  prompting).
+  python init_agent.py --name foo --desc "..." --harness claude
+  Flags: --name, --description/--desc, --harness {claude,copilot,hermes},
+  -y/--yes (overwrite framework files without prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 
   Two flags exist only to serve the agent's /update skill, which is how an
   existing scaffold moves to a newer framework version:
   --detect                print this directory's scaffold stamp as JSON
-                          (profile, harness, framework version, file list)
+                          (harness, framework version, file list)
   --emit-reference DIR    render a pristine scaffold of the current framework
                           into DIR, with no git or host-project side effects,
                           as the comparison target /update diffs against
@@ -216,17 +200,13 @@ def cmd_emit_reference(target: str, args) -> int:
         print(f"error: --emit-reference target is not empty: {dest}",
               file=sys.stderr)
         return 1
-    size = args.size if args.size and args.size != "auto" else "large"
     harness = args.harness or "claude"
     name = args.name if args.name is not None else "reference"
     desc = args.description if args.description is not None else ""
     dest.mkdir(parents=True, exist_ok=True)
-    if size == "small":
-        rc = scaffold_small(dest, name, desc, harness, True, reference=True)
-    else:
-        rc = scaffold_large(dest, name, desc, harness, True, reference=True)
+    rc = scaffold(dest, name, desc, harness, True, reference=True)
     if rc == 0:
-        print(f"reference {size}/{harness} scaffold "
+        print(f"reference {harness} scaffold "
               f"(framework {FRAMEWORK_VERSION}) rendered to {dest}")
     return rc
 
@@ -244,38 +224,20 @@ def cmd_init(args=None) -> int:
             else ask("Project name", root.name))
     desc = (args.description if args and args.description is not None
             else ask("Project description, one line"))
-    requested = args.size if args and args.size else None
-    if requested and requested != "auto":
-        size = requested
-    else:
-        # No profile given, or "auto": weigh the codebase and recommend one.
-        est = estimate_loc(root)
-        auto_size = choose_size(est)
-        print(f"auto-size: {est} lines of code across source files "
-              f"-> {auto_size} profile")
-        size = auto_size
-        if requested != "auto":     # unspecified + interactive: let user vet it
-            choice = ask_choice("Project size", ["auto", "large", "small"],
-                                "auto")
-            size = auto_size if choice == "auto" else choice
     harness = (args.harness if args and args.harness
                else ask_choice("Harness", ["claude", "copilot", "hermes"],
                                "claude"))
 
-    marker = (root / ".ai" / "knowledgebase" / "manifest.yaml"
-              if size == "large" else root / "AGENTS.md")
+    marker = root / "AGENTS.md"
     force = bool(args and args.yes)
     if marker.exists() and not force:
         answer = ask("Scaffold exists. Overwrite regenerates framework files "
                      "(instructions, skills, hooks, settings); hand-filled "
-                     "content (KB, notes, specs) is preserved either way. "
+                     "content (notes, specs) is preserved either way. "
                      "Overwrite? (y/N)", "n")
         force = answer.lower() in ("y", "yes")
 
-    if size == "small":
-        rc = scaffold_small(root, name, desc, harness, force)
-    else:
-        rc = scaffold_large(root, name, desc, harness, force)
+    rc = scaffold(root, name, desc, harness, force)
     if rc == 0 and args and getattr(args, "debug_probe", False):
         write_debug_probe(root)
     return rc
@@ -287,10 +249,11 @@ def main() -> int:
     ap.add_argument("--name", help="project name (skip the prompt)")
     ap.add_argument("--description", "--desc", dest="description",
                     help="one-line project description (skip the prompt)")
-    ap.add_argument("--size", choices=["large", "small", "auto"],
-                    help="size profile (skip the prompt). Omit or use 'auto' "
-                         "to pick automatically from the codebase LOC "
-                         "(small <=10k, large above)")
+    ap.add_argument("--size", choices=["small"],
+                    help=argparse.SUPPRESS)   # accepted so /update skill
+                                              # bodies written before 5.22
+                                              # keep working; there is only
+                                              # one profile now
     ap.add_argument("--harness", choices=["claude", "copilot", "hermes"],
                     help="target harness (skip the prompt); default claude")
     ap.add_argument("-y", "--yes", action="store_true",
@@ -303,8 +266,8 @@ def main() -> int:
                     help="render a pristine scaffold of the current framework "
                          "into DIR (must be empty or absent) and exit, with "
                          "no git or host-project side effects. The comparison "
-                         "target for the /update skill; use --size/--harness "
-                         "to match the project being updated")
+                         "target for the /update skill; use --harness to "
+                         "match the project being updated")
     ap.add_argument("--bootstrap-update", action="store_true",
                     help="deliver the /update skill into an existing scaffold "
                          "that predates it, and nothing else. Profile and "

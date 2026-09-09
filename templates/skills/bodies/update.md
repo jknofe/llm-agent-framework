@@ -40,7 +40,7 @@ covers ${owned}.
    scaffold into a temp directory:
 
        python3 "$LLM_AGENT_HOME/init_agent.py" --emit-reference <tmpdir> \
-         --size ${size} --harness ${harness} --name <project-name>
+         --harness ${harness} --name <project-name>
 
    The reference is a read-only comparison target. Never copy it over
    the project wholesale; that is the blind overwrite this skill exists
@@ -96,7 +96,7 @@ ${migrate}   If a new field cannot be derived from what the project already
    records, leave it empty and list it in the report for the user.
    Do not invent a value, and do not read the codebase to fill it:
    that is /explore's job and it is not part of an update.
-${regen}
+
 5. Verify before reporting success.
    - Every tool the instructions name exists and exits 0:
      ${verify_tools}.
@@ -106,7 +106,7 @@ ${verify_extra}   - AGENTS.md still holds this project's context between its
 
 6. Record and report.
    - Write `${framework_json}` from the reference's copy: new version,
-     new file list, this project's name and profile.
+     new file list, and this project's name.
    - Print one row per file: added / updated / merged (with what was
      kept) / retired / migrated / untouched, then anything left for the
      user to decide.
@@ -116,10 +116,10 @@ ${verify_extra}   - AGENTS.md still holds this project's context between its
    - Delete the temp reference directory. Keep
      `.ai/agent/.update-backup/` until the user confirms the result.
 
-Switching profile (small <-> large) is not an update: it is a deliberate
-re-init with `init-agent --size <profile>`. If this codebase has grown
-past the profile it was scaffolded for, say so in the report and let the
-user decide.
+A scaffold stamped `"profile": "large"` predates framework 5.22, which
+removed the large profile. There is no reference to render for it, so
+stop and report that: moving such a project across is a deliberate
+re-init plus `/import`, not an update.
 
 With `dry-run`: do steps 1-3 as analysis only, print the table of what
 would change, and stop without writing anything. The backup and the

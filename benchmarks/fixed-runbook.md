@@ -11,6 +11,12 @@ This is the single self-contained runbook to execute. It consolidates and pins
 the cross-ecosystem cells the framework has been benchmarked on (Python, Shell,
 Rust, TypeScript/Angular, C++/ROS 2); the design history lives in the git log.
 
+> **Framework 5.22 removed the large profile.** The cells that scaffold it
+> (`--size large`, the `ros-*` cells) are kept here as the pinned record of
+> runs already made and cannot be re-run against the current generator. The
+> `--size` flag it shows is accepted only as `small`. Everything else runs
+> unchanged; drop the flag for a fresh run.
+
 ---
 
 ## USER INPUTS (the only variables)

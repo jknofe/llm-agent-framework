@@ -1,6 +1,11 @@
 # Project-Aware LLM Agent Framework — Concept
 
-State: 2026-09-09, v5.21 (hermes as a third harness: the same skill bodies
+State: 2026-09-09, v5.22 (the large profile is removed; the framework is what
+used to be the small profile, for every harness. The knowledge base, phase
+docs, KB tools, ticket pipeline and second review gate are gone, and with them
+the profile axis: one shape, three harnesses. Sections 1, 2, 4, 5, 13 and 20
+are now history rather than current design. §31).
+v5.21 (hermes as a third harness: the same skill bodies
 emitted as project skills under `.agents/skills/`, with hermes frontmatter and
 three commands renamed because hermes reserves `/plan`, `/import` and
 `/update` for built-ins of its own. The harness axis was two-valued in code
@@ -1557,3 +1562,55 @@ in the places the axis already existed and nowhere else, and byte-identity
 across the four pre-existing variants is unchanged. The rule from §27 stands
 and now has evidence behind it: branch in Python, keep conditional prose in
 fragment files, never duplicate a document per variant.
+
+## 31. Removing the large profile (2026-09-09, v5.22)
+
+Two profiles existed because §13 assumed a boundary: above roughly 10k LOC a
+codebase is too expensive to re-read, so context has to be rationed through a
+curated knowledge base, and below it the source is cheaper to read than an
+index is to maintain. v5.22 drops the large side of that boundary. What
+remains is what was the small profile, and it is now the only shape the
+generator emits.
+
+### What goes
+
+The whole KB apparatus: `manifest.yaml` and `INDEX.md`, hot and cold tiers,
+`covers` globs, per-task token budgets, `kb-delta.yaml`, drift detection
+against a `kb-commit`, and the deterministic tools that kept those views in
+sync (`gen_index.py`, `check_stale.py`, `gen_rules.py`) with their hooks. The
+on-demand phase docs go with them, and so does the ticket pipeline they
+served: `/add-ticket`, `/plan`, `/implement`, `/add-reference`, and the
+plan-review gate. One review gate remains, on the diff, which is the one §29
+identified as carrying its cost best on a change of this size.
+
+### What it costs, stated plainly
+
+This is a real capability loss, not a simplification of an equivalent. On a
+codebase large enough that the source cannot be sampled per task, the KB was
+the mechanism that made the agent's context finite, and nothing replaces it.
+A project past that scale is no longer served by this framework. The
+justification is not that the KB was wrong; §12 and §16 still stand for what
+they measured. It is that maintaining two profiles across three harnesses
+meant every change had to be made and verified six ways, and the profile axis
+was the one carrying the least benefit per unit of that cost.
+
+### The axis, not just the branch
+
+Removing the large branch removes the axis. `profile` disappears from the
+generator: one roster, one AGENTS.md template, one composed body per skill,
+templates addressed as `skills/<name>.md` rather than
+`skills/<profile>/<name>.md`. The harness axis (§27, §30) is untouched and is
+now the only one. `profile` stays in the `framework.json` stamp, always
+`"small"`, because that field is what lets `/update` recognize a scaffold
+built before this revision.
+
+### Migration
+
+There is no `/update` path across this boundary. A large scaffold's reference
+cannot be rendered by a generator that no longer emits it, so `/update` reads
+`"profile": "large"` from the stamp and stops, and `--bootstrap-update`
+refuses the same case. The supported route is a fresh `init-agent` plus
+`/import <old-.ai>`, which already knows how to read a large-profile folder:
+it distills the KB into the project-context digest and `notes.md` and carries
+in-flight change state across. That skill is deliberately kept pointed at the
+old shape, and is the only place in the framework that still describes it.

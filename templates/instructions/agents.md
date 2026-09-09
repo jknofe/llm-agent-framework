@@ -78,6 +78,6 @@ folder names. Archive only when the user asks: verify `status: done`, move
 
 ${cli_note}## Project Context
 
-${gen_begin_small}
+${gen_begin}
 ${generated_body}
 ${gen_end}

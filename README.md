@@ -1,12 +1,13 @@
 # llm-agent-framework
 
-Universal, project-configurable LLM agent for software projects of any size.
-Init picks a size profile automatically from your codebase: **large** (the full
-knowledge-base framework, for big codebases where context must be rationed) or
-**small** (a stripped-down profile for codebases up to ~10k LOC, see
-[Small projects](#small-projects)). It counts source lines of code and applies
-the ~10k-LOC boundary; you can override with `--size`. Concept: CONCEPT.md. All
-agent docs: telegraphic English, token-optimized.
+Universal, project-configurable LLM agent for software projects. One dense
+`AGENTS.md` as the canonical instructions file, running memory in
+`.ai/notes.md`, a lightweight spec per non-trivial change, and one
+fresh-context review gate. Concept: CONCEPT.md. All agent docs: telegraphic
+English, token-optimized.
+
+Framework 5.22 removed the large (knowledge-base) profile; see
+[One profile](#one-profile).
 
 ## Install
 
@@ -26,17 +27,12 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, project size, claude/copilot/hermes); Enter accepts the
-defaults.
-The size prompt is pre-filled with the profile auto-detected from your
-codebase LOC, so Enter accepts the recommendation; `--size auto` selects it
-without prompting and `--size large|small` forces a profile. If a scaffold
-already exists it asks before regenerating
-framework files (instructions, skills, hooks, settings); hand-filled KB
-content, notes, and specs are always preserved, never reverted to stubs.
-`init-agent -h` shows help. The numbered steps below describe the **large**
-profile; for **small**, see [Small projects](#small-projects). Everything
-after init is done by the agent through skills and folder conventions:
+description, claude/copilot/hermes); Enter accepts the defaults. If a
+scaffold already exists it asks before regenerating framework files
+(instructions, skills, hooks, settings); hand-filled notes and specs are
+always preserved, never reverted to stubs. `init-agent -h` shows help.
+Everything after init is done by the agent through skills and folder
+conventions:
 
 **Updating an existing project to a newer framework:** run `/update` in the
 project. Updating is a merge, not a regeneration, so the agent does it rather
@@ -47,9 +43,9 @@ framework's version of files you never touched, **merges** the ones you did
 (extra permissions in `.claude/settings.json`, rules you appended to
 AGENTS.md), and **deletes** files the framework has retired along with the
 instructions that still referenced them. Your knowledge is migrated in place,
-never rebuilt: KB nodes, `manifest.yaml`, `notes.md`, specs, tickets, and the
-generated project-context section are carried into the new shape, so `/update`
-never re-runs `/explore`. It reports every file it touched and what it kept.
+never rebuilt: `notes.md`, change specs, and the generated project-context
+section are carried into the new shape, so `/update` never re-runs
+`/explore`. It reports every file it touched and what it kept.
 `/update dry-run` prints that report without changing anything.
 
 Before touching anything it commits `.ai` and copies the host-repo framework
@@ -59,97 +55,67 @@ commits `.ai` itself and leaves host-repo changes for you to review.
 **Scaffolds older than the `/update` skill** (built before framework 5.14)
 have no `/update` to run. Bootstrap it once with
 `init-agent --bootstrap-update` in the project: that writes the `/update`
-skill and a stamp, detects profile and harness itself, and touches nothing
-else. Then run `/update` as above. Do **not** re-run plain `init-agent` to
+skill and a stamp, detects the harness itself, and touches nothing else. Then run `/update` as above. Do **not** re-run plain `init-agent` to
 update an existing scaffold: it overwrites framework files whole, so it
 discards rules you appended to AGENTS.md and permissions you added to
 `.claude/settings.json`, and it cannot retire files the framework has
 dropped.
 
-Switching profile (small ↔ large) is not an update: re-run
-`init-agent --size <profile>`. A plain re-run of `init-agent` still
-regenerates framework files if you confirm the overwrite prompt (or pass
-`-y`), but it cannot merge or retire, which is why `/update` exists.
+A plain re-run of `init-agent` regenerates framework files if you confirm the
+overwrite prompt (or pass `-y`), but it cannot merge or retire, which is why
+`/update` exists.
 
-1. **Build the knowledge base**: run `/explore`. The agent samples the
-   codebase, fills the KB nodes and asks you about non-derivable knowledge
-   (domain terms, unwritten rules).
-2. **Register external material** the agent will need (an upstream library,
-   its docs): `/add-reference ros2-docs https://github.com/ros2/ros2_documentation.git`,
-   or put the material into `.ai/external/<name>/` yourself.
-3. **Add a ticket**: `/add-ticket JIRA-1234 Add jazzy build`, or drop a
-   markdown file into the `.ai/tickets/` inbox yourself, named like
-   `JIRA1234-do-this-and-that.md`.
-4. **Plan it**: `/plan JIRA-1234`. Answer the Q&A rounds; the plan is then
-   reviewed in a fresh context (reviewer subagent) and you sign off.
-5. **Implement**: `/implement JIRA-1234`. The agent works the task files in
-   order, records KB updates in `kb-delta.yaml`, and ends with a
-   fresh-context review of the full diff against the acceptance criteria.
-6. **Archive**: just ask the agent ("archive JIRA-1234"). It verifies all
-   tasks are done and the KB delta is applied, then moves the ticket to
-   `tasks/_archive/`.
+1. **Ground the agent**: run `/explore`. It runs the deterministic inventory,
+   samples the codebase, fills the project-context section of `AGENTS.md` and
+   `.ai/notes.md`, and asks you about non-derivable knowledge (domain terms,
+   unwritten rules).
+2. **Spec a change**: `/spec FEAT-42 Add a jazzy build`. Writes
+   `.ai/changes/FEAT-42/spec.md`: goal, acceptance criteria, task checklist.
+3. **Build it**: `/build FEAT-42`. The agent works the checklist and ends with
+   a fresh-context review of the full diff against the acceptance criteria
+   (the `reviewer` subagent where the harness has one).
+4. **Archive**: just ask the agent ("archive FEAT-42"). It verifies
+   `status: done` and moves the change to `.ai/changes/_archive/`.
 
-Small changes need no ticket: a fix you can describe in one sentence that
-touches a single file is done directly; the agent updates the affected KB
-nodes and commits `.ai`. The pipeline is for everything larger.
+Small changes need no spec: a fix you can describe in one sentence that
+touches a single file is done directly; the agent notes anything durable and
+commits `.ai`. The spec step is for everything larger.
 
 The framework is model-agnostic: it never tells the harness which model to
 run, you decide via the harness (for example `/model opusplan` in Claude
-Code to plan on Opus and implement on Sonnet). The self-contained task
-files and the fresh-context review gates are what keep cheap execution
-safe. If you do split models, keep the direction: plan on the strong one.
+Code to plan on Opus and implement on Sonnet). The self-contained spec and
+the fresh-context review gate are what keep cheap execution safe. If you do
+split models, keep the direction: spec on the strong one.
 
-The same task-file property enables parallel execution: `/plan` marks tasks
-with no dependencies and no overlapping files as `parallel: ok`, and those
-may be worked by concurrent sessions (one task file each). The constraints
-— single writer for `.ai`, one serial review gate at the end, and the fact
-that git worktrees do not carry the gitignored `.ai/` — are spelled out in
-the implementation phase doc.
+## One profile
 
-## Small projects
+Framework 5.22 removed the large profile. What is left is what used to be the
+small one, and it is now the only shape the generator emits:
 
-Choosing **small** at the size prompt targets codebases up to roughly 10k LOC,
-where the whole source is cheap to read on demand and the full knowledge base
-is overkill. The small profile keeps only what still pays at that scale and
-drops the rest:
-
-- **AGENTS.md** stays the canonical, dense instructions file: protocol,
+- **AGENTS.md** is the canonical, dense instructions file: protocol,
   right-sizing rule, build/test/lint commands, conventions, and a generated
-  project-context section (the only "knowledge store"). Roughly half the size
-  of the large profile's AGENTS.md.
-- **`.ai/`** is still a private nested git repo (gitignored from the host), but
-  holds just `notes.md` (running memory: decisions, gotchas, domain terms) and
-  per-change specs under `changes/<id>/spec.md`.
-- Seven skills: **`/explore`** fills the project-context
-  section and `notes.md`; **`/spec <id> <title>`** writes a lightweight spec
-  (goal + acceptance criteria + task checklist) for a non-trivial change;
-  **`/build <id>`** implements it and ends with **one** fresh-context review of
-  the diff against the acceptance criteria (the `reviewer` subagent);
-  **`/import-kb <source>`** distills an existing knowledge base of any structure
-  into the project-context section and `notes.md`; **`/import <source>`**
-  migrates a whole prior `.ai/` folder (older version or other layout) into the
-  small profile, including in-flight change state; **`/tidy-up [scope]`** runs a
-  hygiene sweep that may not change behavior (dead code, obsolete files,
-  overlong comments, em dashes); and **`/update`** moves the
-  scaffold to a newer framework version, migrating `notes.md`, specs, and the
-  project-context digest instead of rebuilding them. A change you can describe
-  in one sentence skips the spec entirely.
-- Kept: the `reviewer` subagent, the `.ai`-clean Stop hook, the read-only
-  permission allow list, and `probe.py` (the deterministic repo inventory has
-  no KB dependency, so it fits here too). Dropped: the `INDEX.md`-protection
-  hook.
+  project-context section (the only "knowledge store").
+- **`.ai/`** is a private nested git repo (gitignored from the host) holding
+  `notes.md` (running memory: decisions, gotchas, domain terms) and per-change
+  specs under `changes/<id>/spec.md`.
+- **Seven skills**, listed under [Skills](#skills).
+- **Kept from the framework machinery:** the `reviewer` subagent, the
+  `.ai`-clean Stop hook, the read-only permission allow list, and `probe.py`
+  (the deterministic repo inventory).
 
-Dropped versus large (all of it exists to ration context in big codebases):
-the `manifest.yaml`/`INDEX.md` KB with hot/cold tiers and per-task token
-budgets, drift detection, the staleness/index tools (`gen_index.py`,
-`check_stale.py`), the on-demand phase docs, the `kb-delta.yaml` patches, and
-the second review gate. At ~10k LOC the agent re-reads the real source faster
-than it could maintain a synced index.
+Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
+with hot/cold tiers and per-task token budgets, drift detection, the
+staleness/index tools (`gen_index.py`, `check_stale.py`, `gen_rules.py`), the
+on-demand phase docs, the `kb-delta.yaml` patches, the ticket pipeline
+(`/add-ticket`, `/plan`, `/implement`, `/add-reference`), and the second
+review gate. The agent re-reads the real source instead of maintaining a
+synced index of it.
 
-If a small project outgrows the profile, re-run `init-agent` and pick
-**large**: it preserves your hand-filled content (the existing project-context
-section is carried over), after which you move what you want from `notes.md`
-into KB nodes by hand.
+**Existing large-profile scaffolds** cannot be carried across with `/update`:
+there is no reference to render for them, so it stops and says so. Scaffold
+fresh with `init-agent` and run `/import <old-.ai>`, which distills the KB
+into the project-context section and `notes.md` and carries in-flight change
+state over.
 
 ## Skills
 
@@ -159,35 +125,31 @@ read by Claude Code and a growing set of other harnesses
 bodies as project skills (`.agents/skills/<name>/SKILL.md`) and the copilot
 harness as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
 the skills carry `disable-model-invocation: true`: they are pipeline steps
-with side effects (KB writes, code changes, `.ai` commits), so only an
+with side effects (notes writes, code changes, `.ai` commits), so only an
 explicit `/name` from you triggers them, never the model mid-conversation.
-All three harnesses invoke them the same way (hermes renames three of them,
+All three harnesses invoke them the same way (hermes renames two of them,
 see [Hermes support](#hermes-support)):
 
 | Command | What it does |
 |---|---|
-| `/explore [focus]` | Phase 1: samples the codebase, fills the KB, regenerates manifest/INDEX and the AGENTS.md project context. Optional free-text focus. |
-| `/add-ticket <id> <title...>` | Stores the ticket as markdown in the `.ai/tickets/` inbox. No planning yet. |
-| `/plan <ticket-id>` | Phase 2: turns the inbox ticket into `tasks/<id>/` with self-contained task files via Q&A, ends with the fresh-context plan-review gate. |
-| `/implement <ticket-id>` | Phase 3: works the planned task files in order; tests, KB delta, drift check against the plan's `kb-commit`, ticket review gate. |
-| `/add-reference <name> <origin>` | Clones/copies external material to `.ai/external/<name>/` and registers a `references/<name>` KB node (origin, fetch date, pinned version). |
-| `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and transforms it into the framework KB: classifies the content into nodes, writes frontmatter, sets `covers` globs, updates `manifest.yaml`/`INDEX.md` and the project-context section, routes gotchas/runbooks to `notes.md`. Distinct from `/add-reference`, which keeps raw material for search instead of transforming it. |
-| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** the lifecycle state: KB nodes get schema-upgraded and re-categorized, tickets/tasks/plans/decisions/notes are carried across (small profile: in-flight changes and notes), and `manifest.yaml`/`INDEX.md`/the project-context section are regenerated. Distinct from `/import-kb`, which transforms arbitrary curated knowledge and ignores task/ticket state, and from `/update`, which upgrades a scaffold this framework already stamped. |
+| `/explore [focus]` | Runs the deterministic inventory, samples the codebase, fills the AGENTS.md project-context section and `.ai/notes.md`, asks about non-derivable knowledge. Optional free-text focus. |
+| `/spec <id> <title...>` | Writes `.ai/changes/<id>/spec.md` for a non-trivial change: goal, acceptance criteria, task checklist. No implementation yet. |
+| `/build <id>` | Works the spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
+| `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and distills it into the project-context section and `notes.md`, routing gotchas and runbooks to `notes.md`. |
+| `/import <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/update`, which upgrades a scaffold this framework already stamped. |
 | `/tidy-up [scope]` | Hygiene sweep over the host code in four passes: removes dead code with evidence (a library's exported surface counts as used), **proposes** obsolete files without deleting them, compresses overlong comments to 1-2 lines while relocating rather than discarding the knowledge in them, and rewrites em dashes out of prose. Gated on a green build/test/lint baseline captured before the sweep and re-checked after; it may not change behavior, and anything that would is a change spec instead. |
 | `/update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
-The phase skills are thin pointers to the phase docs in
-`.ai/agent/phases/`, so phase instructions stay in one place. The add-*
-skills are self-contained. Archiving has no command: prompt the agent;
-the rules live in AGENTS.md.
+Every skill body is self-contained; there is no phase-doc layer to follow.
+Archiving has no command: prompt the agent; the rules live in AGENTS.md.
 
 ## Instructions file: AGENTS.md
 
-The canonical, vendor-neutral instructions file is `AGENTS.md` (KB
-protocol, budgets, ticket layout, generated project-context section). For
-Claude Code, init also writes a one-line `CLAUDE.md` that imports it via
-`@AGENTS.md`; Copilot (VS Code and CLI) reads `AGENTS.md` natively, so no
-extra file is needed there.
+The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
+right-sizing rule, conventions, change layout, generated project-context
+section). For Claude Code, init also writes a one-line `CLAUDE.md` that
+imports it via `@AGENTS.md`; Copilot (VS Code and CLI) and Hermes read
+`AGENTS.md` natively, so no extra file is needed there.
 
 ## Deterministic tools and hooks
 
@@ -197,41 +159,17 @@ obedience:
 - `.ai/agent/tools/probe.py` prints a deterministic repo inventory (host
   commit, language mix, detected build/test/lint commands, module map with
   LOC, dependency manifests, entry points). The agent runs it first in
-  Phase 1 / `/explore` and seeds the mechanical project-context fields from
-  it instead of re-deriving them, then samples by its map. Present in both
-  size profiles.
-- `.ai/agent/tools/gen_index.py` regenerates `INDEX.md` from
-  `manifest.yaml`. `INDEX.md` is never edited by hand or by the agent.
-- `.ai/agent/tools/check_stale.py` lists KB nodes whose `covers` globs
-  match host-repo commits newer than the node's `updated` date (exit 1
-  when stale, so it can run in CI).
-- `.ai/agent/tools/gen_rules.py` (claude harness only) renders cold
-  `conventions/*` KB nodes that carry `covers` globs into path-scoped rule
-  files under `.claude/rules/` (`paths:` frontmatter). Claude Code then
-  injects the convention deterministically whenever matching files are
-  touched — the model no longer has to remember the manifest lookup for
-  conventions. The rule files are build artifacts (marked GENERATED, stale
-  ones auto-removed); the KB node stays the single source of truth. On
-  Copilot, conventions stay on the manifest protocol.
-- `.claude/hooks/protect_generated.py` (PreToolUse) blocks direct writes
-  to `INDEX.md` and to GENERATED rule files, pointing to `gen_index.py` /
-  `gen_rules.py` (hand-written files in `.claude/rules/` stay editable).
-- `.claude/hooks/regen_index.py` (PostToolUse) regenerates `INDEX.md`
-  whenever `manifest.yaml` is written and the path-scoped rules whenever
-  the manifest or a conventions node is written, so the generated views
-  never drift and the agent need not remember to run the `gen_*` tools.
-- A SessionStart hook runs `check_stale.py` at the start of every session;
-  its output surfaces stale nodes without a standing "remember to run it"
-  instruction.
+  `/explore` and seeds the mechanical project-context fields from it instead
+  of re-deriving them, then samples by its map.
 - `.claude/hooks/ai_repo_clean.py` (Stop) blocks ending a turn while the
-  `.ai` repo has uncommitted changes, so KB updates are not silently
+  `.ai` repo has uncommitted changes, so notes and specs are not silently
   dropped. Not absolute: Claude Code overrides a Stop hook after repeated
   consecutive blocks, so the protocol rule in `AGENTS.md` remains the
   backstop.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
-  reviewer used by the plan-review and ticket-review gates.
+  reviewer used by `/build`'s review gate.
 
-During Phase 1 the agent additionally offers a project-specific Stop hook
+During `/explore` the agent additionally offers a project-specific Stop hook
 that runs your lint/tests, turning "done = checks pass" into a hard gate.
 Hooks and the reviewer subagent are scaffolded for the claude harness;
 Copilot and Hermes have no equivalent mechanism, there the rules stay
@@ -250,15 +188,15 @@ Code:
 
 - instructions file: `AGENTS.md` (read natively, no pointer file)
 - prompt files: `.github/prompts/*.prompt.md` instead of skills, invoked
-  the same way (`/explore`, `/plan`, ...) in VS Code Copilot Chat;
-  arguments are passed as input variables, e.g. `/plan: ticket=FEAT-42`
+  the same way (`/explore`, `/spec`, ...) in VS Code Copilot Chat;
+  arguments are passed as input variables, e.g. `/spec: ticket=FEAT-42`
 - no `.claude/settings.json`, hooks or reviewer subagent (no equivalent)
 
 Prompt files require VS Code with the `chat.promptFiles` setting enabled.
 Copilot CLI does not load prompt files; it does read `AGENTS.md`, which
-therefore contains the phase kickoff lines to type instead (also printed
-at the end of `init`), e.g.
-`Run Phase 1: read .ai/agent/phases/init.md first and follow it exactly.`
+therefore contains the kickoff lines to type instead (also printed at the end
+of `init`), e.g.
+`Explore the project and fill the Project Context + .ai/notes.md.`
 
 ## Hermes support
 
@@ -275,61 +213,52 @@ Hermes loads project skills only from a repository you have trusted, so run
 `hermes skills trust` once in the project root; in a running session
 `/reload-skills` picks up edited skills.
 
-Three commands are renamed there, because Hermes reserves those names for
+Two commands are renamed there, because Hermes reserves those names for
 built-in commands of its own:
 
 | Elsewhere | On hermes |
 |---|---|
-| `/plan <id>` | `/plan-ticket <id>` |
 | `/import <source>` | `/import-agent <source>` |
 | `/update [dry-run]` | `/framework-update [dry-run]` |
 
 Hermes substitutes nothing into a skill: whatever you type after the command
 name reaches the agent as your instruction, and the skill says so.
 
-The `.ai/` knowledge base and phase docs are identical for all harnesses;
+`AGENTS.md` and everything under `.ai/` are identical for all harnesses;
 only the entry files differ.
 
 ## What init creates
 
-This section describes the **large** profile; the **small** profile creates the
-reduced set described under [Small projects](#small-projects).
-
-`init` creates `.ai/knowledgebase/` (manifest.yaml, INDEX.md, hot/cold
-nodes), `.ai/notes.md` (running memory for operational gotchas and runbooks
-that don't warrant a curated node), the `.ai/tickets/` inbox,
-`.ai/agent/phases/` (on-demand phase docs), `.ai/agent/tools/` (probe,
-gen_index, check_stale), the canonical `AGENTS.md`, the skills above and, for Claude
-Code, the `CLAUDE.md`
-pointer, the reviewer subagent, the hook scripts and
-`.claude/settings.json` with the hooks plus a read-only permission allow
-list (grep, find, ls, cat, awk, read-only git, `git -C .ai`, the KB
-tools, ...) so exploration and `.ai` commits run without a confirmation
-prompt per command. Compound commands (`a && b`) only skip the prompt when
-every part of the chain is allowed, so common chain members like `cd`,
-`echo` and `pwd` are included. If you work interactively, Claude Code's
+`init` creates `.ai/notes.md` (running memory for gotchas, runbooks and
+domain terms), `.ai/changes/` (per-change specs, with `_archive/` for
+finished ones), `.ai/agent/tools/probe.py`, the canonical `AGENTS.md`, the
+skills above and, for Claude Code, the `CLAUDE.md` pointer, the reviewer
+subagent, the Stop hook script and `.claude/settings.json` with that hook
+plus a read-only permission allow list (grep, find, ls, cat, awk, read-only
+git, `git -C .ai`, `probe.py`) so exploration and `.ai` commits run without a
+confirmation prompt per command. Compound commands (`a && b`) only skip the
+prompt when every part of the chain is allowed, so common chain members like
+`cd`, `echo` and `pwd` are included. If you work interactively, Claude Code's
 auto permission mode (a classifier reviews commands and blocks only risky
 ones) is a lower-maintenance alternative; the allowlist is what keeps
-headless and CI runs deterministic. `AGENTS.md` and `.claude/` / `.github/`
-belong to the host repo.
+headless and CI runs deterministic. `AGENTS.md` and `.claude/` /
+`.agents/` / `.github/` belong to the host repo.
 
-The description prompted at init is seeded into the architecture overview
-node, `manifest.yaml` and the project context section of `AGENTS.md`, so
-the agent's first ramp-up (Phase 1) starts from a known project intent
-instead of discovering it from scratch. Phase 1 verifies and refines it
-against the code.
+The description prompted at init is seeded into the project-context section
+of `AGENTS.md`, so the agent's first ramp-up starts from a known project
+intent instead of discovering it from scratch. `/explore` verifies and
+refines it against the code.
 
-Re-running init never reverts agent or user work: KB nodes, manifest and
-INDEX that differ from their stubs are reported as `preserved`, and an
-existing `GENERATED:project-context` section is carried over into the
-regenerated `AGENTS.md` (also from legacy `CLAUDE.md` scaffolds).
+Re-running init never reverts agent or user work: `.ai/notes.md` and specs
+that differ from their stubs are reported as `preserved`, and an existing
+`GENERATED:project-context` section is carried over into the regenerated
+`AGENTS.md` (also from legacy `CLAUDE.md` scaffolds).
 
 `.ai/` is versioned in its own git repo (`.ai/.git`) and excluded from the
 host project via a `.gitignore` entry written by `init`. `init` makes the
 first commit; afterwards the agent commits `.ai` changes itself (a protocol
-rule in `AGENTS.md`, enforced by the Stop hook on the claude harness). Raw
-external material under `.ai/external/` stays out of that repo too
-(re-fetchable, would bloat history), as does `.ai/.current` — a gitignored
-task cursor (active ticket/change id, current task file, modified files) the
-agent reads at session start to resume work after a break, independent of
-session compaction.
+rule in `AGENTS.md`, enforced by the Stop hook on the claude harness). The
+`/update` rescue backup stays out of that repo, as does `.ai/.current`, a
+gitignored task cursor (active change id, modified files) the agent reads at
+session start to resume work after a break, independent of session
+compaction.

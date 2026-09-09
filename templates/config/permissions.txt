@@ -1,8 +1,7 @@
 # Read-only permission allow list for .claude/settings.json.
 # One entry per line. $tools_dir is substituted at render time.
-# Entries under [large] are emitted only for the large profile (the small
-# profile has no KB tools). Compound commands (a && b) prompt unless every
-# part of the chain matches, which is why cd/echo/pwd/read-only git are here.
+# Compound commands (a && b) prompt unless every part of the chain matches,
+# which is why cd/echo/pwd/read-only git are here.
 
 [shared]
 Bash(cd:*)
@@ -32,8 +31,3 @@ Bash(git show:*)
 Bash(git branch:*)
 Bash(git -C .ai:*)
 Bash(python3 ${tools_dir}/probe.py:*)
-
-[large]
-Bash(python3 ${tools_dir}/gen_index.py:*)
-Bash(python3 ${tools_dir}/check_stale.py:*)
-Bash(python3 ${tools_dir}/gen_rules.py:*)

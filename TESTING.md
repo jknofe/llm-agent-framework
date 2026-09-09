@@ -29,21 +29,20 @@ themselves.
    python3 -c "import ast; ast.parse(open('init_agent.py').read())"
    for f in agentgen/*.py; do python3 -c "import ast; ast.parse(open('$f').read())"; done
    ```
-2. **Scaffold all six variants** into a throwaway dir (init writes to CWD;
+2. **Scaffold all three harnesses** into a throwaway dir (init writes to CWD;
    never scaffold into this repo root):
    ```bash
    d=$(mktemp -d)
-   for size in small large; do for h in claude copilot hermes; do
-     mkdir -p "$d/$size-$h"
-     ( cd "$d/$size-$h" && python3 /path/to/init_agent.py \
-         --name t --description d --size $size --harness $h -y >/dev/null )
-   done; done
+   for h in claude copilot hermes; do
+     mkdir -p "$d/$h"
+     ( cd "$d/$h" && python3 /path/to/init_agent.py \
+         --name t --description d --harness $h -y >/dev/null )
+   done
    ```
 3. **Grep the rendered output** for your template change in every affected
-   variant. A change that only renders in one profile/harness is usually a bug.
+   variant. A change that renders on only one harness is usually a bug.
 4. **Referenced paths exist and run.** Any tool path a template mentions
-   (e.g. `.ai/agent/tools/probe.py`) must exist in that profile's scaffold and
-   exit 0. A dangling path in a template is a silent break.
+   (e.g. `.ai/agent/tools/probe.py`) must exist in the scaffold and exit 0. A dangling path in a template is a silent break.
 5. **Re-init preservation:** scaffold, hand-edit a KB node / notes.md / the
    `GENERATED:project-context` section, re-run init, confirm the report says
    `preserved` and nothing reverted to a stub.
@@ -55,7 +54,7 @@ themselves.
    `write()` call: verify the old scaffold's `framework_files` still lists it
    so `/update` can delete it.
 7. **Byte-identity** (after any refactor that must not change output):
-   capture all six rendered variants before the change, re-render after, and
+   capture all three rendered variants before the change, re-render after, and
    require an empty diff. This is the only cheap guard against silent
    corruption when moving content between templates and code; it caught two
    real defects during the v5.17 restructuring that reading the diff did not.
@@ -69,7 +68,7 @@ themselves.
 
 A benchmark run = spawn an autonomous agent on a real target repo, drive it
 through the framework phases (init -> explore -> spec/ticket -> [plan] ->
-build/implement), then gate the produced artifact deterministically in Docker.
+build), then gate the produced artifact deterministically in Docker.
 Rule of thumb: a behavior change worth shipping is worth one benchmark cell
 before and after.
 
@@ -89,21 +88,16 @@ EFFORT (tiers low/medium/high defined there).
 
 ### Which cell to use
 
-- **Smoke (default for framework changes):** one small-profile cell,
-  sonnet + medium — fixed-runbook cell 1 (`sh-refactor`, no package install,
-  ~10-20 min) or cell 2 (`rust-package`). Exercises explore/spec/build, the
-  review gate, and the Docker gate end to end.
+- **Smoke (default for framework changes):** sonnet + medium, fixed-runbook
+  cell 1 (`sh-refactor`, no package install, ~10-20 min) or cell 2
+  (`rust-package`). Exercises explore/spec/build, the review gate, and the
+  Docker gate end to end.
 - **Anti-overfitting / new normative text:** the Python/Shell cells (1, 3, 4),
   because they check ecosystem-correctness outside Rust/Debian (right linter
   named unprompted, refactor invariants, root-cause bugfixing).
-- **Large-profile / KB changes:** a large-profile cell (the `ros-*` cells 5-6),
-  because small-profile smoke never touches
-  manifest/INDEX/kb-delta/drift-check machinery.
-
 ### Invariants every run must satisfy
 
-- Clean `.ai` commit sequence for the profile
-  (small: init -> explore -> spec -> build).
+- Clean `.ai` commit sequence: init -> explore -> spec -> build.
 - PASS/FAIL decided only by the deterministic container gate, never by
   impressions; quality dimensions are recorded separately.
 - Raw per-cell results preserved under `benchmarks/<run>/results/`
