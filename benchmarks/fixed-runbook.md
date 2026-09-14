@@ -515,6 +515,55 @@ a framework loss on B-amortized session 2 is.
 
 ---
 
+## Context-only arm (C-cells, scaffold without workflow; optional, fixed)
+
+Added with framework 6.0 (CONCEPT.md section 36) after the ETH Zurich
+context-file evaluation. It separates the two things a framework cell bundles:
+the always-loaded context file (what the paper measured) and the workflow
+(spec, build, review gate; what this framework claims). A C-cell is the twin
+of a numbered cell with the **same SEED, TASK, GATE, image, MODEL x EFFORT and
+permission mode**; it runs the SCAFFOLD and `/explore` exactly as the
+framework arm does, then receives the TASK with no `/spec`, no `/build` and no
+review gate: the agent solves it directly with AGENTS.md, `.ai/notes.md` and
+`.ai/notes/map.md` in place. `RUN_ID = <cell>-context-<date>`; own work dir.
+
+- **Eligible: cells 1-4** (same rule as B-cells).
+- **Reading the three arms together:** framework minus context = the price
+  and effect of the workflow; context minus baseline = the price and effect of
+  the file alone. The paper predicts the second delta is near zero on success
+  and +20% on cost; the framework's thesis lives entirely in the first.
+- **Steps:** `count_tokens.py` prints `API calls`; use it as the step count
+  the paper reports (one call per tool interaction). Report it next to the
+  token columns for all three arms.
+
+### Context-only agent prompt (fixed; replaces the shared prompt for C-cells)
+
+```
+You are benchmark agent {RUN_ID} (CONTEXT-ONLY arm).
+Model: {MODEL} | Effort: {EFFORT}
+
+AUTONOMOUS RUN. No human is available. Resolve every question from code
+evidence, record numbered assumptions in .ai/notes.md, and proceed without
+blocking. EFFORT semantics: {paste the matching low/medium/high tier text}.
+
+Record start: date '+%Y-%m-%dT%H:%M:%S'
+
+STEP 1 — SETUP: run the cell's SEED commands, then cd $WORK_DIR and run the
+cell's SCAFFOLD command exactly as written.
+
+STEP 2 — EXPLORE: read .claude/skills/explore/SKILL.md and follow it. Commit .ai.
+
+STEP 3 — TASK: solve the cell's TASK directly. Do not run /spec or /build and
+do not spawn a reviewer; AGENTS.md and .ai are available to read. Keep tests
+and lint green. Commit .ai if you changed it.
+
+STEP 4 — GATE and STEP 5 — RESULTS: as in the shared prompt (results file at
+/tmp/benchmark/results/{RUN_ID}.md, Arm=context-only in the Configuration
+table, no spec section).
+```
+
+---
+
 ## Worker arm (W-cells): retired
 
 The W arm compared a solo twin against a twin that dispatched eligible
@@ -551,6 +600,8 @@ round, verify every cell against this checklist:
 [ ] B-cells only: same SEED/TASK/GATE as the twin, no scaffold, both arms in
     bypass-permissions mode, comparison table in the report
 [ ] B-amortized only: per-session token split recorded (--per-session)
+[ ] C-cells only: /explore ran, no /spec, /build or reviewer in the transcript,
+    API-call count reported as steps next to the tokens
 ```
 
 To record a round in the repo: create `benchmarks/<run>/report.md` and copy the

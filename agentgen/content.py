@@ -32,8 +32,9 @@ def render_claude_pointer() -> str:
 def render_agents_md(project_name: str, description: str = "",
                            harness: str = "claude",
                            generated_body: str = None) -> str:
-    """AGENTS.md: dense and self-contained. The generated project-context
-    section is the only knowledge store; the source code is read on demand."""
+    """AGENTS.md: requirements only (framework v6). The generated section
+    holds commands and rules; the module map lives in .ai/notes/map.md and
+    the source code is read on demand."""
     if generated_body is None:
         seed = f"{description}\n" if description else ""
         generated_body = (f"{seed}<!-- Populated by /explore. "
@@ -118,9 +119,16 @@ def render_update_body(harness: str, arg: str) -> str:
              "`.ai/changes/`, and the `GENERATED:project-context` section of\n"
              "AGENTS.md")
     migrate = (
-        "   - New or renamed sections in the project-context digest: add the\n"
-        "     heading and move the matching content that is already there\n"
-        "     under it. Do not re-derive the content from the codebase.\n"
+        "   - Framework 6.0 splits the project-context digest: AGENTS.md\n"
+        "     keeps only requirements (build/test/lint commands, required or\n"
+        "     forbidden tools, project rules, pointers to existing docs, cap\n"
+        "     ~300 tokens); the purpose paragraph, stack, module map and\n"
+        "     glossary move verbatim to `.ai/notes/map.md`, linked from\n"
+        "     `.ai/notes.md` as `- [map](notes/map.md) - module map, stack,\n"
+        "     glossary`. Move the content that is there; do not re-derive it\n"
+        "     from the codebase, and drop nothing.\n"
+        "   - New or renamed sections in the digest: add the heading and move\n"
+        "     the matching content that is already there under it.\n"
         "   - A changed spec format: bring existing `.ai/changes/<id>/spec.md`\n"
         "     files up to it, keeping every goal, criterion, and task intact.\n"
         "   - Moved or renamed directories: `git mv` inside `.ai` so the notes\n"
@@ -168,10 +176,9 @@ def render_tidy_up_body(harness: str, arg: str) -> str:
             "   was available.\n")
 
     record = (
-        "   If a module disappeared or was renamed, update the module map in\n"
-        "   the `GENERATED:project-context` section of AGENTS.md. Append any\n"
-        "   durable finding to `.ai/notes.md`, for example a subsystem that\n"
-        "   turned out to be unreachable.\n")
+        "   If a module disappeared or was renamed, update `.ai/notes/map.md`\n"
+        "   if that leaf exists. Append any durable finding to `.ai/notes.md`,\n"
+        "   for example a subsystem that turned out to be unreachable.\n")
 
     return render.fill("skills/bodies/tidy-up.md",
                        arg=arg,

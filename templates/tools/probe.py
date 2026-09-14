@@ -145,11 +145,37 @@ def detect_commands(names, rels):
     return out
 
 
+DOC_DIRS = ("docs/", "doc/", "documentation/")
+DOC_FILES = ("CONTRIBUTING.md", "ARCHITECTURE.md", "DEVELOPMENT.md",
+             "HACKING.md", "DESIGN.md")
+README_MIN_WORDS = 200
+
+
+def detect_docs(names, rels):
+    """What the repository already documents. A context file that restates
+    existing docs adds cost without adding information, so /explore points
+    at these instead of summarizing."""
+    out = []
+    for name in sorted(names):
+        if name.lower().startswith("readme"):
+            words = len(read(name).split())
+            if words >= README_MIN_WORDS:
+                out.append(name + " (" + str(words) + " words)")
+    for name in DOC_FILES:
+        if name in names:
+            out.append(name)
+    for d in DOC_DIRS:
+        n = sum(1 for r in rels if r.startswith(d))
+        if n:
+            out.append(d + " (" + str(n) + " files)")
+    return out
+
+
 ENTRY_BASENAMES = ("main.", "index.", "app.", "__main__.py", "cli.")
 ENTRY_PREFIXES = ("cmd/", "bin/", "src/main", "src/bin/")
 
 # Code-only subset of LANGS for the total-LOC line: docs, data, and markup are
-# excluded so the number matches the size-profile boundary (~10k LOC).
+# excluded so the number reflects source size.
 NON_CODE_EXTS = {".md", ".yaml", ".yml", ".toml", ".json",
                  ".html", ".css", ".scss"}
 
@@ -186,13 +212,21 @@ def main():
     lines = ["# Repo inventory (probe.py)", ""]
     lines.append("- Host commit: " + host_sha())
     lines.append("- Tracked files: " + str(len(files)))
-    lines.append("- Code LOC (docs/data/markup excluded): " + str(code_loc)
-                 + " (size-profile boundary ~10k)")
+    lines.append("- Code LOC (docs/data/markup excluded): " + str(code_loc))
     lines.append("")
 
     lines += ["## Languages", "", "| Language | Files |", "|---|---|"]
     for lang, n in exts.most_common(TOP_LANGS):
         lines.append("| " + lang + " | " + str(n) + " |")
+    lines.append("")
+
+    docs = detect_docs(names_at_root, rel_paths)
+    lines += ["## Documentation present", ""]
+    if docs:
+        lines += ["- " + d for d in docs]
+        lines.append("- point at these instead of summarizing the codebase")
+    else:
+        lines.append("- none (no README over 200 words, no docs/ tree)")
     lines.append("")
 
     cmds = detect_commands(names_at_root, rel_paths)

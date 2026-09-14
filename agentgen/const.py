@@ -8,14 +8,14 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "5.26"
+FRAMEWORK_VERSION = "6.1"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
 TOOLS_DIR = ".ai/agent/tools"
 
 GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
-             "(source: /explore, max 1500 tokens) -->")
+             "(source: /explore, requirements only, max 300 tokens) -->")
 
 GEN_END = "<!-- END GENERATED:project-context -->"
 
@@ -53,10 +53,10 @@ HARNESS_ENTRY_PATHS = {
 # the skill templates (written for the claude and copilot frontmatter) exceed.
 # One short, self-contained, period-terminated line per command.
 HERMES_DESCRIPTIONS = {
-    "explore": "Survey the codebase and record what it finds.",
+    "explore": "Record commands and rules; map the code.",
     "import-kb": "Import an existing knowledge base.",
     "import-agent": "Migrate an existing agent folder into .ai.",
-    "spec": "Write a spec for a non-trivial change.",
+    "spec": "Opt-in: write a spec for a change the user names.",
     "build": "Implement a change spec, then review it.",
     "tidy-up": "Hygiene sweep that may not change behavior.",
     "framework-update": "Move this scaffold to the current framework.",

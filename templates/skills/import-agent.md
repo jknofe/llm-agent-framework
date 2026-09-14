@@ -1,14 +1,15 @@
 ---
-description: Migrate an existing .ai/ folder (older version or other layout) into the small profile: project-context, notes.md, and in-flight changes
+description: Migrate an existing .ai/ folder (older version or other layout) into the current structure: requirements, map, notes.md, in-flight changes
 ---
-Migrate an existing `.ai/` directory into the current small-profile
-structure. Source `.ai/` (an older version of this framework, or a
+Migrate an existing `.ai/` directory into the current structure.
+Source `.ai/` (an older version of this framework, or a
 differently-shaped agent folder): ${arg_ticket}
 
-This converts a whole prior `.ai/` working directory into the small
-profile. The small-profile targets are the GENERATED:project-context
-section of AGENTS.md, `.ai/notes.md`, and `.ai/changes/<id>/spec.md`
-for in-flight changes; there is no KB node store. It is not
+This converts a whole prior `.ai/` working directory. The targets are
+the GENERATED:project-context section of AGENTS.md (requirements
+only), `.ai/notes/map.md` (module map, stack, glossary), `.ai/notes.md`,
+and `.ai/changes/<id>/spec.md` for in-flight changes; there is no KB
+node store. It is not
 /import-kb: that transforms arbitrary curated knowledge (a docs/wiki
 dump) and ignores lifecycle state, whereas /import-agent also carries
 ticket/change and notes state across. If the source is a docs/wiki
@@ -26,12 +27,12 @@ the pre-existing `.ai/` aside to `.ai.old/` before init, then
    `knowledgebase/` (sub-agent where available; bring back a
    condensed map). Note whether the source was large (knowledgebase/
    + manifest) or small.
-2. Distill knowledge, do not copy. Fold stable, high-value facts
-   (purpose, tech stack, build/test/lint commands, top conventions,
-   module map, glossary) into the project-context section of
-   AGENTS.md (cap ~1500 tokens); if the source was a large-profile
-   KB, distill its hot-tier nodes down, do not reproduce the node
-   store. Route operational gotchas, runbooks, decisions, and domain
+2. Distill knowledge, do not copy. Build/test/lint commands, required
+   or forbidden tools and project rules go into the project-context
+   section of AGENTS.md (cap ~300 tokens); purpose, stack, module map
+   and glossary go into `.ai/notes/map.md`, linked from `.ai/notes.md`.
+   If the source was a large-profile KB, distill its hot-tier nodes
+   down, do not reproduce the node store. Route operational gotchas, runbooks, decisions, and domain
    terms to `.ai/notes.md` (append, telegraphic; use the notes hub if
    it grows).
 3. Migrate lifecycle state: unfinished tickets or changes ->
@@ -40,10 +41,10 @@ the pre-existing `.ai/` aside to `.ai.old/` before init, then
    `.ai/changes/_archive/`. A large body worth only searching later
    -> clone or copy into `.ai/external/<name>/` and note it in
    `.ai/notes.md` instead of inlining it.
-4. Regenerate, do not copy: refresh project-context from the migrated
-   facts, not the old AGENTS.md text. Never overwrite
+4. Regenerate, do not copy: refresh project-context and `map.md` from
+   the migrated facts, not the old AGENTS.md text. Never overwrite
    `.ai/agent/framework.json` with the source's copy: init already
    stamped this scaffold at the current version, and that stamp is
    what /framework-update reads later. Report a short mapping (source
-   -> project-context / notes.md / changes / external / skipped). Do
+   -> project-context / map.md / notes.md / changes / external / skipped). Do
    not delete the source. Commit `.ai` (`import: <source>`).

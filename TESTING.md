@@ -25,7 +25,9 @@ themselves.
    in any rendered artifact, rendered tools parse as Python, rendered settings
    parse as JSON, no em dash in a template (CONCEPT.md section 8), and the
    hermes skill descriptions inside that harness's 60-character cap with no
-   command name colliding with a hermes built-in.
+   command name colliding with a hermes built-in, and AGENTS.md under 600
+   words before its generated section on every harness (CONCEPT.md
+   section 36) with no leftover text describing the retired overview digest.
    `safe_substitute` leaves a mistyped slot in place silently, so the slot
    check is the only thing between a typo and a broken scaffold.
 1. **Syntax**
@@ -83,8 +85,12 @@ results file + gate verdict before starting the next; if a cell stalls on a
 limit, resume that same agent after the reset rather than launching a
 duplicate. Details and cell order: the fixed runbook's Execution section.
 
-All procedure lives in one self-contained, fully-pinned runbook:
-[benchmarks/fixed-runbook.md](benchmarks/fixed-runbook.md). It defines the
+One-shot cells live in one self-contained, fully-pinned runbook:
+[benchmarks/fixed-runbook.md](benchmarks/fixed-runbook.md). The question
+whether later tasks on the same repo benefit from the framework has its own
+runbook, [benchmarks/sequence-runbook.md](benchmarks/sequence-runbook.md):
+three pinned tasks, two arms, three replications, hidden gate tests under
+`benchmarks/hidden-tests/`, verdict rule fixed in advance. It defines the
 7-cell cross-ecosystem set (Python, Shell, Rust, TS/Angular, C++/ROS 2) with
 exact repo SHAs, seeds, scaffold commands, Docker images, deterministic gates,
 the agent-prompt template, and the results format. The only inputs are MODEL and
