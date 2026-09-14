@@ -1,6 +1,248 @@
-# Project-Aware LLM Agent Framework — Concept
+# Project-Aware LLM Agent Framework: Concept
 
-State: 2026-09-14, v7.0 (the framework is reduced to two pillars: durable
+**State: 2026-09-14, v7.0.** The framework rests on four premises, stated in
+Part I. Two are claims about what it does for a project; two are properties of
+the artifact. Everything the generator emits serves one of them or is a
+candidate for removal.
+
+**How to read this file.**
+
+- **Part I** is the framework as it stands. It is normative: when a template
+  and Part I disagree, Part I is right and the template is a bug.
+- **Part II** is what has been measured, one line per round, with what each
+  round decided. It is why Part I says what it says.
+- **Part III** is the revision history, sections 1 to 38, unchanged and
+  numbered as they always were, because other documents cite those numbers.
+  Many of them describe a framework that no longer exists; the ones that were
+  explicitly retired are listed at the top of Part III. History is kept
+  because it carries the evidence, not because it is still in force.
+
+---
+
+# Part I: The framework (normative)
+
+## The four premises
+
+**Pillar 1. Durable project knowledge that the repository cannot state
+itself.** `.ai/notes.md` as private memory across sessions, plus a short
+requirements block in `AGENTS.md` holding the commands the project is checked
+with and the tools it requires or forbids.
+
+**Pillar 2. An opt-in spec-and-build path whose value is the plan shown in
+advance.** `/spec` writes down what the agent intends before any code exists,
+so a human can redirect it; `/build` implements it and reviews the diff against
+the criteria. The user starts both. By default the agent just does the task.
+
+**Property 3. One command set on three harnesses.** Four commands, identical
+names and bodies on Claude Code, Copilot and Hermes. No command's name depends
+on where it is typed.
+
+**Property 4. Economical about its own text, not about the session.** The
+always-loaded footprint is capped and everything else is read on demand. The
+framework does not make a session cheaper; every round measured more tokens,
+by design.
+
+The two pillars are claims that could be wrong and have been tested. The two
+properties are facts about the generator's output and need no test.
+
+## Pillar 1: knowledge the repository cannot state
+
+### The test
+Before writing anything into `.ai/`, ask: **can the repository state this
+itself?** If yes, it does not belong there. This single test is what keeps the
+retired digest (Part III section 6) from returning under a new name.
+
+Qualifies: decisions and the reason behind them, gotchas, unwritten rules,
+ownership, release and migration order, domain terms an outsider would read
+wrong, runbooks, pointers to sibling repos.
+
+Does not qualify: a summary of code the agent just read, a module map, a
+glossary of names that are already identifiers, a restatement of the README.
+An overview does not help an agent find anything (Part II, ETH round), and
+writing one costs on every session that loads it.
+
+### Where it lives
+- `.ai/notes.md`, the hub. Appended, telegraphic. Read at the start of a task.
+- `.ai/notes/<topic>.md`, optional leaves, each linked from the hub with a
+  one-line pointer. Split only once the hub passes one to two screens.
+- The `GENERATED:project-context` block in `AGENTS.md`, cap ~300 tokens: the
+  always-loaded slice. Build, test and lint commands verbatim; tools required
+  or forbidden; the user's rules; one-line pointers to docs the repo already
+  has. No purpose paragraph, no module map, no glossary.
+
+`.ai/` is its own nested git repository, gitignored from the host, committed
+after every change. It stays private: no remote, no team sharing.
+
+### How it gets there
+`/explore` asks the user what the code cannot tell it and records the answers.
+The questions are the mechanism, not the probe: developer-written content is
+the only arm that measured positive. `probe.py` runs first and prints detected
+build/test/lint commands and the documentation the repo already has, as a
+starting point for the questions. The user's answers override detection.
+
+## Pillar 2: the opt-in spec-and-build path
+
+`/spec <id> <title>` writes `.ai/changes/<id>/spec.md`: goal, acceptance
+criteria, task checklist, notes. It runs a bounded Q&A with the user and stops.
+The point is the plan a human reads before code exists.
+
+`/build <id>` works the checklist and ends with a review of the full diff
+against the criteria, sized to the change: inline for one task and a
+one-screen diff, a fresh-context `reviewer` sub-agent otherwise.
+
+Rules that came from failures, not from theory:
+
+- The spec always includes a criterion that the project's full test and lint
+  commands pass. A criterion naming a single test is what produced the one
+  correctness loss the framework has ever caused (Part II, sequence round).
+- `/build` records a failing test as pre-existing only after it fails on a
+  clean checkout and the test has been read. Later sessions act on notes; a
+  wrong note is carried as faithfully as a right one.
+- Neither command ever starts on its own. The default path is direct: read,
+  change, run the full suite, note what is durable, commit `.ai`.
+
+`status:` in the spec frontmatter (`planned|in-progress|done`) is the index
+across parallel change directories. `.ai/.current` is the resume pointer, one
+per working tree. Parallel work is an intent that was never built and the
+framework claims nothing about it.
+
+## Property 3: one command set
+
+Four commands: `/explore`, `/spec`, `/build`, `/framework-update`. Same names,
+same bodies, on all three harnesses; only the entry files differ (Agent Skills
+under `.claude/skills/`, project skills under `.agents/skills/`, prompt files
+under `.github/prompts/`). A name that collides with a harness built-in is
+renamed on **every** harness, which is why the update command is
+`/framework-update` everywhere.
+
+Switching harness is tooling, not an update: `init-agent --harness <name>`
+writes the new set and retires the recorded old one into a backup.
+
+Updating a scaffold is a merge, so the agent does it, not the CLI.
+`/framework-update` reads the version stamp, renders a pristine reference,
+then adds, merges, migrates and retires file by file. It never re-runs
+`/explore`: what the project knows is the expensive artifact and is migrated,
+never re-derived.
+
+## Property 4: bounded own footprint
+
+- `AGENTS.md` before the generated section: 394 words on claude, 486 and 485
+  on copilot and hermes where the balance is that harness's own CLI note.
+  `check_templates` fails above 500.
+- The generated block: cap ~300 tokens.
+- `probe.py`: 199 lines, commands and documentation detection only.
+- A claude scaffold records 11 framework files; four of them are skills.
+- Everything else, skill bodies included, is read on demand.
+
+## What the framework does not claim
+
+- **Not cheaper.** Every round measured more tokens than a bare agent.
+- **Not faster to the relevant file.** An always-loaded overview does not
+  shorten discovery, at any repo size.
+- **Not amortizing.** Later tasks on the same repository are not cheaper or
+  more correct because of accumulated context. Three rounds tested this and
+  none supported it.
+- **Not proven more correct.** The evidence is split and the only measured
+  correctness loss was caused by the framework's own spec.
+
+What can be said: a rule the user states once lands verbatim in the
+requirements block and is still being cited three sessions later; a tool named
+there gets used; the direct path costs a few percent over a bare agent while
+the spec chain costs two to three times.
+
+## The protocol
+
+Every session, regardless of path:
+
+1. Read `.ai/notes.md`. Open only the leaves the task needs.
+2. Tests and lint must pass, the whole suite, not only the test a task names.
+   Done = checks green.
+3. `/spec` and `/build` only when the user invokes them.
+4. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
+   to the host repo.
+5. `.ai/.current` is the resume pointer; read it at session start.
+
+Enforced mechanically where possible: a Stop hook blocks ending a turn while
+`.ai` is dirty, a read-only permission allowlist keeps exploration from
+prompting per command. Both are claude-only; on the other harnesses the
+protocol text is the only guarantee.
+
+## Language and register
+
+Two registers. Normative documents (AGENTS.md, skill bodies) in plain
+imperative English; notes content telegraphic. Identifiers, paths and commands
+verbatim. No em dashes. English rather than the user's own language throughout,
+for two reasons that have not changed since section 8: it is the best-trained
+model language, and it tokenizes more densely than German. Generated artifacts stay ecosystem-neutral: no benchmark terms, no
+repo-specific names.
+
+## The rule for future changes
+
+A change that introduces an always-loaded summary of the codebase, or that
+makes spec or review the default, contradicts a measurement. It belongs in
+this file as an argument first, with the evidence that overturns the old one,
+and only then in a template.
+
+A change that removes an artifact needs no such argument. Dropping the
+`write()` call is enough; `/framework-update` deletes the file from existing
+projects via the recorded file list.
+
+---
+
+# Part II: What was measured
+
+Rounds live under `benchmarks/<name>/` with a `report.md` and raw per-session
+files. Determinism discipline: everything pinned except MODEL and EFFORT.
+
+| Round | What it measured | What it decided |
+|---|---|---|
+| `haiku-high-2026-07-03` / `-04` | First amortization attempt, n=1 | Framework's marginal session was more expensive, not less. Overhead flat across modeled N. The one round where the framework arm produced the only valid fix. |
+| `sonnet5-medium-2026-07-03` | One-shot cells, large profile | Baseline for the profile that v5.22 later removed. |
+| `sonnet5-medium-small-2026-07-06` | One-shot overhead, small profile | +84% to +403% on a single task. Cost half of the digest claim confirmed. |
+| `w4-sonnet5-medium-2026-07-17` | Worker sub-agents on a mid-tier model | Retired the idea (section 23). |
+| `u-update-sonnet5-medium-2026-07-28` | The `/framework-update` skill | Agent-driven update works as a merge. |
+| `tidy-up-sonnet5-medium-2026-07-29` | The `/tidy-up` sweep | Worked; cut in v7.0 anyway for serving neither pillar. |
+| ETH Zurich context-file evaluation (external; `agents-md-paper-response.md`) | LLM-generated context files, 4 agent/model pairs, SWE-bench Lite + AGENTbench | Success -0.5% and -2%, cost +20% to +23%. Agents with a file reach the first relevant file no faster. Tools named in the file get used, 1.6 vs 0.01 per task. Killed the digest (v6.0). |
+| `v6-vs-5.26-sonnet5-medium-2026-09-14` | 6.0 against 5.26, cell 2 | Both PASS. Verification, not a saving. |
+| `seq-sonnet5-medium-2026-09-14` | Three tasks, two arms, three reps, hidden tests | Marginal cost of tasks 2+3: +74%, +160%, +136%. Amortization failed 0 of 3. One correctness loss from a spec criterion naming a single test. Made spec and build opt-in (v6.1). |
+| `v7-vs-6.1-sonnet5-medium-2026-09-14` | 7.0 against 6.1, framework arm and context-only arm | All four PASS, identical packages. 7.0 was 7% cheaper on one arm and 11% dearer on the other: noise. The useful number: the spec chain costs 2.1x to 2.5x the direct path. |
+| `constraint-sonnet5-medium-2026-09-14` | Does a stated non-derivable rule survive three sessions? 21 sessions, hidden constraint test | 18 of 18 gates passed. Constraint held F 6/6, B 5/6: no support under the pre-stated rule. The round cannot decide, because task N's output became task N+1's local precedent. `/explore` with a human answering landed the rule verbatim 3 of 3. |
+
+**Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
+navigation2) was withdrawn with the amortization thesis and survives only as a
+record. `constraint-runbook.md` is runnable and its four pre-run controls are
+verified, but a deciding round needs a constraint that an earlier task cannot
+seed.
+
+**Status of the measurement program:** halted 2026-09-14. Four rounds in one
+day produced no defensible performance benefit, and each failed round bred a
+more elaborate successor. The accumulated nulls are the answer: the value is
+organizational, not performance. The one untested arm worth a single cheap run
+is weak models, where the only positive result the framework ever produced
+came from an n=1 haiku round.
+
+---
+
+# Part III: Revision history
+
+Sections 1 to 38, unchanged, numbered as they have always been because the
+README, the templates and the benchmark reports cite those numbers.
+
+**Sections that describe a framework that no longer exists.** Retired by
+section 36: **1** (Knowledge Base), **2** (Phases), **4** (Ticket lifecycle),
+**5** (Living KB), **6** (AGENTS.md as hot-tier transport), **9** item 5
+(token economy), **13** (Small-project profile), **20** (Automatic profile
+selection), **21** (Explore-freshness guard). Retired by the v7.0 cut list in
+section 38: **15** (`/import-kb`), **22** (`/goal` as a documented mode, moved
+to the README), **25** (`/import-agent`), **26** (`/tidy-up`). Already marked
+removed in its own heading: **23** (Worker sub-agents).
+
+Everything else still describes current behavior, and sections 36, 37 and 38
+are the reasoning that produced Part I.
+
+## Version log
+
+v7.0 (the framework is reduced to two pillars: durable
 project knowledge that is not derivable from the repo (`.ai/notes.md` plus
 the requirements block in AGENTS.md), and an opt-in spec-and-build path whose
 value is the plan shown in advance. The amortization thesis is retired rather
@@ -143,9 +385,8 @@ running-memory notes.md in
 both profiles, backported from the legacy agents (§14). v5.2: size profiles, a
 stripped-down small profile for codebases ≤10k LOC (§13). v5.1: model choice
 fully delegated to user (§3); v5: standards + deterministic enforcement (§12).
-Language policy: two registers (§8): plain imperative English for normative
-docs, telegraphic English for KB content. English = best-trained model
-language + denser tokenization than German.
+
+---
 
 ## 1. Knowledge Base
 

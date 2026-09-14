@@ -14,7 +14,12 @@ generated file (those live in target projects).
   `render` slot filling, `content` the render_* entry points, `scaffold` what
   gets written where)
 - `templates/` every artifact the scaffold emits, as files
-- `CONCEPT.md` versioned design spec, source of truth (currently v7.0)
+- `CONCEPT.md` design spec, source of truth (currently v7.0). Part I is the
+  framework as it stands and is normative: when a template and Part I
+  disagree, the template is the bug. Part II is the measurement record. Part
+  III is the numbered revision history, kept for its evidence; the sections it
+  lists as retired describe a framework that no longer exists. Read Part I
+  before changing behavior, not the history.
 - `README.md` user-facing docs
 - `install.sh` shell-function installer
 - `tests/check_templates.py` the property gate (orphans, slots, register,
@@ -58,10 +63,13 @@ skipped. The profile axis is gone (5.22 removed the large profile).
 skill bodies) in plain imperative English; notes content telegraphic.
 Identifiers, paths, commands verbatim. No em dashes.
 
-**What the framework claims (CONCEPT.md section 38):** durable knowledge the
-repository cannot state itself, and an opt-in spec-and-build path. A change
-that adds an always-loaded summary of the codebase, or that makes spec or
-review the default, contradicts a measurement; argue it in CONCEPT.md first.
+**What the framework claims (CONCEPT.md Part I):** four premises. Two pillars,
+durable knowledge the repository cannot state itself and an opt-in
+spec-and-build path; two properties, one command set on three harnesses and a
+bounded own footprint. A change that adds an always-loaded summary of the
+codebase, or that makes spec or review the default, contradicts a measurement;
+argue it in Part I first, with the evidence that overturns the old one. A
+change that *removes* an artifact needs no such argument.
 
 Keep `CONCEPT.md` in sync: behavior changes get a dated entry under the revision
 sections and a version bump. CONCEPT.md decides, the templates implement.
