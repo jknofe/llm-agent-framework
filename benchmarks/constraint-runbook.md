@@ -148,17 +148,50 @@ rebuild's own `RENAME TO` does not satisfy it.
 
 ## SEED, SCAFFOLD, tasks
 
-Identical to `sequence-runbook.md`: same clone, same `79117b9`, same committed
+Identical to `sequence-runbook.md`: same clone, same `79117b9`, same reverted
 bug state, same `/explore` session s0 on the F arm, same T1, T2, T3 texts, same
-one-fresh-session-per-task rule. Nothing is re-derived here; read that file and
-follow it, changing only the prompts below and the added gate check.
+one-fresh-session-per-task rule. Read that file and follow it, changing only
+the prompts below, the added gate check, and the two SEED corrections that
+section 37's protocol findings called for and that are applied here:
+
+1. **The seed leak is closed.** After reverting the fix, delete `.git` and
+   re-init with a single `seed: benchmark bug state` commit. The 2026-09-14
+   sequence round found two baseline sessions reading the upstream fix out of
+   `git log -p`. An orphan seed removes the possibility instead of asking
+   agents not to look. Both arms get the identical single-commit history.
+2. **Agents can run the suite.** Give every task session the Docker one-liner
+   for the test suite, so "keep tests green" is executable rather than
+   aspirational. The sequence round ran agents in an environment where the
+   dev dependencies did not install, and self-verification diverged from the
+   gate as a result.
+
+**Verified seed state, 2026-09-14** (full suite, not a subset): the revert
+leaves **two** tests failing, `test_fts.py::test_enable_fts_replace_handles_
+legacy_bracket_quoted_content_table` and `test_tracer.py::test_with_tracer`,
+with 1078 passing. Re-applying the upstream fix gives **1080 passed, 16
+skipped, 0 failed**. Both failures are consequences of the same reverted bug,
+so T1 is passable, and the second one is the trap: a fix aimed only at the
+named test leaves `test_with_tracer` red and the T1 gate fails. That is the
+exact failure section 37 recorded, now verified as reachable rather than
+assumed.
 
 T2 (rename-column) and T3 (drop-column) are exactly the two tasks the
 constraint bites on. That is why this repo and these tasks were kept.
 
 ## Per-session prompts
 
-Both arms use the `sequence-runbook.md` prompts unchanged, with one insertion.
+Both arms use the `sequence-runbook.md` prompts with one insertion and one
+change.
+
+**The change: the F arm runs the direct path, not `/spec` and `/build`.** The
+sequence runbook's F prompt invokes both. Here that would confound the very
+mechanism under test: `/spec` writes the rule into `.ai/changes/<id>/spec.md`,
+`/build` then reads the spec, and the rule would survive through the spec
+rather than through the always-loaded requirements block. The round would
+measure the wrong carrier. The F arm therefore reads AGENTS.md and solves the
+task directly, which is also what 7.0 makes the default (CONCEPT.md section
+38). Decided and recorded before any task session ran, not after seeing
+results.
 
 **F arm, session s0 (explore):** append to the prompt:
 ```
