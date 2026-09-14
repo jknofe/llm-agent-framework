@@ -4,8 +4,8 @@ description: Implement a change's spec: work the task checklist, review the diff
 Implement a planned change. Id: ${arg_ticket}
 
 1. Load `.ai/changes/<id>/spec.md`; set `status: in-progress`. Read
-   `.ai/notes.md` and, if the change spans areas you do not know, the
-   `.ai/notes/map.md` leaf. Write `.ai/.current` (gitignored) with the
+   `.ai/notes.md`, and any leaf under `.ai/notes/` the change touches.
+   Write `.ai/.current` (gitignored, one per working tree) with the
    change id, the spec path, and the date, so the work can be resumed;
    keep its modified-files list current as you go. If the session is
    compacted, that file is the backup of exactly what to preserve.
@@ -35,16 +35,14 @@ Implement a planned change. Id: ${arg_ticket}
    test that fails before your change because the same bug you are
    fixing also breaks it belongs in this change, not in the notes.
    Later sessions act on what is written here.
+   Write only what the repository cannot state itself; a summary of
+   code you just read is not durable knowledge.
    Once `notes.md` passes ~1-2 screens, move topic clusters (largest
    first) into `.ai/notes/<topic>.md`, each leaving a one-line linked
    pointer (`- [topic](notes/<topic>.md) - hook`), until the hub is
-   back under ~1 screen; do not split while notes stay short. Then a
-   bounded drift check, not a re-explore: re-run `python3
-   ${tools_dir}/probe.py` and compare its build/test/lint commands
-   against the `GENERATED:project-context` section of `AGENTS.md`,
-   and its module map against `.ai/notes/map.md` if that leaf exists.
-   Update only for a changed command or a new, removed, or renamed
-   module; a bare LOC delta is not actionable. Keep the AGENTS.md
+   back under ~1 screen; do not split while notes stay short. If this
+   change altered a build, test, or lint command, update that line in
+   the `GENERATED:project-context` section of `AGENTS.md` and keep the
    section under ~300 tokens. Last, confirm every leaf under
    `.ai/notes/` is linked from `notes.md` and every pointer resolves.
 6. Set `status: done`, delete `.ai/.current`, and commit `.ai`

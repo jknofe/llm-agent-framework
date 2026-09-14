@@ -4,8 +4,8 @@ description: Opt-in: write a lightweight spec for a change the user wants specif
 Write a spec for a change the user asked to have specified. Id and
 title: ${arg_ticket}
 
-1. Read `.ai/notes.md` (and `.ai/notes/map.md` if present) and explore
-   the relevant code first.
+1. Read `.ai/notes.md` (and any leaf under `.ai/notes/` the change
+   touches) and explore the relevant code first.
 2. Run a short, bounded Q&A with the user until the acceptance
    criteria are unambiguous. If no human is available (autonomous
    run), resolve each open question from the evidence and record it
@@ -34,6 +34,8 @@ title: ${arg_ticket}
    ## Notes              Q&A answers, decisions
 4. Commit `.ai` (`spec: <id>`).
 
-Do not implement yet; that is `/build <id>`. This skill runs only
-because the user asked for a spec; it is not the default path for a
-change, and the agent never starts one on its own.
+Do not implement yet; that is `/build <id>`. Show the spec and wait:
+a plan the user can read and redirect before any code exists is what
+this path is for. This skill runs only because the user asked for a
+spec; it is not the default path for a change, and the agent never
+starts one on its own.

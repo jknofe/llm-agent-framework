@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "6.1"
+FRAMEWORK_VERSION = "7.0"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -19,8 +19,11 @@ GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
 
 GEN_END = "<!-- END GENERATED:project-context -->"
 
-SKILLS = ["explore", "spec", "build", "import-kb", "import-agent", "tidy-up",
-          "framework-update"]
+# Four commands (CONCEPT.md section 38). /tidy-up, /import-kb and
+# /import-agent were retired in v7.0: a hygiene sweep serves neither pillar,
+# the KB profile they imported into is gone, and converting an existing setup
+# is a plain request to the agent now that the scaffold is six files.
+SKILLS = ["explore", "spec", "build", "framework-update"]
 
 # Where the hermes harness looks for project skills. Hermes reads both
 # `.hermes/skills/` and `.agents/skills/` under the nearest git root; the
@@ -44,21 +47,18 @@ HARNESS_ENTRY_PATHS = {
 
 # A command name that collides with a harness built-in is renamed on every
 # harness, not just the one that reserves it (CONCEPT.md sections 34 and 35).
-# Hermes reserves /update and /import, so this framework ships
-# /framework-update and /import-agent everywhere. There is deliberately no
-# per-harness name table any more: one command, one name, so every document
-# can name a command without asking where it is being read.
+# Hermes reserves /update, so this framework ships /framework-update
+# everywhere. There is deliberately no per-harness name table any more: one
+# command, one name, so every document can name a command without asking
+# where it is being read.
 
 # Hermes caps a skill description at 60 characters, which the descriptions in
 # the skill templates (written for the claude and copilot frontmatter) exceed.
 # One short, self-contained, period-terminated line per command.
 HERMES_DESCRIPTIONS = {
-    "explore": "Record commands and rules; map the code.",
-    "import-kb": "Import an existing knowledge base.",
-    "import-agent": "Migrate an existing agent folder into .ai.",
+    "explore": "Record the commands and rules this project runs on.",
     "spec": "Opt-in: write a spec for a change the user names.",
     "build": "Implement a change spec, then review it.",
-    "tidy-up": "Hygiene sweep that may not change behavior.",
     "framework-update": "Move this scaffold to the current framework.",
 }
 
@@ -72,9 +72,6 @@ HERMES_ARG_TICKET = "the text after the command name, verbatim"
 # Bodies composed in Python because they vary on harness beyond slot filling.
 # Their descriptions live here because they have no template frontmatter.
 _SKILL_DESCRIPTIONS = {
-    "tidy-up": ("Hygiene sweep that may not change behavior: remove "
-                "dead code, propose obsolete files, shorten "
-                "comments, drop em dashes"),
     "framework-update": ("Update this scaffold to the current framework "
                          "version: merge the framework files, migrate notes "
                          "and specs, never re-explore"),
@@ -82,10 +79,7 @@ _SKILL_DESCRIPTIONS = {
 
 ARG_HINTS = {
     "explore": "[focus]",
-    "import-kb": "<source>",
-    "import-agent": "<source>",
     "spec": "<id> <title...>",
     "build": "<id>",
-    "tidy-up": "[scope]",
     "framework-update": "[dry-run]",
 }

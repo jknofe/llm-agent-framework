@@ -481,8 +481,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               "skills only from a trusted repo:")
         print("  hermes skills trust     (once, in this repository)")
         print("  /reload-skills          (in a running session)")
-        print("Renamed to clear hermes built-ins: /import-agent, "
-              "/framework-update.")
+        print("Renamed to clear a hermes built-in: /framework-update.")
     if harness == "copilot":
         print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")

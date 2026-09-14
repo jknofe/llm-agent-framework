@@ -32,9 +32,9 @@ def render_claude_pointer() -> str:
 def render_agents_md(project_name: str, description: str = "",
                            harness: str = "claude",
                            generated_body: str = None) -> str:
-    """AGENTS.md: requirements only (framework v6). The generated section
-    holds commands and rules; the module map lives in .ai/notes/map.md and
-    the source code is read on demand."""
+    """AGENTS.md: requirements only (framework v7). The generated section
+    holds commands and rules; no overview of the codebase is written here or
+    anywhere else, and the source is read on demand (CONCEPT.md section 38)."""
     if generated_body is None:
         seed = f"{description}\n" if description else ""
         generated_body = (f"{seed}<!-- Populated by /explore. "
@@ -47,16 +47,12 @@ def render_agents_md(project_name: str, description: str = "",
         cli_note = render.load("instructions/fragments/copilot/cli-note.md")
     elif harness == "hermes":
         cli_note = render.load("instructions/fragments/hermes/cli-note.md")
-    goal_note = ""
-    if harness == "claude":
-        goal_note = render.load("instructions/fragments/claude/goal-note.md")
     return render.fill("instructions/agents.md",
                        cli_note=cli_note,
                        entry_note=entry_note,
                        gen_begin=GEN_BEGIN,
                        gen_end=GEN_END,
                        generated_body=generated_body,
-                       goal_note=goal_note,
                        hook_note=hook_note,
                        project_name=project_name)
 
@@ -119,18 +115,29 @@ def render_update_body(harness: str, arg: str) -> str:
              "`.ai/changes/`, and the `GENERATED:project-context` section of\n"
              "AGENTS.md")
     migrate = (
-        "   - Framework 6.0 splits the project-context digest: AGENTS.md\n"
-        "     keeps only requirements (build/test/lint commands, required or\n"
-        "     forbidden tools, project rules, pointers to existing docs, cap\n"
-        "     ~300 tokens); the purpose paragraph, stack, module map and\n"
-        "     glossary move verbatim to `.ai/notes/map.md`, linked from\n"
-        "     `.ai/notes.md` as `- [map](notes/map.md) - module map, stack,\n"
-        "     glossary`. Move the content that is there; do not re-derive it\n"
-        "     from the codebase, and drop nothing.\n"
+        "   - Framework 7.0 retires `.ai/notes/map.md` as framework output.\n"
+        "     Do not delete it and do not remove its pointer from\n"
+        "     `.ai/notes.md`: the moment the framework stopped generating it\n"
+        "     it became ordinary notes content the user may have edited, and\n"
+        "     an update never deletes a notes leaf. Report it as no longer\n"
+        "     maintained by the framework and leave trimming it to the user.\n"
+        "     The same holds for anything else under `.ai/notes/`.\n"
+        "   - Framework 6.0 splits the project-context digest, for a scaffold\n"
+        "     coming from 5.x: AGENTS.md keeps only requirements\n"
+        "     (build/test/lint commands, required or forbidden tools, project\n"
+        "     rules, pointers to existing docs, cap ~300 tokens); the purpose\n"
+        "     paragraph, stack, module map and glossary move verbatim to\n"
+        "     `.ai/notes/map.md`, linked from `.ai/notes.md` as\n"
+        "     `- [map](notes/map.md) - module map, stack, glossary`. Move the\n"
+        "     content that is there; do not re-derive it from the codebase,\n"
+        "     and drop nothing. 7.0 stops maintaining that leaf but still\n"
+        "     wants the content off AGENTS.md rather than lost.\n"
         "   - New or renamed sections in the digest: add the heading and move\n"
         "     the matching content that is already there under it.\n"
         "   - A changed spec format: bring existing `.ai/changes/<id>/spec.md`\n"
         "     files up to it, keeping every goal, criterion, and task intact.\n"
+        "     7.0 did not change it; leave existing specs and anything under\n"
+        "     `.ai/changes/_archive/` exactly as they are.\n"
         "   - Moved or renamed directories: `git mv` inside `.ai` so the notes\n"
         "     history survives the move.\n")
 
@@ -144,47 +151,6 @@ def render_update_body(harness: str, arg: str) -> str:
                        owned=owned,
                        verify_extra=verify_extra,
                        verify_tools=f"`{TOOLS_DIR}/probe.py`")
-
-def render_tidy_up_body(harness: str, arg: str) -> str:
-    """Body of the /tidy-up skill: a bounded hygiene sweep over the host code.
-
-    Four passes with deliberately different authority. Removing dead code and
-    rewriting comments or prose is reversible and locally verifiable, so the
-    agent does it. Deleting a file is neither, so that pass only proposes. The
-    rule the whole procedure serves: a tidy-up may not change behavior, so
-    every pass is gated on the same test and lint baseline captured up front.
-
-    Harness decides whether the survey fan-out and the review gate can run in
-    sub-agents.
-    """
-    if harness == "claude":
-        survey_note = (
-            "   Dispatch the survey fan-out to sub-agents where the harness\n"
-            "   supports them: each returns a candidate list with evidence, not\n"
-            "   file dumps. Decide every removal yourself.\n")
-        review_note = (
-            "   Run the `reviewer` sub-agent on the full diff. If it cannot be\n"
-            "   spawned, use a fresh general-purpose sub-agent given only the\n"
-            "   diff and the rule that behavior must not change.\n")
-    else:
-        survey_note = (
-            "   Survey with your read and search tools; keep raw file dumps out\n"
-            "   of context by searching for evidence, not by reading whole trees.\n")
-        review_note = (
-            "   Re-read the full diff in a clean context against the rule that\n"
-            "   behavior must not change, and note that no reviewer sub-agent\n"
-            "   was available.\n")
-
-    record = (
-        "   If a module disappeared or was renamed, update `.ai/notes/map.md`\n"
-        "   if that leaf exists. Append any durable finding to `.ai/notes.md`,\n"
-        "   for example a subsystem that turned out to be unreachable.\n")
-
-    return render.fill("skills/bodies/tidy-up.md",
-                       arg=arg,
-                       record=record,
-                       review_note=review_note,
-                       survey_note=survey_note)
 
 def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     """(name, description, body) for each command, in roster order.
@@ -212,7 +178,6 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     return specs
 
 COMPOSED_BODIES = {
-    "tidy-up": lambda harness, arg: render_tidy_up_body(harness, arg),
     "framework-update": lambda harness, arg: render_update_body(harness, arg),
 }
 
@@ -315,8 +280,9 @@ def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
 
 def render_tool_probe() -> str:
-    """Deterministic repo inventory written into the scaffold. Static: the
-    template is a real .py file under templates/tools/."""
+    """Command and documentation detection, written into the scaffold and run
+    at the start of /explore. Static: the template is a real .py file under
+    templates/tools/."""
     return render.load("tools/probe.py")
 
 def render_settings_json() -> str:

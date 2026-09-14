@@ -14,9 +14,10 @@ unanswerable while the content lived inside string literals:
   register   do the templates honor the no-em-dash rule (CONCEPT section 8)?
   hermes     do the hermes skill descriptions fit that harness's 60-char cap,
              and does every harness expose the same command names?
-  budget     does AGENTS.md stay a requirements file (CONCEPT section 36):
-             under 600 words before the generated section on every harness,
-             and no artifact still describes the retired overview digest?
+  budget     does AGENTS.md stay a requirements file (CONCEPT sections 36
+             and 38): under 500 words before the generated section on every
+             harness, and no artifact still describes the retired overview
+             digest, the retired map leaf, or the commands v7.0 dropped?
 
 The byte-identity harness lives outside this file: it renders all four
 variants and diffs them against a known-good capture. This file checks
@@ -162,22 +163,37 @@ def check_hermes():
 
 
 def check_budget():
-    """CONCEPT section 36: the always-loaded file carries requirements, not
-    an overview. Measured on the rendered file, before the generated
-    section, on every harness; the copilot CLI note is the largest variant.
-    The second half catches prose that still describes the pre-6.0 digest."""
+    """CONCEPT sections 36 and 38: the always-loaded file carries
+    requirements, not an overview. Measured on the rendered file, before the
+    generated section, on every harness; the copilot CLI note is the largest
+    variant. The second half catches prose that still describes the pre-6.0
+    digest, the map leaf 7.0 stopped generating, or a retired command.
+
+    `notes/map.md` is exempt in one place: the /framework-update body has to
+    name the leaf to say it must not be deleted. That is checked below rather
+    than waived, so a map instruction cannot creep back in anywhere else.
+    """
     for harness in HARNESSES:
         text = content.render_agents_md("p", "d", harness)
         pre = text.split("<!-- BEGIN GENERATED")[0]
         words = len(pre.split())
-        if words > 600:
+        if words > 500:
             fail("budget", f"{harness} AGENTS.md is {words} words before the "
-                           "generated section (max 600)")
+                           "generated section (max 500)")
     for label, text in rendered_artifacts():
+        # "module map" is not banned outright: the templates say "no module
+        # map" to forbid one, and the update body has to name the retired
+        # leaf. What is banned is the path, which only an instruction to
+        # write or read the leaf would contain.
         for stale in ("1500 tokens", "small profile", "small-profile",
-                      "re-initializing as large", "size-profile"):
+                      "re-initializing as large", "size-profile",
+                      "/tidy-up", "/import-kb", "/import-agent"):
             if stale in text:
                 fail("budget", f"{label}: still says '{stale}'")
+        if "notes/map.md" in text and not label.endswith(
+                "skill:framework-update"):
+            fail("budget", f"{label}: names notes/map.md, retired as "
+                           "framework output in 7.0")
 
 
 def main():

@@ -1,22 +1,38 @@
 # llm-agent-framework
 
-One command set on any supported harness (Claude Code, Copilot, Hermes),
-private memory across sessions, and an opt-in spec-and-review path.
-`AGENTS.md` is a short requirements file (commands, rules, workflow entry
-points), running memory lives in `.ai/notes.md`, and the agent does tasks
-directly by default. A change you want written down and reviewed before it
-counts as done goes through `/spec` and `/build`, on your request.
+Two pillars, one command set on any supported harness (Claude Code,
+Copilot, Hermes):
+
+1. **Durable project knowledge that the repository cannot state itself.**
+   `.ai/notes.md` (decisions and why, gotchas, unwritten rules, runbooks) as
+   private memory across sessions, plus a short requirements block in
+   `AGENTS.md` holding the commands this project is checked with and the
+   tools it requires or forbids.
+2. **An opt-in spec-and-build path.** `/spec` writes down what the agent
+   intends before any code exists, so you can redirect it; `/build`
+   implements it and reviews the diff against the criteria. You start both.
+   By default the agent just does the task.
+
 Concept: CONCEPT.md.
 
-What the benchmarks support and what they do not (`benchmarks/`,
-CONCEPT.md sections 36 and 37): a spec-and-review chain on every task costs
-two to three times a bare agent and did not make later tasks on the same
-repo cheaper or more correct with Sonnet 5, which is why 6.1 made it
-opt-in. An always-loaded repository overview does not help agents (ETH
-Zurich evaluation of context files), which is why 6.0 stopped emitting one.
-The notes carry real gotchas between sessions and cost little. Untested:
-weak models, large repos, and sessions where a human answers the questions.
-Framework 5.22 removed the large (knowledge-base) profile; see
+What the benchmarks support and what they do not (`benchmarks/`, CONCEPT.md
+sections 36 to 38). A spec-and-review chain on every task costs two to three
+times a bare agent and did not make later tasks on the same repo cheaper or
+more correct with Sonnet 5, so 6.1 made it opt-in. An always-loaded
+repository overview does not help agents find anything (ETH Zurich
+evaluation of context files, measured on repos from django to 12 niche
+ones), so 6.0 stopped emitting one and 7.0 stopped writing one anywhere.
+What does measure: naming a required tool causes it to be used, and the
+notes carry real gotchas between sessions for almost nothing.
+
+**This framework does not make a session cheaper.** Every round measured
+more tokens, by design. It is economical about its own text (`AGENTS.md`
+under 500 words, everything else read on demand), which is a different
+claim. Untested: weak models, projects dense in non-derivable context, and
+sessions where a human answers the questions.
+
+Framework 7.0 cut `/tidy-up`, `/import-kb`, `/import-agent` and the
+generated module map; 5.22 removed the large (knowledge-base) profile. See
 [One profile](#one-profile).
 
 ## Install
@@ -89,10 +105,13 @@ re-init, and AGENTS.md is regenerated so it describes the harness you are
 actually on. It asks first unless you pass `-y`; a scaffold with no recorded
 file list retires nothing and prints what to remove by hand.
 
-1. **Ground the agent**: run `/explore`. It runs the deterministic inventory,
-   asks you what the code cannot tell it (commands you run before pushing,
-   tools to use or avoid, unwritten rules), writes those requirements into
-   `AGENTS.md`, and maps the code into `.ai/notes/map.md`, read on demand.
+1. **Ground the agent**: run `/explore` and answer it. It detects the
+   build/test/lint commands as a starting point, then asks you what the code
+   cannot tell it (the commands you actually run before pushing, tools to use
+   or avoid, unwritten rules, domain terms) and writes those requirements
+   into `AGENTS.md`. Your answers are the part that measured positive, so
+   letting it run unattended gets you most of the cost and little of the
+   benefit.
 2. **Work**: ask for what you want. The agent reads what it needs, makes
    the change, runs the project's full test and lint commands, notes
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
@@ -123,13 +142,13 @@ small one, and it is now the only shape the generator emits:
   tools, project rules, and pointers to docs the repo already has (cap
   ~300 tokens).
 - **`.ai/`** is a private nested git repo (gitignored from the host) holding
-  `notes.md` (running memory: decisions, gotchas, domain terms), the
-  on-demand module map `notes/map.md`, and per-change specs under
+  `notes.md` (running memory: decisions, gotchas, domain terms), optional
+  topic leaves under `notes/`, and per-change specs under
   `changes/<id>/spec.md`.
-- **Seven skills**, listed under [Skills](#skills).
+- **Four skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, and `probe.py`
-  (the deterministic repo inventory).
+  (command and documentation detection).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
@@ -139,11 +158,13 @@ on-demand phase docs, the `kb-delta.yaml` patches, the ticket pipeline
 review gate. The agent re-reads the real source instead of maintaining a
 synced index of it.
 
-**Existing large-profile scaffolds** cannot be carried across with `/framework-update`:
-there is no reference to render for them, so it stops and says so. Scaffold
-fresh with `init-agent` and run `/import-agent <old-.ai>`, which distills the KB
-into the requirements section, `notes/map.md` and `notes.md` and carries
-in-flight change state over.
+**Existing large-profile scaffolds** cannot be carried across with
+`/framework-update`: there is no reference to render for them, so it stops
+and says so. Scaffold fresh with `init-agent`, then ask the agent to carry
+the old `.ai/` across: the commands and rules into the requirements section,
+the gotchas and decisions into `notes.md`, and any in-flight change into
+`changes/<id>/spec.md`. Framework 7.0 dropped the `/import-agent` skill that
+used to script this; with the scaffold at six files it is a plain request.
 
 ## Skills
 
@@ -159,16 +180,32 @@ All three harnesses invoke them the same way, under the same names:
 
 | Command | What it does |
 |---|---|
-| `/explore [focus]` | Runs the deterministic inventory, asks about non-derivable knowledge, writes commands and rules into the AGENTS.md requirements section and the module map into `.ai/notes/map.md`. Optional free-text focus. |
+| `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/spec <id> <title...>` | Opt-in. Writes `.ai/changes/<id>/spec.md` for a change you want specified: goal, acceptance criteria (always including the full suite green), task checklist. No implementation yet. |
 | `/build <id>` | Opt-in. Works that spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
-| `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and distills it into the project-context section and `notes.md`, routing gotchas and runbooks to `notes.md`. |
-| `/import-agent <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/framework-update`, which upgrades a scaffold this framework already stamped. |
-| `/tidy-up [scope]` | Hygiene sweep over the host code in four passes: removes dead code with evidence (a library's exported surface counts as used), **proposes** obsolete files without deleting them, compresses overlong comments to 1-2 lines while relocating rather than discarding the knowledge in them, and rewrites em dashes out of prose. Gated on a green build/test/lint baseline captured before the sweep and re-checked after; it may not change behavior, and anything that would is a change spec instead. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
 Archiving has no command: prompt the agent; the rules live in AGENTS.md.
+
+### Autonomous dispatch with Claude Code's `/goal`
+
+Not part of the framework, but the way to run one of these unattended.
+`/goal` changes only whether the agent stops to ask between steps, so use it
+when the finish line is machine-checkable and no judgment call is expected.
+Point the condition at the artifact that defines done (the gate command, or
+for a spec'd change its acceptance criteria), make the agent show it in
+output, and cap the turns:
+
+```
+/goal the transcript shows the full test and lint commands exiting 0; or
+stop after 20 turns
+```
+
+If two consecutive turns make no progress on the same blocker, have it stop
+and report rather than make a third blind attempt. This note used to sit in
+every scaffold's `AGENTS.md`; 7.0 moved it here, because it is advice about
+a harness, not a requirement of your project.
 
 ## Instructions file: AGENTS.md
 
@@ -183,12 +220,12 @@ imports it via `@AGENTS.md`; Copilot (VS Code and CLI) and Hermes read
 Protocol rules that can be enforced mechanically are not left to model
 obedience:
 
-- `.ai/agent/tools/probe.py` prints a deterministic repo inventory (host
-  commit, language mix, detected build/test/lint commands, module map with
-  LOC, dependency manifests, entry points). The agent runs it first in
-  `/explore` and seeds the commands from it instead of re-deriving them,
-  then samples by its map. It also reports which documentation the repo
-  already has, so `/explore` points at it instead of restating it.
+- `.ai/agent/tools/probe.py` prints the build/test/lint commands it can
+  detect, the dependency manifests, and the documentation the repo already
+  has. The agent runs it first in `/explore` as a starting point for the
+  questions; your answers override it. It deliberately prints no module map
+  or LOC table: that is a repository overview, and an overview does not help
+  an agent find anything.
 - `.claude/hooks/ai_repo_clean.py` (Stop) blocks ending a turn while the
   `.ai` repo has uncommitted changes, so notes and specs are not silently
   dropped. Not absolute: Claude Code overrides a Stop hook after repeated
@@ -241,10 +278,10 @@ Hermes loads project skills only from a repository you have trusted, so run
 `hermes skills trust` once in the project root; in a running session
 `/reload-skills` picks up edited skills.
 
-Every command carries the same name here as on the other harnesses. Two of
-them are spelled out rather than shortened, `/framework-update` and
-`/import-agent`, because Hermes reserves `/update` and `/import` for built-in
-commands of its own. A name that collides with a harness built-in is renamed
+Every command carries the same name here as on the other harnesses. One of
+them is spelled out rather than shortened, `/framework-update`, because
+Hermes reserves `/update` for a built-in command of its own. A name that
+collides with a harness built-in is renamed
 on **every** harness: a command whose name depends on where you type it is
 worse than a longer name that is always right.
 
