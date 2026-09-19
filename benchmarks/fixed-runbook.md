@@ -11,11 +11,21 @@ This is the single self-contained runbook to execute. It consolidates and pins
 the cross-ecosystem cells the framework has been benchmarked on (Python, Shell,
 Rust, TypeScript/Angular, C++/ROS 2); the design history lives in the git log.
 
-> **Framework 5.22 removed the large profile.** The cells that scaffold it
-> (`--size large`, the `ros-*` cells) are kept here as the pinned record of
-> runs already made and cannot be re-run against the current generator. The
-> `--size` flag it shows is accepted only as `small`. Everything else runs
-> unchanged; drop the flag for a fresh run.
+> **Framework 5.22 removed the large profile, and with it the `--size`
+> flag.** The flag is not accepted in any form by the current generator: a
+> command that passes it exits with an argparse error. The four small cells
+> (1-4) have had it removed from their SCAFFOLD blocks and run unchanged
+> otherwise. The two `--size large` cells (5-6) are kept verbatim as the
+> pinned record of runs already made and **cannot be re-run** against any
+> generator since 5.22.
+>
+> **Since 6.1, `/spec` and `/build` are opt-in** (CONCEPT.md section 37) and
+> the framework's default path is direct. The shared agent prompt below still
+> drives spec, build and review, which is deliberate: it keeps new rounds
+> comparable with every round recorded before 6.1. It is therefore the
+> **opt-in path**, not the default one. To measure what the framework
+> actually does by default, run the
+> [context-only arm](#context-only-arm-c-cells-scaffold-without-workflow-optional-fixed).
 
 ---
 
@@ -54,11 +64,9 @@ images, or gates — that is what makes runs comparable across dates and models.
 | 6 | ros-plan | github.com/ros-navigation/navigation2 | `60e82dbb634bd93aed18f2f8d39b27d4b8656038` | large | cross-file feature, plan-only | none (plan-only) |
 | 7 | ng-plan | github.com/Egonex-AI/Understand-Anything | `0e8ad84a2a5236dca533beef618d71ee3f4568f6` | large | cross-file feature, plan-only | none (plan-only) |
 
-Profiles are fixed per cell (not user-set, not auto-detected) so a cell is the
-same experiment regardless of repo drift. As an informational check only, the
-v5.9 auto-size (`--size auto`) is expected to pick the listed profile at these
-SHAs (small for bats-core ~2.5k LOC and sqlite-utils; large for navigation2);
-that expectation is recorded, never gating.
+The Profile column is history: 5.22 left one shape, which is what cells 1-4
+scaffold today. It is kept in the matrix because cells 5-6 record runs made
+under the large profile and the column is what tells them apart.
 
 **Fast core = cells 1-4** (no heavy compile; ~10-20 min each at medium).
 **Full set = 1-7** (adds two ROS 2 colcon builds and two plan-only cells;
@@ -154,7 +162,7 @@ git -C "$WORK_DIR" checkout 5a7db7a98951d9d89b3b5e7800037e655a93345f
 # SCAFFOLD
 python3 "$FRAMEWORK" --name bats-core \
   --description "Bash Automated Testing System (bats) — TAP-compliant test runner" \
-  --size small --harness claude -y
+  --harness claude -y
 ```
 **TASK (verbatim):** "The function `abort()` is defined identically in
 `libexec/bats-core/bats`, `bats-exec-suite`, and `bats-gather-tests`.
@@ -183,7 +191,7 @@ git -C "$WORK_DIR" checkout 2d18065ea534bd12792865784eed86a617ffbdc7
 # SCAFFOLD
 python3 "$FRAMEWORK" --name satty \
   --description "Modern screenshot annotation tool (Rust/GTK4)" \
-  --size small --harness claude -y
+  --harness claude -y
 ```
 **TASK (verbatim):** Add `[package.metadata.deb]` to `Cargo.toml` with assets
 mirroring every path in the Makefile `install` target (binary `usr/bin/satty`
@@ -225,7 +233,7 @@ git -C "$WORK_DIR" diff 1a28416~1 1a28416 -- sqlite_utils/db.py | git -C "$WORK_
 # SCAFFOLD
 python3 "$FRAMEWORK" --name sqlite-utils \
   --description "CLI tool and Python library for manipulating SQLite databases" \
-  --size small --harness claude -y
+  --harness claude -y
 ```
 **TASK (verbatim):** "The test
 `tests/test_fts.py::test_enable_fts_replace_handles_legacy_bracket_quoted_content_table`
@@ -251,7 +259,7 @@ git -C "$WORK_DIR" checkout 79117b9
 # SCAFFOLD  (same as cell 3)
 python3 "$FRAMEWORK" --name sqlite-utils \
   --description "CLI tool and Python library for manipulating SQLite databases" \
-  --size small --harness claude -y
+  --harness claude -y
 ```
 **TASK (verbatim):** "Add a `rename-column` CLI command and a
 `Table.rename_column(old, new)` API method, mirroring the existing `rename-table`
@@ -276,7 +284,7 @@ git -C "$WORK_DIR" checkout 60e82dbb634bd93aed18f2f8d39b27d4b8656038
 # SCAFFOLD
 python3 "$FRAMEWORK" --name navigation2 \
   --description "ROS 2 Navigation (Nav2) stack — C++ / colcon / ament" \
-  --size large --harness claude -y
+  --size large --harness claude -y   # RECORD ONLY: --size was removed in 5.22
 ```
 **TASK (verbatim):** "In `nav2_velocity_smoother`, extract a self-contained
 helper (the per-axis velocity clamping / deadband math) out of the node class
@@ -348,7 +356,7 @@ git -C "$WORK_DIR" checkout 0e8ad84a2a5236dca533beef618d71ee3f4568f6
 # SCAFFOLD
 python3 "$FRAMEWORK" --name understand-anything \
   --description "TypeScript / Angular monorepo (pnpm workspaces)" \
-  --size large --harness claude -y
+  --size large --harness claude -y   # RECORD ONLY: --size was removed in 5.22
 ```
 **TASK (verbatim):** "Add Angular detection to `@understand-anything/core`'s
 framework registry: a new `FrameworkConfig` plus its three-place registration and
@@ -368,7 +376,7 @@ registration sites named in the plan exist in the repo. PASS = all true.
 > its pinned value, do not invent one.
 
 ```
-You are benchmark agent {RUN_ID} running the llm-agent-framework {PROFILE} profile.
+You are benchmark agent {RUN_ID} running the llm-agent-framework.
 Model: {MODEL} | Effort: {EFFORT}
 
 AUTONOMOUS RUN. No human is available. Resolve every question from code evidence,
@@ -382,14 +390,13 @@ STEP 1 — SETUP: run the cell's SEED commands, then cd $WORK_DIR and run the
 cell's SCAFFOLD command exactly as written.
 
 STEP 2 — EXPLORE: read .claude/skills/explore/SKILL.md and follow it. Run
-python3 .ai/agent/tools/probe.py first. Fill the AGENTS.md project-context (small)
-or the KB nodes + manifest (large), and .ai/notes.md. Commit .ai.
-(Large profile: make explore its own session/commit before planning.)
+python3 .ai/agent/tools/probe.py first. Fill the AGENTS.md
+GENERATED:project-context section and .ai/notes.md. Commit .ai.
 
-STEP 3 — SPEC/TICKET+PLAN: follow the profile's skill(s). Write the spec (small)
-or ticket + self-contained task files (large) for the cell's TASK. Verify any
+STEP 3 — SPEC: read the spec skill and follow it for the cell's TASK. Verify any
 premise in the TASK against the code before acting; record findings as numbered
-assumptions. Commit .ai.
+assumptions. Commit .ai. (Opt-in since 6.1; the prompt invokes it so rounds stay
+comparable with pre-6.1 records.)
 
 STEP 4 — BUILD/IMPLEMENT: follow the skill. Make the changes. Run the framework
 review gate (spawn the reviewer sub-agent with only the diff + acceptance
@@ -401,7 +408,8 @@ PASS/FAIL per the cell's rule. Do not modify the target to make the gate pass in
 a way the TASK forbids (e.g. editing tests in a refactor cell).
 
 STEP 6 — RESULTS: write /tmp/benchmark/results/{RUN_ID}.md with: Configuration
-table (Run ID, Cell, Profile, Model, Effort, Start, End, Duration, Gate PASS/FAIL);
+table (Run ID, Cell, Framework version, Model, Effort, Start, End, Duration,
+Gate PASS/FAIL);
 Auto-size line printed at scaffold (informational); Spec/plan produced;
 .ai commit history (git -C .ai log --oneline); target diff (git diff --stat HEAD +
 full diff); any premise-verification finding; full gate output; 3-5 observations.
@@ -515,6 +523,55 @@ a framework loss on B-amortized session 2 is.
 
 ---
 
+## Context-only arm (C-cells, scaffold without workflow; optional, fixed)
+
+Added with framework 6.0 (CONCEPT.md section 36) after the ETH Zurich
+context-file evaluation. It separates the two things a framework cell bundles:
+the always-loaded context file (what the paper measured) and the workflow
+(spec, build, review gate; what this framework claims). A C-cell is the twin
+of a numbered cell with the **same SEED, TASK, GATE, image, MODEL x EFFORT and
+permission mode**; it runs the SCAFFOLD and `/explore` exactly as the
+framework arm does, then receives the TASK with no `/spec`, no `/build` and no
+review gate: the agent solves it directly with AGENTS.md, `.ai/notes.md` and
+`.ai/notes/map.md` in place. `RUN_ID = <cell>-context-<date>`; own work dir.
+
+- **Eligible: cells 1-4** (same rule as B-cells).
+- **Reading the three arms together:** framework minus context = the price
+  and effect of the workflow; context minus baseline = the price and effect of
+  the file alone. The paper predicts the second delta is near zero on success
+  and +20% on cost; the framework's thesis lives entirely in the first.
+- **Steps:** `count_tokens.py` prints `API calls`; use it as the step count
+  the paper reports (one call per tool interaction). Report it next to the
+  token columns for all three arms.
+
+### Context-only agent prompt (fixed; replaces the shared prompt for C-cells)
+
+```
+You are benchmark agent {RUN_ID} (CONTEXT-ONLY arm).
+Model: {MODEL} | Effort: {EFFORT}
+
+AUTONOMOUS RUN. No human is available. Resolve every question from code
+evidence, record numbered assumptions in .ai/notes.md, and proceed without
+blocking. EFFORT semantics: {paste the matching low/medium/high tier text}.
+
+Record start: date '+%Y-%m-%dT%H:%M:%S'
+
+STEP 1 — SETUP: run the cell's SEED commands, then cd $WORK_DIR and run the
+cell's SCAFFOLD command exactly as written.
+
+STEP 2 — EXPLORE: read .claude/skills/explore/SKILL.md and follow it. Commit .ai.
+
+STEP 3 — TASK: solve the cell's TASK directly. Do not run /spec or /build and
+do not spawn a reviewer; AGENTS.md and .ai are available to read. Keep tests
+and lint green. Commit .ai if you changed it.
+
+STEP 4 — GATE and STEP 5 — RESULTS: as in the shared prompt (results file at
+/tmp/benchmark/results/{RUN_ID}.md, Arm=context-only in the Configuration
+table, no spec section).
+```
+
+---
+
 ## Worker arm (W-cells): retired
 
 The W arm compared a solo twin against a twin that dispatched eligible
@@ -540,8 +597,7 @@ round, verify every cell against this checklist:
 
 ```
 [ ] SEED produced the pinned state (SHA checked out; py-bugfix test fails pre-run)
-[ ] auto-size (informational) printed the expected profile at the pinned SHA
-[ ] .ai commit sequence matches profile
+[ ] .ai commit sequence matches the arm (explore / spec / build)
      small: init -> explore -> spec -> build
      large: init -> explore -> ticket -> plan [-> implement]
 [ ] gate ran exactly as written and recorded PASS/FAIL (plan cells: all static checks)
@@ -551,6 +607,8 @@ round, verify every cell against this checklist:
 [ ] B-cells only: same SEED/TASK/GATE as the twin, no scaffold, both arms in
     bypass-permissions mode, comparison table in the report
 [ ] B-amortized only: per-session token split recorded (--per-session)
+[ ] C-cells only: /explore ran, no /spec, /build or reviewer in the transcript,
+    API-call count reported as steps next to the tokens
 ```
 
 To record a round in the repo: create `benchmarks/<run>/report.md` and copy the

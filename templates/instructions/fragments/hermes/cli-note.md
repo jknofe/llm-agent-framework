@@ -6,13 +6,11 @@ once in the repository root. After a skill file changes, run `/reload-skills`
 in a running session.
 
 Run one by typing its name as a slash command, with any argument after it
-(`/framework-update dry-run`): `/explore`, `/spec`, `/build`, `/import-kb`,
-`/import-agent`, `/tidy-up`, `/framework-update`.
+(`/framework-update dry-run`): `/explore`, `/spec`, `/build`,
+`/framework-update`.
 
-These are the same names on every harness this framework supports. Two of
-them are spelled out rather than shortened, `/framework-update` and
-`/import-agent`, because Hermes reserves `/update` and `/import` for built-in
-commands of its own.
+The names are the same on every harness; `/framework-update` is spelled out
+because Hermes reserves `/update`.
 
 Whatever follows the command name reaches the agent as the user instruction;
 nothing is substituted into the skill file. Take change ids and paths from

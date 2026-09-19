@@ -1,12 +1,38 @@
 # llm-agent-framework
 
-Universal, project-configurable LLM agent for software projects. One dense
-`AGENTS.md` as the canonical instructions file, running memory in
-`.ai/notes.md`, a lightweight spec per non-trivial change, and one
-fresh-context review gate. Concept: CONCEPT.md. All agent docs: telegraphic
-English, token-optimized.
+Two pillars, one command set on any supported harness (Claude Code,
+Copilot, Hermes):
 
-Framework 5.22 removed the large (knowledge-base) profile; see
+1. **Durable project knowledge that the repository cannot state itself.**
+   `.ai/notes.md` (decisions and why, gotchas, unwritten rules, runbooks) as
+   private memory across sessions, plus a short requirements block in
+   `AGENTS.md` holding the commands this project is checked with and the
+   tools it requires or forbids.
+2. **An opt-in spec-and-build path.** `/spec` writes down what the agent
+   intends before any code exists, so you can redirect it; `/build`
+   implements it and reviews the diff against the criteria. You start both.
+   By default the agent just does the task.
+
+Concept: CONCEPT.md.
+
+What the benchmarks support and what they do not (`benchmarks/`, CONCEPT.md
+sections 36 to 38). A spec-and-review chain on every task costs two to three
+times a bare agent and did not make later tasks on the same repo cheaper or
+more correct with Sonnet 5, so 6.1 made it opt-in. An always-loaded
+repository overview does not help agents find anything (ETH Zurich
+evaluation of context files, measured on repos from django to 12 niche
+ones), so 6.0 stopped emitting one and 7.0 stopped writing one anywhere.
+What does measure: naming a required tool causes it to be used, and the
+notes carry real gotchas between sessions for almost nothing.
+
+**This framework does not make a session cheaper.** Every round measured
+more tokens, by design. It is economical about its own text (`AGENTS.md`
+under 650 words, everything else read on demand), which is a different
+claim. Untested: weak models, projects dense in non-derivable context, and
+sessions where a human answers the questions.
+
+Framework 7.0 cut `/tidy-up`, `/import-kb`, `/import-agent` and the
+generated module map; 5.22 removed the large (knowledge-base) profile. See
 [One profile](#one-profile).
 
 ## Install
@@ -79,21 +105,25 @@ re-init, and AGENTS.md is regenerated so it describes the harness you are
 actually on. It asks first unless you pass `-y`; a scaffold with no recorded
 file list retires nothing and prints what to remove by hand.
 
-1. **Ground the agent**: run `/explore`. It runs the deterministic inventory,
-   samples the codebase, fills the project-context section of `AGENTS.md` and
-   `.ai/notes.md`, and asks you about non-derivable knowledge (domain terms,
-   unwritten rules).
-2. **Spec a change**: `/spec FEAT-42 Add a jazzy build`. Writes
-   `.ai/changes/FEAT-42/spec.md`: goal, acceptance criteria, task checklist.
-3. **Build it**: `/build FEAT-42`. The agent works the checklist and ends with
-   a fresh-context review of the full diff against the acceptance criteria
-   (the `reviewer` subagent where the harness has one).
+1. **Ground the agent**: run `/explore` and answer it. It detects the
+   build/test/lint commands as a starting point, then asks you what the code
+   cannot tell it (the commands you actually run before pushing, tools to use
+   or avoid, unwritten rules, domain terms) and writes those requirements
+   into `AGENTS.md`. Your answers are the part that measured positive, so
+   letting it run unattended gets you most of the cost and little of the
+   benefit.
+2. **Work**: ask for what you want. The agent reads what it needs, makes
+   the change, runs the project's full test and lint commands, notes
+   anything durable in `.ai/notes.md` and commits `.ai`. This is the default
+   path for every task.
+3. **Opt in to a spec** when you want a change written down and reviewed:
+   `/spec FEAT-42 Add a jazzy build` writes `.ai/changes/FEAT-42/spec.md`
+   (goal, acceptance criteria, task checklist); `/build FEAT-42` works the
+   checklist and ends with a fresh-context review of the full diff against
+   the criteria (the `reviewer` subagent where the harness has one). The
+   agent never starts a spec on its own.
 4. **Archive**: just ask the agent ("archive FEAT-42"). It verifies
    `status: done` and moves the change to `.ai/changes/_archive/`.
-
-Small changes need no spec: a fix you can describe in one sentence that
-touches a single file is done directly; the agent notes anything durable and
-commits `.ai`. The spec step is for everything larger.
 
 The framework is model-agnostic: it never tells the harness which model to
 run, you decide via the harness (for example `/model opusplan` in Claude
@@ -106,16 +136,19 @@ split models, keep the direction: spec on the strong one.
 Framework 5.22 removed the large profile. What is left is what used to be the
 small one, and it is now the only shape the generator emits:
 
-- **AGENTS.md** is the canonical, dense instructions file: protocol,
-  right-sizing rule, build/test/lint commands, conventions, and a generated
-  project-context section (the only "knowledge store").
+- **AGENTS.md** is the canonical, short instructions file: protocol,
+  right-sizing rule, workflow table, and a generated project-requirements
+  section holding only build/test/lint commands, required or forbidden
+  tools, project rules, and pointers to docs the repo already has (cap
+  ~300 tokens).
 - **`.ai/`** is a private nested git repo (gitignored from the host) holding
-  `notes.md` (running memory: decisions, gotchas, domain terms) and per-change
-  specs under `changes/<id>/spec.md`.
-- **Seven skills**, listed under [Skills](#skills).
+  `notes.md` (running memory: decisions, gotchas, domain terms), optional
+  topic leaves under `notes/`, and per-change specs under
+  `changes/<id>/spec.md`.
+- **Four skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, and `probe.py`
-  (the deterministic repo inventory).
+  (command and documentation detection).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
@@ -125,11 +158,13 @@ on-demand phase docs, the `kb-delta.yaml` patches, the ticket pipeline
 review gate. The agent re-reads the real source instead of maintaining a
 synced index of it.
 
-**Existing large-profile scaffolds** cannot be carried across with `/framework-update`:
-there is no reference to render for them, so it stops and says so. Scaffold
-fresh with `init-agent` and run `/import-agent <old-.ai>`, which distills the KB
-into the project-context section and `notes.md` and carries in-flight change
-state over.
+**Existing large-profile scaffolds** cannot be carried across with
+`/framework-update`: there is no reference to render for them, so it stops
+and says so. Scaffold fresh with `init-agent`, then ask the agent to carry
+the old `.ai/` across: the commands and rules into the requirements section,
+the gotchas and decisions into `notes.md`, and any in-flight change into
+`changes/<id>/spec.md`. Framework 7.0 dropped the `/import-agent` skill that
+used to script this; with the scaffold at six files it is a plain request.
 
 ## Skills
 
@@ -145,53 +180,105 @@ All three harnesses invoke them the same way, under the same names:
 
 | Command | What it does |
 |---|---|
-| `/explore [focus]` | Runs the deterministic inventory, samples the codebase, fills the AGENTS.md project-context section and `.ai/notes.md`, asks about non-derivable knowledge. Optional free-text focus. |
-| `/spec <id> <title...>` | Writes `.ai/changes/<id>/spec.md` for a non-trivial change: goal, acceptance criteria, task checklist. No implementation yet. |
-| `/build <id>` | Works the spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
-| `/import-kb <source>` | Reads an existing knowledge base of **any** structure (a docs/wiki folder, a legacy `.ai/`, a README-heavy repo) and distills it into the project-context section and `notes.md`, routing gotchas and runbooks to `notes.md`. |
-| `/import-agent <source>` | Migrates a whole existing `.ai/` folder (an older framework version, including a large-profile one, or a differently-shaped agent folder) into the current structure, carrying both the knowledge **and** in-flight change state. Distinct from `/import-kb`, which ignores change state, and from `/framework-update`, which upgrades a scaffold this framework already stamped. |
-| `/tidy-up [scope]` | Hygiene sweep over the host code in four passes: removes dead code with evidence (a library's exported surface counts as used), **proposes** obsolete files without deleting them, compresses overlong comments to 1-2 lines while relocating rather than discarding the knowledge in them, and rewrites em dashes out of prose. Gated on a green build/test/lint baseline captured before the sweep and re-checked after; it may not change behavior, and anything that would is a change spec instead. |
+| `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
+| `/spec <id> <title...>` | Opt-in. Writes `.ai/changes/<id>/spec.md` for a change you want specified: goal, acceptance criteria (always including the full suite green), task checklist. No implementation yet. |
+| `/build <id>` | Opt-in. Works that spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
 Archiving has no command: prompt the agent; the rules live in AGENTS.md.
 
+### Autonomous dispatch with Claude Code's `/goal`
+
+Not part of the framework, but the way to run one of these unattended.
+`/goal` changes only whether the agent stops to ask between steps, so use it
+when the finish line is machine-checkable and no judgment call is expected.
+Point the condition at the artifact that defines done (the gate command, or
+for a spec'd change its acceptance criteria), make the agent show it in
+output, and cap the turns:
+
+```
+/goal the transcript shows the full test and lint commands exiting 0; or
+stop after 20 turns
+```
+
+If two consecutive turns make no progress on the same blocker, have it stop
+and report rather than make a third blind attempt. This note used to sit in
+every scaffold's `AGENTS.md`; 7.0 moved it here, because it is advice about
+a harness, not a requirement of your project.
+
 ## Instructions file: AGENTS.md
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
-right-sizing rule, conventions, change layout, generated project-context
-section). For Claude Code, init also writes a one-line `CLAUDE.md` that
-imports it via `@AGENTS.md`; Copilot (VS Code and CLI) and Hermes read
-`AGENTS.md` natively, so no extra file is needed there.
+right-sizing rule, change layout, generated project-requirements
+section). All three harnesses read it natively; no `CLAUDE.md` is written.
+Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
+or `CLAUDE.local.md` exists in the project directory or any directory
+above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
+`CLAUDE.md` in a parent folder, or run Claude Code through Amazon Bedrock
+or with telemetry disabled, add a `CLAUDE.md` containing `@AGENTS.md`
+yourself, or set the Claude Code project-instructions option to
+`claude-md-and-agents-md` in `~/.claude/settings.json`. Scaffolds from 7.0
+and earlier carry the pointer; `/framework-update` retires it where it is
+safe to.
 
 ## Deterministic tools and hooks
 
 Protocol rules that can be enforced mechanically are not left to model
 obedience:
 
-- `.ai/agent/tools/probe.py` prints a deterministic repo inventory (host
-  commit, language mix, detected build/test/lint commands, module map with
-  LOC, dependency manifests, entry points). The agent runs it first in
-  `/explore` and seeds the mechanical project-context fields from it instead
-  of re-deriving them, then samples by its map.
-- `.claude/hooks/ai_repo_clean.py` (Stop) blocks ending a turn while the
-  `.ai` repo has uncommitted changes, so notes and specs are not silently
-  dropped. Not absolute: Claude Code overrides a Stop hook after repeated
-  consecutive blocks, so the protocol rule in `AGENTS.md` remains the
-  backstop.
+- `.ai/agent/tools/probe.py` prints the build/test/lint commands it can
+  detect, the dependency manifests, and the documentation the repo already
+  has. The agent runs it first in `/explore` as a starting point for the
+  questions; your answers override it. It deliberately prints no module map
+  or LOC table: that is a repository overview, and an overview does not help
+  an agent find anything.
+- `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
+  has uncommitted changes, so notes and specs are not silently dropped. Not
+  absolute: every harness overrides a turn-end block after a few consecutive
+  passes, so the protocol rule in `AGENTS.md` remains the backstop.
+- `git_guard.py` (before a shell command) blocks the two git guardrails at
+  the shell: merging into the default branch (`git merge` while on it,
+  `git push` targeting it, `gh pr merge`) and any commit whose message, or
+  `-F` message file, carries a co-author line. The reason is fed back to the
+  agent, which stops at the branch or pull request instead. Only tool calls
+  carrying a shell command are inspected; a command the hook cannot parse as
+  one of those cases passes.
+
+Both scripts are identical on every harness. Claude Code, Copilot and
+Hermes pipe the same JSON shape (`cwd`, `tool_name`, `tool_input.command`)
+to stdin and accept the same `{"decision": "block", "reason": ...}` on
+stdout; only where they live and how they are registered differs:
+
+| Harness | Scripts | Registered in |
+|---|---|---|
+| claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
+| copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch. Loaded only from a trusted folder: the CLI asks on first interactive start in the repo, and a non-interactive run needs `COPILOT_ALLOW_ALL=true` (exactly `true`) to trust its working directory |
+| hermes | `.agents/hooks/` | `~/.hermes/config.yaml`, see below |
+
+Hermes registers shell hooks only in the profile config, never per
+repository. The scaffold therefore ships `.agents/hooks/hermes_dispatch.py`
+and `.agents/hooks/hermes-hooks.yaml`; once, install the dispatcher as
+`~/.hermes/agent-hooks/llm-agent-hook.py` (`install -m 755`, it must be
+executable because Hermes runs the command without a shell and expands `~`
+only at its start) and merge the snippet into `~/.hermes/config.yaml`. The dispatcher runs `<session cwd>/.agents/hooks/
+<name>.py` and is a no-op in a directory without a scaffold, so the one
+profile entry serves every project and `pre_tool_call` can stay
+`fail_closed`. Hermes asks for consent the first time each hook command
+runs. Its turn-end event, `pre_verify`, fires only on turns that edited
+files.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
   reviewer used by `/build`'s review gate.
 
-During `/explore` the agent additionally offers a project-specific Stop hook
-that runs your lint/tests, turning "done = checks pass" into a hard gate.
-Hooks and the reviewer subagent are scaffolded for the claude harness;
-Copilot and Hermes have no equivalent mechanism, there the rules stay
-protocol text.
+During `/explore` the agent additionally offers a project-specific turn-end
+hook that runs your lint/tests, turning "done = checks pass" into a hard
+gate. The reviewer subagent is claude-only; Copilot and Hermes have no
+equivalent, there `/build` reviews inline.
 
-These hooks only fire when the scaffolded repo is the **active Claude Code
-project directory**. Driving the agent from a parent directory, a monorepo
-subdir, or a sub-agent means the hooks do not run (`$CLAUDE_PROJECT_DIR`
-points elsewhere) — in that case the protocol rules in `AGENTS.md` are the
+Hooks only fire when the scaffolded repo is the session's working directory
+(on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
+the agent from a parent directory, a monorepo subdir, or a sub-agent means
+the hooks do not run; in that case the protocol rules in `AGENTS.md` are the
 only guarantee, so commit `.ai` by hand and do not assume a hook ran.
 
 ## GitHub Copilot support
@@ -203,13 +290,15 @@ Code:
 - prompt files: `.github/prompts/*.prompt.md` instead of skills, invoked
   the same way (`/explore`, `/spec`, ...) in VS Code Copilot Chat;
   arguments are passed as input variables, e.g. `/spec: ticket=FEAT-42`
-- no `.claude/settings.json`, hooks or reviewer subagent (no equivalent)
+- hooks: `.github/hooks/llm-agent.json` plus the two scripts (see
+  [Deterministic tools and hooks](#deterministic-tools-and-hooks))
+- no `.claude/settings.json` or reviewer subagent (no equivalent)
 
 Prompt files require VS Code with the `chat.promptFiles` setting enabled.
 Copilot CLI does not load prompt files; it does read `AGENTS.md`, which
 therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
-`Explore the project and fill the Project Context + .ai/notes.md.`
+`Explore the project and fill the project requirements + .ai/notes.md.`
 
 ## Hermes support
 
@@ -220,16 +309,19 @@ Choosing `hermes` at the harness prompt targets the Hermes agent:
   standard and the same bodies as the claude harness, with hermes
   frontmatter (`version`, `platforms`, `metadata.hermes.tags`, and a
   description trimmed to the 60-character cap)
-- no `.claude/settings.json`, hooks or reviewer subagent (no equivalent)
+- hooks: scripts under `.agents/hooks/`, registered once in
+  `~/.hermes/config.yaml` through the shipped dispatcher (see
+  [Deterministic tools and hooks](#deterministic-tools-and-hooks))
+- no `.claude/settings.json` or reviewer subagent (no equivalent)
 
 Hermes loads project skills only from a repository you have trusted, so run
 `hermes skills trust` once in the project root; in a running session
 `/reload-skills` picks up edited skills.
 
-Every command carries the same name here as on the other harnesses. Two of
-them are spelled out rather than shortened, `/framework-update` and
-`/import-agent`, because Hermes reserves `/update` and `/import` for built-in
-commands of its own. A name that collides with a harness built-in is renamed
+Every command carries the same name here as on the other harnesses. One of
+them is spelled out rather than shortened, `/framework-update`, because
+Hermes reserves `/update` for a built-in command of its own. A name that
+collides with a harness built-in is renamed
 on **every** harness: a command whose name depends on where you type it is
 worse than a longer name that is always right.
 
@@ -244,7 +336,7 @@ only the entry files differ.
 `init` creates `.ai/notes.md` (running memory for gotchas, runbooks and
 domain terms), `.ai/changes/` (per-change specs, with `_archive/` for
 finished ones), `.ai/agent/tools/probe.py`, the canonical `AGENTS.md`, the
-skills above and, for Claude Code, the `CLAUDE.md` pointer, the reviewer
+skills above and, for Claude Code, the reviewer
 subagent, the Stop hook script and `.claude/settings.json` with that hook
 plus a read-only permission allow list (grep, find, ls, cat, awk, read-only
 git, `git -C .ai`, `probe.py`) so exploration and `.ai` commits run without a

@@ -14,6 +14,10 @@ unanswerable while the content lived inside string literals:
   register   do the templates honor the no-em-dash rule (CONCEPT section 8)?
   hermes     do the hermes skill descriptions fit that harness's 60-char cap,
              and does every harness expose the same command names?
+  budget     does AGENTS.md stay a requirements file (CONCEPT sections 36
+             and 38): under 650 words before the generated section on every
+             harness, and no artifact still describes the retired overview
+             digest, the retired map leaf, or the commands v7.0 dropped?
 
 The byte-identity harness lives outside this file: it renders all four
 variants and diffs them against a known-good capture. This file checks
@@ -56,8 +60,10 @@ def rendered_artifacts():
                     content.render_agents_md("p", "d", harness)))
     out.append(("reviewer", content.render_reviewer_agent()))
     out.append(("settings.json", content.render_settings_json()))
+    out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
     for fn in ("render_tool_probe", "render_hook_ai_repo_clean",
-               "render_notes_stub", "render_claude_pointer"):
+               "render_hook_git_guard", "render_hook_hermes_dispatch",
+               "render_hermes_hooks_yaml", "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
     return out
 
@@ -66,8 +72,14 @@ def check_orphans():
     """Every template file must be reached by some render call."""
     used = set()
     for path in (REPO / "agentgen").rglob("*.py"):
-        used |= set(re.findall(r'["\']([\w\-/]+\.(?:md|py|txt|json))["\']',
-                               path.read_text()))
+        for lit in re.findall(
+                r'["\']([\w\-/{}]+\.(?:md|py|txt|json|yaml))["\']',
+                path.read_text()):
+            # per-harness fragments are addressed as f"...{harness}/x.md"
+            if "{harness}" in lit:
+                used |= {lit.replace("{harness}", h) for h in HARNESSES}
+            else:
+                used.add(lit)
     # skill bodies are addressed by roster name, not by literal path
     for name in SKILLS:
         used.add(f"skills/{name}.md")
@@ -104,10 +116,12 @@ def check_python():
 
 
 def check_json():
-    try:
-        json.loads(content.render_settings_json())
-    except json.JSONDecodeError as e:
-        fail("json", f"settings.json invalid: {e}")
+    for label, fn in (("settings.json", content.render_settings_json),
+                      ("copilot hooks.json", content.render_copilot_hooks_json)):
+        try:
+            json.loads(fn())
+        except json.JSONDecodeError as e:
+            fail("json", f"{label} invalid: {e}")
 
 
 def check_register():
@@ -158,9 +172,43 @@ def check_hermes():
                            f"hermes emits {sorted(names)}")
 
 
+def check_budget():
+    """CONCEPT sections 36 and 38: the always-loaded file carries
+    requirements, not an overview. Measured on the rendered file, before the
+    generated section, on every harness; the copilot CLI note is the largest
+    variant. The second half catches prose that still describes the pre-6.0
+    digest, the map leaf 7.0 stopped generating, or a retired command.
+
+    `notes/map.md` is exempt in one place: the /framework-update body has to
+    name the leaf to say it must not be deleted. That is checked below rather
+    than waived, so a map instruction cannot creep back in anywhere else.
+    """
+    for harness in HARNESSES:
+        text = content.render_agents_md("p", "d", harness)
+        pre = text.split("<!-- BEGIN GENERATED")[0]
+        words = len(pre.split())
+        if words > 650:
+            fail("budget", f"{harness} AGENTS.md is {words} words before the "
+                           "generated section (max 650)")
+    for label, text in rendered_artifacts():
+        # "module map" is not banned outright: the templates say "no module
+        # map" to forbid one, and the update body has to name the retired
+        # leaf. What is banned is the path, which only an instruction to
+        # write or read the leaf would contain.
+        for stale in ("1500 tokens", "small profile", "small-profile",
+                      "re-initializing as large", "size-profile",
+                      "/tidy-up", "/import-kb", "/import-agent"):
+            if stale in text:
+                fail("budget", f"{label}: still says '{stale}'")
+        if "notes/map.md" in text and not label.endswith(
+                "skill:framework-update"):
+            fail("budget", f"{label}: names notes/map.md, retired as "
+                           "framework output in 7.0")
+
+
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_register, check_hermes):
+                  check_json, check_register, check_hermes, check_budget):
         check()
     if failures:
         print(f"FAIL ({len(failures)})")
@@ -168,7 +216,7 @@ def main():
             print("  " + f)
         return 1
     print(f"ok: {len(all_templates())} templates, "
-          f"{len(rendered_artifacts())} rendered artifacts, 7 checks passed")
+          f"{len(rendered_artifacts())} rendered artifacts, 8 checks passed")
     return 0
 
 

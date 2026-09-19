@@ -142,7 +142,7 @@ for a different harness, say that and stop.
 A scaffold stamped `"profile": "large"` predates framework 5.22, which
 removed the large profile. There is no reference to render for it, so
 stop and report that: moving such a project across is a deliberate
-re-init plus `/import-agent`, not an update.
+re-init, with its knowledge carried over by hand, not an update.
 
 With `dry-run`: do steps 1-3 as analysis only, print the table of what
 would change, and stop without writing anything. The backup and the
