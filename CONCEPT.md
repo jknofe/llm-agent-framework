@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-14, v7.0.** The framework rests on four premises, stated in
+**State: 2026-09-19, v7.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -80,6 +80,13 @@ the only arm that measured positive. `probe.py` runs first and prints detected
 build/test/lint commands and the documentation the repo already has, as a
 starting point for the questions. The user's answers override detection.
 
+Between explores, notes grow on correction: when the user corrects the agent,
+or a check fails for a reason the code does not explain, the agent records it
+before moving on. A correction is the cheapest signal that something was not
+derivable from the repository, and a gotcha noted at the moment it bit is the
+only kind that is still accurate. Without this rule the notes hold only what
+`/explore` asked about.
+
 ## Pillar 2: the opt-in spec-and-build path
 
 `/spec <id> <title>` writes `.ai/changes/<id>/spec.md`: goal, acceptance
@@ -111,7 +118,12 @@ framework claims nothing about it.
 Four commands: `/explore`, `/spec`, `/build`, `/framework-update`. Same names,
 same bodies, on all three harnesses; only the entry files differ (Agent Skills
 under `.claude/skills/`, project skills under `.agents/skills/`, prompt files
-under `.github/prompts/`). A name that collides with a harness built-in is
+under `.github/prompts/`). `AGENTS.md` is the one instructions file and every
+harness reads it natively; since 7.1 no `CLAUDE.md` pointer is written. The
+condition on claude: no `CLAUDE.md` or `CLAUDE.local.md` in the project
+directory or above it, and a session that can load `AGENTS.md` (not Bedrock,
+not telemetry-off). Where that fails the user adds a one-line `@AGENTS.md`
+import themselves. A name that collides with a harness built-in is
 renamed on **every** harness, which is why the update command is
 `/framework-update` everywhere.
 
@@ -126,12 +138,16 @@ never re-derived.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 394 words on claude, 486 and 485
+- `AGENTS.md` before the generated section: 491 words on claude, 573 and 572
   on copilot and hermes where the balance is that harness's own CLI note.
-  `check_templates` fails above 500.
+  `check_templates` fails above 600. The number is a tripwire against
+  drift back toward a digest, not a target: a rule stated clearly beats
+  one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-- A claude scaffold records 11 framework files; four of them are skills.
+- A claude scaffold records 11 framework files, a copilot one 10, a hermes
+  one 11; four of each are skills, two are hooks (hermes: plus dispatcher
+  and config snippet).
 - Everything else, skill bodies included, is read on demand.
 
 ## What the framework does not claim
@@ -160,12 +176,44 @@ Every session, regardless of path:
 3. `/spec` and `/build` only when the user invokes them.
 4. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
-5. `.ai/.current` is the resume pointer; read it at session start.
+5. `.ai/.current` is the resume pointer; read it at session start. `/build`
+   and unrelated tasks run in fresh sessions: instruction adherence decays
+   as a session grows, and the spec is the handoff that makes a fresh
+   session cheap.
+6. Never merge into the default branch unasked. Work on a branch and stop at
+   the pull request; merging is the user's action.
+7. Never add a co-author trailer to a commit message. Harnesses inject one by
+   default; the scaffold overrides it.
 
-Enforced mechanically where possible: a Stop hook blocks ending a turn while
-`.ai` is dirty, a read-only permission allowlist keeps exploration from
-prompting per command. Both are claude-only; on the other harnesses the
-protocol text is the only guarantee.
+Enforced mechanically where possible: a turn-end hook blocks ending a turn
+while `.ai` is dirty, and a pre-tool hook blocks rules 6 and 7 at the shell
+(`git merge` on the default branch, `git push` targeting it, `gh pr merge`, a
+commit whose message carries a co-author line). A rule that can be checked
+deterministically gets a hook and stays in the protocol text as the backstop,
+because instructions are advisory and hooks are not.
+
+The two hook scripts are the same file on every harness. Claude Code, Copilot
+(CLI, VS Code, cloud agent) and Hermes all pipe a JSON payload with `cwd`,
+`tool_name` and `tool_input.command` to stdin and accept `{"decision":
+"block", "reason": ...}` on stdout, so one script serves all of them; only
+the tool's name and the registration differ:
+
+- claude: `.claude/hooks/`, registered in `.claude/settings.json`
+  (`PreToolUse` on `Bash`, `Stop`), plus a read-only permission allowlist.
+- copilot: `.github/hooks/`, registered in `.github/hooks/llm-agent.json`
+  (`preToolUse`, `agentStop`), which VS Code and the cloud agent read too.
+- hermes: `.agents/hooks/`, but Hermes registers shell hooks only in the
+  profile's `~/.hermes/config.yaml`, never per repository. The scaffold
+  therefore ships a dispatcher the user installs once under
+  `~/.hermes/agent-hooks/`; it runs `<session cwd>/.agents/hooks/<name>.py`
+  and is a no-op where no scaffold exists, so the one profile entry serves
+  every project and can stay fail-closed. `pre_verify` is the turn-end
+  event; it fires only on turns that edited files, and `extra.attempt` is
+  its loop guard.
+
+Every harness overrides a turn-end block after a few consecutive passes and
+runs hooks only when the repository is the session's working directory, so
+the protocol text remains the guarantee the hooks merely back.
 
 ## Language and register
 
@@ -242,6 +290,27 @@ are the reasoning that produced Part I.
 
 ## Version log
 
+v7.1 (2026-09-19, two git guardrails in the protocol: never merge into the
+default branch without being asked, never add a co-author trailer to a commit
+message. Both are rules the repository cannot state itself and both were
+violated in practice by harness defaults, so they live in every scaffold's
+AGENTS.md rather than in per-project notes. No measurement; a prohibition
+needs none. Same release drops the `CLAUDE.md` pointer from the claude
+scaffold: Claude Code 2.1.277 reads `AGENTS.md` natively when no `CLAUDE.md`
+sits in or above the project, so the pointer was a duplicate entry file.
+`/framework-update` retires it from existing scaffolds unless the user
+added text below the import or the session cannot load `AGENTS.md`. Three
+further changes from a survey of 2026 practice (Anthropic and OpenAI
+guidance, Willison's patterns, the ETH context-file study and its
+follow-ups): notes grow on correction, not only on `/explore`; the two git
+guardrails get a pre-tool hook, `git_guard.py`, because a rule that can be
+checked deterministically should not rest on prose; both hooks now ship on
+all three harnesses from one script each, since Copilot hooks
+(`.github/hooks/*.json`) and Hermes shell hooks share the Claude Code wire
+shape, Hermes needing a one-time dispatcher in the profile because it has no
+per-repository hook registry; and the
+protocol says to run `/build` and unrelated tasks in fresh sessions, since
+adherence measurably decays within a session.)
 v7.0 (the framework is reduced to two pillars: durable
 project knowledge that is not derivable from the repo (`.ai/notes.md` plus
 the requirements block in AGENTS.md), and an opt-in spec-and-build path whose

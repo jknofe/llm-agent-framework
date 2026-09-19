@@ -34,8 +34,10 @@ title: ${arg_ticket}
    ## Notes              Q&A answers, decisions
 4. Commit `.ai` (`spec: <id>`).
 
-Do not implement yet; that is `/build <id>`. Show the spec and wait:
-a plan the user can read and redirect before any code exists is what
+Do not implement yet; that is `/build <id>`, and it belongs in a fresh
+session: the spec is the handoff, so the build starts from it rather
+than from this conversation's exploration. Show the spec and wait: a
+plan the user can read and redirect before any code exists is what
 this path is for. This skill runs only because the user asked for a
 spec; it is not the default path for a change, and the agent never
 starts one on its own.

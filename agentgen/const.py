@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "7.0"
+FRAMEWORK_VERSION = "7.1"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -30,6 +30,8 @@ SKILLS = ["explore", "spec", "build", "framework-update"]
 # scaffold uses the second because it is the cross-tool location, so a project
 # that later adds another SKILL.md reader does not need a second copy.
 HERMES_SKILLS_DIR = ".agents/skills"
+HERMES_HOOKS_DIR = ".agents/hooks"
+COPILOT_HOOKS_DIR = ".github/hooks"
 
 # Where a harness switch parks the entry files of the harness it replaces.
 # Inside `.ai` so it travels with the scaffold, gitignored there because it is
@@ -41,8 +43,8 @@ HARNESS_BACKUP_DIR = ".ai/agent/.harness-backup"
 # the version stamp did not record is the user's own, not the framework's.
 HARNESS_ENTRY_PATHS = {
     "claude": [".claude", "CLAUDE.md"],
-    "copilot": [".github/prompts"],
-    "hermes": [HERMES_SKILLS_DIR],
+    "copilot": [".github/prompts", COPILOT_HOOKS_DIR],
+    "hermes": [HERMES_SKILLS_DIR, HERMES_HOOKS_DIR],
 }
 
 # A command name that collides with a harness built-in is renamed on every

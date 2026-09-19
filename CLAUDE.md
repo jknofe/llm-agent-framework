@@ -14,7 +14,7 @@ generated file (those live in target projects).
   `render` slot filling, `content` the render_* entry points, `scaffold` what
   gets written where)
 - `templates/` every artifact the scaffold emits, as files
-- `CONCEPT.md` design spec, source of truth (currently v7.0). Part I is the
+- `CONCEPT.md` design spec, source of truth (currently v7.1). Part I is the
   framework as it stands and is normative: when a template and Part I
   disagree, the template is the bug. Part II is the measurement record. Part
   III is the numbered revision history, kept for its evidence; the sections it

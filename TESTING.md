@@ -25,7 +25,7 @@ themselves.
    in any rendered artifact, rendered tools parse as Python, rendered settings
    parse as JSON, no em dash in a template (CONCEPT.md section 8), and the
    hermes skill descriptions inside that harness's 60-character cap with no
-   command name colliding with a hermes built-in, and AGENTS.md under 500
+   command name colliding with a hermes built-in, and AGENTS.md under 650
    words before its generated section on every harness (CONCEPT.md
    section 36) with no leftover text describing the retired overview digest.
    `safe_substitute` leaves a mistyped slot in place silently, so the slot

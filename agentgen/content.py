@@ -21,14 +21,6 @@ def _entry_note(harness: str) -> str:
         return f"packaged as Agent Skills under `{HERMES_SKILLS_DIR}/`"
     return "exposed as prompt files under `.github/prompts/`"
 
-def render_claude_pointer() -> str:
-    return (
-        "# CLAUDE.md\n\n"
-        "Canonical agent instructions live in AGENTS.md (vendor-neutral).\n"
-        "Imported below; do not duplicate content here.\n\n"
-        "@AGENTS.md\n"
-    )
-
 def render_agents_md(project_name: str, description: str = "",
                            harness: str = "claude",
                            generated_body: str = None) -> str:
@@ -39,8 +31,7 @@ def render_agents_md(project_name: str, description: str = "",
         seed = f"{description}\n" if description else ""
         generated_body = (f"{seed}<!-- Populated by /explore. "
                           "Do not edit by hand. -->")
-    hook_note = (render.load("instructions/fragments/claude/hook-note.md")
-                 if harness == 'claude' else '')
+    hook_note = render.load(f"instructions/fragments/{harness}/hook-note.md")
     entry_note = _entry_note(harness)
     cli_note = ""
     if harness == "copilot":
@@ -69,11 +60,11 @@ def render_update_body(harness: str, arg: str) -> str:
     expensive artifact, so an update migrates it and never re-derives it.
 
     Varies on harness, which decides which framework files exist to merge:
-    settings, hooks and skills on claude, project skills on hermes, prompt
-    files on copilot.
+    settings, hooks and skills on claude, project skills and hooks on hermes,
+    prompt files and hooks on copilot.
     """
     if harness == "claude":
-        backup_paths = "AGENTS.md, CLAUDE.md, and `.claude/`"
+        backup_paths = "AGENTS.md and `.claude/`"
         merge_cases = (
             "     - `.claude/settings.json`: permission entries and hooks a user\n"
             "       added are not framework state. Union them with the\n"
@@ -88,33 +79,58 @@ def render_update_body(harness: str, arg: str) -> str:
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
             "     it names points at a file that exists.\n")
     elif harness == "hermes":
-        backup_paths = f"AGENTS.md and `{HERMES_SKILLS_DIR}/`"
+        backup_paths = (f"AGENTS.md, `{HERMES_SKILLS_DIR}/` and "
+                        f"`{HERMES_HOOKS_DIR}/`")
         merge_cases = (
             "     - AGENTS.md outside the GENERATED markers: project-specific\n"
             "       rules a user appended below the framework text.\n"
-            f"     - skills under `{HERMES_SKILLS_DIR}/` present here but not in\n"
-            "       the reference: the user's own, unless the generator's history\n"
+            f"     - skills under `{HERMES_SKILLS_DIR}/` or hooks under\n"
+            f"       `{HERMES_HOOKS_DIR}/` present here but not in the\n"
+            "       reference: the user's own, unless the generator's history\n"
             "       says otherwise. Settle it with the orphan test below rather\n"
             "       than assuming either way.\n")
         verify_extra = (
             f"   - Every `{HERMES_SKILLS_DIR}/<name>/SKILL.md` starts with `---` at\n"
             "     byte zero and its `name` matches its directory. Reload them in a\n"
-            "     running session with `/reload-skills`.\n")
+            "     running session with `/reload-skills`.\n"
+            f"   - `{HERMES_HOOKS_DIR}/hermes-hooks.yaml` matches the entries in\n"
+            "     `~/.hermes/config.yaml`; if they differ, show the user the\n"
+            "     diff to merge, since the framework never writes outside the\n"
+            "     repository. The dispatcher copy at\n"
+            "     `~/.hermes/agent-hooks/llm-agent-hook.py` is the user's to\n"
+            "     refresh from `hermes_dispatch.py` when it changed.\n")
     else:
-        backup_paths = "AGENTS.md and `.github/prompts/`"
+        backup_paths = (f"AGENTS.md, `.github/prompts/` and "
+                        f"`{COPILOT_HOOKS_DIR}/`")
         merge_cases = (
+            f"     - `{COPILOT_HOOKS_DIR}/llm-agent.json`: hook entries a user\n"
+            "       added are not framework state. Union them with the\n"
+            "       reference's; drop only entries the reference retired.\n"
             "     - AGENTS.md outside the GENERATED markers: project-specific\n"
             "       rules a user appended below the framework text.\n"
-            "     - prompt files under `.github/prompts/` present here but not in\n"
-            "       the reference: the user's own, unless the generator's history\n"
+            "     - prompt files under `.github/prompts/` or hooks under\n"
+            f"       `{COPILOT_HOOKS_DIR}/` present here but not in the\n"
+            "       reference: the user's own, unless the generator's history\n"
             "       says otherwise. Settle it with the orphan test below rather\n"
             "       than assuming either way.\n")
-        verify_extra = ""
+        verify_extra = (
+            f"   - `{COPILOT_HOOKS_DIR}/llm-agent.json` parses as JSON and every\n"
+            "     hook command it names points at a file that exists.\n")
 
     owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, change specs under\n"
              "`.ai/changes/`, and the `GENERATED:project-context` section of\n"
              "AGENTS.md")
     migrate = (
+        "   - Framework 7.1 retires the `CLAUDE.md` pointer on the claude\n"
+        "     harness: Claude Code 2.1.277 and later reads AGENTS.md itself\n"
+        "     when no CLAUDE.md exists in the working directory or above it.\n"
+        "     Delete the pointer only if it holds nothing but the `@AGENTS.md`\n"
+        "     import; text the user added below the import makes it the\n"
+        "     user's file, so keep it. Keep it too, and say why, when a\n"
+        "     CLAUDE.md or CLAUDE.local.md sits in a parent directory or the\n"
+        "     sessions run without AGENTS.md support (Amazon Bedrock,\n"
+        "     telemetry disabled): there Claude never reads AGENTS.md on its\n"
+        "     own and the import is what loads it.\n"
         "   - Framework 7.0 retires `.ai/notes/map.md` as framework output.\n"
         "     Do not delete it and do not remove its pointer from\n"
         "     `.ai/notes.md`: the moment the framework stopped generating it\n"
@@ -161,8 +177,7 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     frontmatter line, kept next to the body it describes so the two cannot
     drift.
     """
-    hook_offer = (render.load("skills/fragments/claude/hook-offer.md")
-                  if harness == "claude" else "")
+    hook_offer = render.load(f"skills/fragments/{harness}/hook-offer.md")
     specs = []
     for name in SKILLS:
         if name in COMPOSED_BODIES:
@@ -279,6 +294,43 @@ def render_reviewer_agent() -> str:
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
 
+def render_hook_git_guard() -> str:
+    return render.load("hooks/git_guard.py")
+
+def render_hook_hermes_dispatch() -> str:
+    return render.load("hooks/hermes_dispatch.py")
+
+def render_hermes_hooks_yaml() -> str:
+    return render.load("config/hermes-hooks.yaml")
+
+def render_copilot_hooks_json() -> str:
+    """Copilot hooks (.github/hooks/llm-agent.json): the same two scripts as
+    the claude scaffold, in the Copilot CLI schema that VS Code and the cloud
+    agent read as well. Commands are repository-relative; the scripts chdir
+    to the payload's cwd themselves. No matcher: tool names differ per
+    surface (bash, runTerminalCommand) and the guard filters on a `command`
+    argument instead."""
+    hooks = {
+        "version": 1,
+        "hooks": {
+            "preToolUse": [
+                {
+                    "type": "command",
+                    "bash": f"python3 {COPILOT_HOOKS_DIR}/git_guard.py",
+                    "timeoutSec": 15,
+                }
+            ],
+            "agentStop": [
+                {
+                    "type": "command",
+                    "bash": f"python3 {COPILOT_HOOKS_DIR}/ai_repo_clean.py",
+                    "timeoutSec": 15,
+                }
+            ],
+        },
+    }
+    return json.dumps(hooks, indent=2) + "\n"
+
 def render_tool_probe() -> str:
     """Command and documentation detection, written into the scaffold and run
     at the start of /explore. Static: the template is a real .py file under
@@ -288,12 +340,25 @@ def render_tool_probe() -> str:
 def render_settings_json() -> str:
     """Project settings (.claude/settings.json): a read-only permission allow
     list so exploration runs without a prompt per command, plus the Stop hook
-    that enforces the .ai commit rule deterministically. Compound commands
+    that enforces the .ai commit rule and the PreToolUse hook that enforces
+    the two git guardrails deterministically. Compound commands
     (a && b) prompt unless every part of the chain matches a rule, so common
     chain members (cd, echo, pwd, read-only git) are included as well."""
     allow = render.sectioned_list("config/permissions.txt",
                                   sections=("shared",), tools_dir=TOOLS_DIR)
     hooks = {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": 'python3 "$CLAUDE_PROJECT_DIR/'
+                                   '.claude/hooks/git_guard.py"',
+                    }
+                ],
+            }
+        ],
         "Stop": [
             {
                 "hooks": [

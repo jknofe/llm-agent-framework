@@ -27,7 +27,7 @@ notes carry real gotchas between sessions for almost nothing.
 
 **This framework does not make a session cheaper.** Every round measured
 more tokens, by design. It is economical about its own text (`AGENTS.md`
-under 500 words, everything else read on demand), which is a different
+under 650 words, everything else read on demand), which is a different
 claim. Untested: weak models, projects dense in non-derivable context, and
 sessions where a human answers the questions.
 
@@ -211,9 +211,16 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). For Claude Code, init also writes a one-line `CLAUDE.md` that
-imports it via `@AGENTS.md`; Copilot (VS Code and CLI) and Hermes read
-`AGENTS.md` natively, so no extra file is needed there.
+section). All three harnesses read it natively; no `CLAUDE.md` is written.
+Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
+or `CLAUDE.local.md` exists in the project directory or any directory
+above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
+`CLAUDE.md` in a parent folder, or run Claude Code through Amazon Bedrock
+or with telemetry disabled, add a `CLAUDE.md` containing `@AGENTS.md`
+yourself, or set the Claude Code project-instructions option to
+`claude-md-and-agents-md` in `~/.claude/settings.json`. Scaffolds from 7.0
+and earlier carry the pointer; `/framework-update` retires it where it is
+safe to.
 
 ## Deterministic tools and hooks
 
@@ -226,24 +233,52 @@ obedience:
   questions; your answers override it. It deliberately prints no module map
   or LOC table: that is a repository overview, and an overview does not help
   an agent find anything.
-- `.claude/hooks/ai_repo_clean.py` (Stop) blocks ending a turn while the
-  `.ai` repo has uncommitted changes, so notes and specs are not silently
-  dropped. Not absolute: Claude Code overrides a Stop hook after repeated
-  consecutive blocks, so the protocol rule in `AGENTS.md` remains the
-  backstop.
+- `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
+  has uncommitted changes, so notes and specs are not silently dropped. Not
+  absolute: every harness overrides a turn-end block after a few consecutive
+  passes, so the protocol rule in `AGENTS.md` remains the backstop.
+- `git_guard.py` (before a shell command) blocks the two git guardrails at
+  the shell: merging into the default branch (`git merge` while on it,
+  `git push` targeting it, `gh pr merge`) and any commit whose message, or
+  `-F` message file, carries a co-author line. The reason is fed back to the
+  agent, which stops at the branch or pull request instead. Only tool calls
+  carrying a shell command are inspected; a command the hook cannot parse as
+  one of those cases passes.
+
+Both scripts are identical on every harness. Claude Code, Copilot and
+Hermes pipe the same JSON shape (`cwd`, `tool_name`, `tool_input.command`)
+to stdin and accept the same `{"decision": "block", "reason": ...}` on
+stdout; only where they live and how they are registered differs:
+
+| Harness | Scripts | Registered in |
+|---|---|---|
+| claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
+| copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch |
+| hermes | `.agents/hooks/` | `~/.hermes/config.yaml`, see below |
+
+Hermes registers shell hooks only in the profile config, never per
+repository. The scaffold therefore ships `.agents/hooks/hermes_dispatch.py`
+and `.agents/hooks/hermes-hooks.yaml`; once, install the dispatcher as
+`~/.hermes/agent-hooks/llm-agent-hook.py` (`install -m 755`, it must be
+executable because Hermes runs the command without a shell and expands `~`
+only at its start) and merge the snippet into `~/.hermes/config.yaml`. The dispatcher runs `<session cwd>/.agents/hooks/
+<name>.py` and is a no-op in a directory without a scaffold, so the one
+profile entry serves every project and `pre_tool_call` can stay
+`fail_closed`. Hermes asks for consent the first time each hook command
+runs. Its turn-end event, `pre_verify`, fires only on turns that edited
+files.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
   reviewer used by `/build`'s review gate.
 
-During `/explore` the agent additionally offers a project-specific Stop hook
-that runs your lint/tests, turning "done = checks pass" into a hard gate.
-Hooks and the reviewer subagent are scaffolded for the claude harness;
-Copilot and Hermes have no equivalent mechanism, there the rules stay
-protocol text.
+During `/explore` the agent additionally offers a project-specific turn-end
+hook that runs your lint/tests, turning "done = checks pass" into a hard
+gate. The reviewer subagent is claude-only; Copilot and Hermes have no
+equivalent, there `/build` reviews inline.
 
-These hooks only fire when the scaffolded repo is the **active Claude Code
-project directory**. Driving the agent from a parent directory, a monorepo
-subdir, or a sub-agent means the hooks do not run (`$CLAUDE_PROJECT_DIR`
-points elsewhere) — in that case the protocol rules in `AGENTS.md` are the
+Hooks only fire when the scaffolded repo is the session's working directory
+(on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
+the agent from a parent directory, a monorepo subdir, or a sub-agent means
+the hooks do not run; in that case the protocol rules in `AGENTS.md` are the
 only guarantee, so commit `.ai` by hand and do not assume a hook ran.
 
 ## GitHub Copilot support
@@ -255,7 +290,9 @@ Code:
 - prompt files: `.github/prompts/*.prompt.md` instead of skills, invoked
   the same way (`/explore`, `/spec`, ...) in VS Code Copilot Chat;
   arguments are passed as input variables, e.g. `/spec: ticket=FEAT-42`
-- no `.claude/settings.json`, hooks or reviewer subagent (no equivalent)
+- hooks: `.github/hooks/llm-agent.json` plus the two scripts (see
+  [Deterministic tools and hooks](#deterministic-tools-and-hooks))
+- no `.claude/settings.json` or reviewer subagent (no equivalent)
 
 Prompt files require VS Code with the `chat.promptFiles` setting enabled.
 Copilot CLI does not load prompt files; it does read `AGENTS.md`, which
@@ -272,7 +309,10 @@ Choosing `hermes` at the harness prompt targets the Hermes agent:
   standard and the same bodies as the claude harness, with hermes
   frontmatter (`version`, `platforms`, `metadata.hermes.tags`, and a
   description trimmed to the 60-character cap)
-- no `.claude/settings.json`, hooks or reviewer subagent (no equivalent)
+- hooks: scripts under `.agents/hooks/`, registered once in
+  `~/.hermes/config.yaml` through the shipped dispatcher (see
+  [Deterministic tools and hooks](#deterministic-tools-and-hooks))
+- no `.claude/settings.json` or reviewer subagent (no equivalent)
 
 Hermes loads project skills only from a repository you have trusted, so run
 `hermes skills trust` once in the project root; in a running session
@@ -296,7 +336,7 @@ only the entry files differ.
 `init` creates `.ai/notes.md` (running memory for gotchas, runbooks and
 domain terms), `.ai/changes/` (per-change specs, with `_archive/` for
 finished ones), `.ai/agent/tools/probe.py`, the canonical `AGENTS.md`, the
-skills above and, for Claude Code, the `CLAUDE.md` pointer, the reviewer
+skills above and, for Claude Code, the reviewer
 subagent, the Stop hook script and `.claude/settings.json` with that hook
 plus a read-only permission allow list (grep, find, ls, cat, awk, read-only
 git, `git -C .ai`, `probe.py`) so exploration and `.ai` commits run without a

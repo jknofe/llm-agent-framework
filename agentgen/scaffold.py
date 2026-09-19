@@ -406,7 +406,6 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
           force, created, skipped)
 
     if harness == "claude":
-        write(root / "CLAUDE.md", render_claude_pointer(), force, created, skipped)
         for rel, content in render_skills(
                 command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
             write(root / ".claude" / "skills" / rel, content,
@@ -415,6 +414,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_reviewer_agent(), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / ".claude" / "hooks" / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
         write(root / ".claude" / "settings.json",
               render_settings_json(), force, created, skipped)
     elif harness == "hermes":
@@ -423,12 +424,26 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                               HERMES_ARG_TICKET)).items():
             write(root / HERMES_SKILLS_DIR / rel, body,
                   force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "ai_repo_clean.py",
+              render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "hermes_dispatch.py",
+              render_hook_hermes_dispatch(), force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "hermes-hooks.yaml",
+              render_hermes_hooks_yaml(), force, created, skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}",
                               "${input:ticket}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
+        write(root / COPILOT_HOOKS_DIR / "ai_repo_clean.py",
+              render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / COPILOT_HOOKS_DIR / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
+        write(root / COPILOT_HOOKS_DIR / "llm-agent.json",
+              render_copilot_hooks_json(), force, created, skipped)
 
     # Retire before the stamp: the stamp must record only what is now live,
     # and the retirement reads the paths this run wrote.
@@ -482,7 +497,17 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
         print("  hermes skills trust     (once, in this repository)")
         print("  /reload-skills          (in a running session)")
         print("Renamed to clear a hermes built-in: /framework-update.")
+        print(f"\nHooks live in {HERMES_HOOKS_DIR}/. Hermes reads hooks from the "
+              "profile config, not the repo:")
+        print("  mkdir -p ~/.hermes/agent-hooks && install -m 755 "
+              f"{HERMES_HOOKS_DIR}/hermes_dispatch.py "
+              "~/.hermes/agent-hooks/llm-agent-hook.py")
+        print(f"  merge {HERMES_HOOKS_DIR}/hermes-hooks.yaml into "
+              "~/.hermes/config.yaml (once; serves every project)")
     if harness == "copilot":
+        print(f"\nHooks in {COPILOT_HOOKS_DIR}/llm-agent.json run in Copilot CLI, "
+              "VS Code and the cloud agent\n(the cloud agent reads them from the "
+              "default branch).")
         print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
         print("  Explore the project and fill the Project Context + .ai/notes.md.")

@@ -4,21 +4,12 @@ init_agent.py - Scaffold a project-aware LLM agent (interactive, run in the
 project root). The script only initializes; everything afterwards is done by
 the agent through skills and folder conventions:
 
-  /explore [focus]       sample the codebase; fill the AGENTS.md project
-                         context and .ai/notes.md
-  /spec <id> <title>     write .ai/changes/<id>/spec.md for a non-trivial
-                         change (goal, acceptance criteria, task checklist)
-  /build <id>            implement the spec's tasks, review the diff against
-                         the criteria, finish
-  /import-kb <source>    import an existing knowledge base of any structure:
-                         read, classify, and distill it into the project
-                         context + notes.md
-  /import-agent <source> migrate an existing .ai/ folder (older framework
-                         version or other layout) into the current structure:
-                         knowledge and in-flight change specs
-  /tidy-up [scope]       hygiene sweep that may not change behavior: remove
-                         dead code, propose obsolete files for removal,
-                         shorten overlong comments, drop em dashes from prose
+  /explore [focus]       ask what the code cannot tell the agent; fill the
+                         AGENTS.md project requirements and .ai/notes.md
+  /spec <id> <title>     opt-in: write .ai/changes/<id>/spec.md for a change
+                         the user names (goal, acceptance criteria, tasks)
+  /build <id>            opt-in: implement the spec's tasks, review the diff
+                         against the criteria, finish
   /framework-update      move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
@@ -53,9 +44,7 @@ Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral):
                                conventions, right-sizing rules, commands, and
                                the generated project-context section. Read
-                               natively by Copilot and Hermes; imported via
-                               CLAUDE.md for Claude Code
-  CLAUDE.md (claude)           one-line pointer: @AGENTS.md
+                               natively by Claude Code, Copilot and Hermes
   .ai/notes.md                 running memory: gotchas, runbooks, unwritten
                                rules
   .ai/changes/<id>/spec.md     per-change spec: goal, acceptance criteria,
@@ -67,20 +56,25 @@ Context layout:
   .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
                                loaded once `hermes skills trust` has run in the
                                repo. Same command names as the other
-                               harnesses: /framework-update and /import-agent
-                               are spelled out everywhere because hermes
-                               reserves /update and /import
+                               harnesses: /framework-update is spelled out
+                               everywhere because hermes reserves /update
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
-  .claude/settings.json        permission allow list + Stop hook (claude only)
-  .claude/hooks/*.py           hook scripts: remind about uncommitted .ai
-                               changes
+  .claude/settings.json        permission allow list + hook registration
+                               (claude only)
+  .claude/hooks/*.py           hook scripts, the same two on every harness:
+  .github/hooks/*              block ending a turn with uncommitted .ai
+  .agents/hooks/*              changes, block merging into the default
+                               branch and co-author commit lines. copilot
+                               registers them in .github/hooks/llm-agent.json;
+                               hermes in ~/.hermes/config.yaml via the
+                               shipped dispatcher
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
 
 Versioning:
   .ai/ is excluded from the host project's repo (init appends it to the
   project .gitignore) and tracked in its own git repo at .ai/.git. init
   makes the first commit; afterwards the agent commits .ai changes itself
-  (protocol rule in AGENTS.md, enforced by a Stop hook on claude).
+  (protocol rule in AGENTS.md, enforced by a turn-end hook).
 
 Generated docs use two language registers (concept v5, CONCEPT.md section 8):
 normative docs in plain imperative English, recorded knowledge (notes, specs)

@@ -88,9 +88,10 @@ def test_switch(tmp: Path):
 
     if not (root / ".agents/skills/explore/SKILL.md").exists():
         fail("switch", "new harness skills not written")
+    if not (root / ".agents/hooks/git_guard.py").exists():
+        fail("switch", "new harness hooks not written")
 
-    for gone in (".claude/skills/explore/SKILL.md", ".claude/settings.json",
-                 "CLAUDE.md"):
+    for gone in (".claude/skills/explore/SKILL.md", ".claude/settings.json"):
         if (root / gone).exists():
             fail("no_two_live_sets", f"{gone} survived the switch")
 
@@ -99,7 +100,7 @@ def test_switch(tmp: Path):
     if "my-own" not in r.stdout:
         fail("user_files_kept", "user-added skill not reported as left behind")
 
-    for kept in (".claude/skills/explore/SKILL.md", "CLAUDE.md"):
+    for kept in (".claude/skills/explore/SKILL.md", ".claude/settings.json"):
         if not (root / BACKUP / "claude" / kept).exists():
             fail("recoverable", f"{kept} not in the backup")
 

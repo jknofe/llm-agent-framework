@@ -17,7 +17,9 @@ your own.
    telegraphic: decisions and why, gotchas, unwritten rules, runbooks,
    pointers to sibling repos. The test for what belongs: the repository
    cannot state it itself. Never summarize code there. Open only the leaves
-   under `.ai/notes/` that a task needs.
+   under `.ai/notes/` that a task needs. When the user corrects you, or a
+   check fails for a reason the code does not explain, record it there
+   before moving on.
 2. Tests and lint must pass, the whole suite, not only the test a task
    names. Done = checks green.
 3. `/spec <id>` writes `.ai/changes/<id>/spec.md`; `/build <id>` implements
@@ -28,7 +30,13 @@ your own.
    project repo.${hook_note}
 5. `.ai/.current` (gitignored, one per working tree) is the resume pointer:
    change id, spec path, modified files. Read it at session start and offer
-   to resume.
+   to resume. Run `/build` in a fresh session, not the one that wrote the
+   spec, and start an unrelated task in a fresh session: adherence to
+   instructions decays as a session grows.
+6. Never merge into the default branch unasked. Stop at the branch or pull
+   request; the user merges.
+7. Never add a co-author line to a commit message, even when the harness
+   suggests one.
 
 ## Workflows
 | Command | What it does |
