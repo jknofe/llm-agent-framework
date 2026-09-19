@@ -202,6 +202,9 @@ the tool's name and the registration differ:
   (`PreToolUse` on `Bash`, `Stop`), plus a read-only permission allowlist.
 - copilot: `.github/hooks/`, registered in `.github/hooks/llm-agent.json`
   (`preToolUse`, `agentStop`), which VS Code and the cloud agent read too.
+  Loaded only from a trusted folder; an untrusted checkout runs with no
+  hooks and no warning, which is why the AGENTS.md note names the
+  condition.
 - hermes: `.agents/hooks/`, but Hermes registers shell hooks only in the
   profile's `~/.hermes/config.yaml`, never per repository. The scaffold
   therefore ships a dispatcher the user installs once under
@@ -308,7 +311,10 @@ checked deterministically should not rest on prose; both hooks now ship on
 all three harnesses from one script each, since Copilot hooks
 (`.github/hooks/*.json`) and Hermes shell hooks share the Claude Code wire
 shape, Hermes needing a one-time dispatcher in the profile because it has no
-per-repository hook registry; and the
+per-repository hook registry. Both verified live the same day: Hermes 0.21.3
+on a local model and Copilot CLI 1.0.86 each denied the merge and the
+co-author commit, and Copilot's `agentStop` held the turn until `.ai` was
+committed; and the
 protocol says to run `/build` and unrelated tasks in fresh sessions, since
 adherence measurably decays within a session.)
 v7.0 (the framework is reduced to two pillars: durable

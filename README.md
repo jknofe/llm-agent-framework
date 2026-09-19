@@ -253,7 +253,7 @@ stdout; only where they live and how they are registered differs:
 | Harness | Scripts | Registered in |
 |---|---|---|
 | claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
-| copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch |
+| copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch. Loaded only from a trusted folder: the CLI asks on first interactive start in the repo, and a non-interactive run needs `COPILOT_ALLOW_ALL=true` (exactly `true`) to trust its working directory |
 | hermes | `.agents/hooks/` | `~/.hermes/config.yaml`, see below |
 
 Hermes registers shell hooks only in the profile config, never per

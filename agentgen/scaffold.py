@@ -507,7 +507,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     if harness == "copilot":
         print(f"\nHooks in {COPILOT_HOOKS_DIR}/llm-agent.json run in Copilot CLI, "
               "VS Code and the cloud agent\n(the cloud agent reads them from the "
-              "default branch).")
+              "default branch). Copilot loads them only from a\ntrusted folder: "
+              "accept the trust prompt on first start, or COPILOT_ALLOW_ALL=true "
+              "for -p runs.")
         print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
         print("  Explore the project and fill the Project Context + .ai/notes.md.")
