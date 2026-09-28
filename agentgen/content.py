@@ -61,9 +61,16 @@ def render_update_body(harness: str, arg: str) -> str:
 
     Varies on harness, which decides which framework files exist to merge:
     settings, hooks and skills on claude, project skills and hooks on hermes,
-    prompt files and hooks on copilot.
+    prompt files and hooks on copilot, and where the reference's own copy of
+    this skill sits.
+
+    The migrate list is frozen into every project at the version it was
+    scaffolded with, so a project running this skill never knows the
+    migrations of the version it is moving to. The body therefore defers to
+    the reference's copy, which does (CONCEPT.md section 40).
     """
     if harness == "claude":
+        reference_skill = ".claude/skills/framework-update/SKILL.md"
         backup_paths = "AGENTS.md and `.claude/`"
         merge_cases = (
             "     - `.claude/settings.json`: permission entries and hooks a user\n"
@@ -79,6 +86,7 @@ def render_update_body(harness: str, arg: str) -> str:
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
             "     it names points at a file that exists.\n")
     elif harness == "hermes":
+        reference_skill = f"{HERMES_SKILLS_DIR}/framework-update/SKILL.md"
         backup_paths = (f"AGENTS.md, `{HERMES_SKILLS_DIR}/` and "
                         f"`{HERMES_HOOKS_DIR}/`")
         merge_cases = (
@@ -100,6 +108,7 @@ def render_update_body(harness: str, arg: str) -> str:
             "     `~/.hermes/agent-hooks/llm-agent-hook.py` is the user's to\n"
             "     refresh from `hermes_dispatch.py` when it changed.\n")
     else:
+        reference_skill = ".github/prompts/framework-update.prompt.md"
         backup_paths = (f"AGENTS.md, `.github/prompts/` and "
                         f"`{COPILOT_HOOKS_DIR}/`")
         merge_cases = (
@@ -184,6 +193,7 @@ def render_update_body(harness: str, arg: str) -> str:
                        merge_cases=merge_cases,
                        migrate=migrate,
                        owned=owned,
+                       reference_skill=reference_skill,
                        verify_extra=verify_extra,
                        verify_tools=(f"`{TOOLS_DIR}/probe.py` and "
                                      f"`{TOOLS_DIR}/tasks.py`"))

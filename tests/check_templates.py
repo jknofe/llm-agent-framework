@@ -14,6 +14,8 @@ unanswerable while the content lived inside string literals:
   register   do the templates honor the no-em-dash rule (CONCEPT section 8)?
   hermes     do the hermes skill descriptions fit that harness's 60-char cap,
              and does every harness expose the same command names?
+  reference  does the /framework-update body name the path where the
+             reference scaffold really holds its own copy of that skill?
   budget     does AGENTS.md stay a requirements file (CONCEPT sections 36
              and 38): under 650 words before the generated section on every
              harness, and no artifact still describes the retired overview
@@ -25,9 +27,12 @@ properties that hold regardless of what the output happens to be.
 """
 
 import ast
+import contextlib
+import io
 import json
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -174,6 +179,30 @@ def check_hermes():
                            f"hermes emits {sorted(names)}")
 
 
+def check_reference():
+    """/framework-update takes its migration list from the reference's own
+    copy of the skill (CONCEPT section 40). If the path it names is not where
+    the scaffold writes that copy, the agent finds nothing and falls back to
+    the stale list, silently. Render a reference per harness and look."""
+    from agentgen import scaffold
+    for harness in HARNESSES:
+        body = dict((n, b) for n, _d, b in
+                    content.command_specs(harness, "$F", "$T"))[
+                        "framework-update"]
+        m = re.search(r"<tmpdir>/(\S+)", body)
+        if not m:
+            fail("reference", f"{harness}: update body names no reference "
+                              "skill path")
+            continue
+        with tempfile.TemporaryDirectory() as tmp, \
+                contextlib.redirect_stdout(io.StringIO()):
+            scaffold.scaffold(Path(tmp), "p", "d", harness, force=True,
+                              reference=True)
+            if not (Path(tmp) / m.group(1)).is_file():
+                fail("reference", f"{harness}: reference has no "
+                                  f"{m.group(1)}")
+
+
 def check_budget():
     """CONCEPT sections 36 and 38: the always-loaded file carries
     requirements, not an overview. Measured on the rendered file, before the
@@ -219,7 +248,8 @@ def check_budget():
 
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_register, check_hermes, check_budget):
+                  check_json, check_register, check_hermes, check_reference,
+                  check_budget):
         check()
     if failures:
         print(f"FAIL ({len(failures)})")
@@ -227,7 +257,7 @@ def main():
             print("  " + f)
         return 1
     print(f"ok: {len(all_templates())} templates, "
-          f"{len(rendered_artifacts())} rendered artifacts, 8 checks passed")
+          f"{len(rendered_artifacts())} rendered artifacts, 9 checks passed")
     return 0
 
 

@@ -106,7 +106,21 @@ ${merge_cases}   - Retired (in the recorded `framework_files`, absent from the
 4. Migrate hand-filled content in place; do not regenerate it. The
    reference's stubs show the shape the new version expects, this
    project's files hold the content. Where the shape changed, edit this
-   project's files:
+   project's files.
+
+   The list below is only what this copy of the skill knew when it was
+   scaffolded, which is usually older than the version you are moving
+   to. The authoritative list is step 4 of the reference's own copy of
+   this skill:
+
+       <tmpdir>/${reference_skill}
+
+   Read it first and apply every entry for a version newer than the
+   recorded one; where it and the list below disagree, the reference
+   wins. An entry also applies when
+   the stamp already records the new version but the content it
+   migrates is still there (a second run after an update that skipped
+   it). The entries this copy knows:
 ${migrate}   If a new field cannot be derived from what the project already
    records, leave it empty and list it in the report for the user.
    Do not invent a value, and do not read the codebase to fill it:
