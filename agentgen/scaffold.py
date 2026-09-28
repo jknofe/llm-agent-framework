@@ -62,7 +62,7 @@ def render_framework_json(root: Path, name: str, harness: str,
 
 def write_owned(path: Path, stub: str, created: list, skipped: list,
                 preserved: list):
-    """Agent/user-owned content (notes, specs): write once. Existing content
+    """Agent/user-owned content (notes, tasks): write once. Existing content
     that differs from the stub is never overwritten, not even on
     overwrite-confirm; hand-filled knowledge must survive re-init."""
     if path.exists():
@@ -373,10 +373,10 @@ def bootstrap_update(root: Path) -> int:
 def scaffold(root: Path, name: str, desc: str, harness: str,
              force: bool, commit_message: str = None,
              reference: bool = False, switch_from: dict = None) -> int:
-    """Write the scaffold: a dense AGENTS.md, running notes, per-change specs,
-    one deterministic inventory tool, and the harness entry files. `.ai/` is a
-    private nested repo (notes + specs); AGENTS.md and the harness directory
-    live in the host repo.
+    """Write the scaffold: a dense AGENTS.md, running notes, per-task plans,
+    two deterministic tools (inventory, task table), and the harness entry
+    files. `.ai/` is a private nested repo (notes + tasks); AGENTS.md and the
+    harness directory live in the host repo.
 
     `switch_from` is the previous version stamp when this run changes the
     scaffold's harness. The new harness's files are written normally; the old
@@ -385,7 +385,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     created, skipped, preserved = [], [], []
     _framework_paths.clear()
 
-    archive = root / ".ai" / "changes" / "_archive"
+    archive = root / ".ai" / "tasks" / "_archive"
     archive.mkdir(parents=True, exist_ok=True)
     if not any(archive.iterdir()):
         (archive / ".gitkeep").touch()
@@ -397,6 +397,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     # Deterministic repo inventory, used at the start of /explore.
     write(root / TOOLS_DIR / "probe.py", render_tool_probe(),
           force, created, skipped)
+    # Deterministic task table, the whole of /task-list-all.
+    write(root / TOOLS_DIR / "tasks.py", render_tool_tasks(),
+          force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section: recover it
     # (also from legacy CLAUDE.md scaffolds) so re-init never reverts /explore.
@@ -406,7 +409,6 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
           force, created, skipped)
 
     if harness == "claude":
-        write(root / "CLAUDE.md", render_claude_pointer(), force, created, skipped)
         for rel, content in render_skills(
                 command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
             write(root / ".claude" / "skills" / rel, content,
@@ -415,6 +417,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_reviewer_agent(), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / ".claude" / "hooks" / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
         write(root / ".claude" / "settings.json",
               render_settings_json(), force, created, skipped)
     elif harness == "hermes":
@@ -423,12 +427,26 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                               HERMES_ARG_TICKET)).items():
             write(root / HERMES_SKILLS_DIR / rel, body,
                   force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "ai_repo_clean.py",
+              render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "hermes_dispatch.py",
+              render_hook_hermes_dispatch(), force, created, skipped)
+        write(root / HERMES_HOOKS_DIR / "hermes-hooks.yaml",
+              render_hermes_hooks_yaml(), force, created, skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}",
                               "${input:ticket}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
+        write(root / COPILOT_HOOKS_DIR / "ai_repo_clean.py",
+              render_hook_ai_repo_clean(), force, created, skipped)
+        write(root / COPILOT_HOOKS_DIR / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
+        write(root / COPILOT_HOOKS_DIR / "llm-agent.json",
+              render_copilot_hooks_json(), force, created, skipped)
 
     # Retire before the stamp: the stamp must record only what is now live,
     # and the retirement reads the paths this run wrote.
@@ -474,19 +492,32 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                   + ", ".join(left_behind))
     entry = {"claude": ".claude", "hermes": HERMES_SKILLS_DIR}.get(
         harness, ".github/prompts")
-    print(f"\n.ai: notes.md + changes/  |  AGENTS.md + {entry}"
+    print(f"\n.ai: notes.md + tasks/  |  AGENTS.md + {entry}"
           f"  |  project: {name}  |  harness: {harness}")
     if harness == "hermes":
         print(f"\nSkills live in {HERMES_SKILLS_DIR}/. Hermes loads project "
               "skills only from a trusted repo:")
         print("  hermes skills trust     (once, in this repository)")
         print("  /reload-skills          (in a running session)")
-        print("Renamed to clear hermes built-ins: /import-agent, "
-              "/framework-update.")
+        print("Renamed to clear a hermes built-in: /framework-update.")
+        print(f"\nHooks live in {HERMES_HOOKS_DIR}/. Hermes reads hooks from the "
+              "profile config, not the repo:")
+        print("  mkdir -p ~/.hermes/agent-hooks && install -m 755 "
+              f"{HERMES_HOOKS_DIR}/hermes_dispatch.py "
+              "~/.hermes/agent-hooks/llm-agent-hook.py")
+        print(f"  merge {HERMES_HOOKS_DIR}/hermes-hooks.yaml into "
+              "~/.hermes/config.yaml (once; serves every project)")
     if harness == "copilot":
-        print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
+        print(f"\nHooks in {COPILOT_HOOKS_DIR}/llm-agent.json run in Copilot CLI, "
+              "VS Code and the cloud agent\n(the cloud agent reads them from the "
+              "default branch). Copilot loads them only from a\ntrusted folder: "
+              "accept the trust prompt on first start, or COPILOT_ALLOW_ALL=true "
+              "for -p runs.")
+        print("\nPrompt files (/explore, /task-create, /task-do, /task-list-all)"
+              " work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
         print("  Explore the project and fill the Project Context + .ai/notes.md.")
-        print('  Spec change <id> "<title>": write .ai/changes/<id>/spec.md.')
-        print("  Build change <id>: implement the spec, then review the diff.")
+        print('  Create task <id> "<title>": plan it in .ai/tasks/<id>/task.md.')
+        print("  Do task <id>: work the plan, record findings, review the result.")
+        print("  List all tasks: run .ai/agent/tools/tasks.py and show the table.")
     return 0

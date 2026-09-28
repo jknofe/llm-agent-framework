@@ -1,0 +1,23 @@
+# Hermes shell hooks for this framework. Hermes reads hooks from the profile
+# config, ~/.hermes/config.yaml, never from a repository, so this file is a
+# snippet to merge there once; it then serves every scaffolded project.
+#
+#   mkdir -p ~/.hermes/agent-hooks
+#   install -m 755 .agents/hooks/hermes_dispatch.py ~/.hermes/agent-hooks/llm-agent-hook.py
+#
+# The command starts with the script path on purpose: Hermes expands `~`
+# only at the start of the command and runs it without a shell, so the
+# dispatcher must be executable and is run through its shebang.
+#
+# The dispatcher runs <session cwd>/.agents/hooks/<name>.py and is a no-op
+# where no scaffold exists, which is why pre_tool_call can stay fail-closed.
+# Hermes asks for consent the first time each command runs.
+hooks:
+  pre_tool_call:
+    - matcher: "terminal"
+      command: "~/.hermes/agent-hooks/llm-agent-hook.py git_guard"
+      timeout: 15
+      fail_closed: true
+  pre_verify:
+    - command: "~/.hermes/agent-hooks/llm-agent-hook.py ai_repo_clean"
+      timeout: 15

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Deterministic repo inventory for Phase 1 (Initialization).
+"""Command detection for /explore.
 
-Prints a compact, stable-sorted Markdown snapshot of the host project so the
-agent can seed the mechanical project-context fields (stack, build/test/lint
-commands, module map) without spending tokens on discovery, and sample the tree
-instead of scanning it. Read-only; stdlib only.
+Prints the build/test/lint commands this project appears to use and the
+documentation it already has. That is all: a module map or LOC table is a
+repository overview, and an overview does not help an agent find anything
+(CONCEPT.md section 38). Detection is a prompt for /explore's questions, not
+an answer; the user's own commands win where the two disagree.
+
+Read-only; stdlib only.
 
 Usage: python3 .ai/agent/tools/probe.py   (from anywhere)
 """
@@ -12,24 +15,10 @@ import json
 import re
 import subprocess
 import sys
-from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2].parent  # host repo root (above .ai/)
-TOP_LANGS = 12
-TOP_DIRS = 20
-TOP_ENTRIES = 20
 
-LANGS = {
-    ".py": "Python", ".rs": "Rust", ".go": "Go", ".ts": "TypeScript",
-    ".tsx": "TypeScript", ".js": "JavaScript", ".jsx": "JavaScript",
-    ".mjs": "JavaScript", ".java": "Java", ".kt": "Kotlin", ".rb": "Ruby",
-    ".php": "PHP", ".c": "C", ".h": "C/C++ header", ".hpp": "C++ header",
-    ".cpp": "C++", ".cc": "C++", ".cs": "C#", ".swift": "Swift",
-    ".scala": "Scala", ".sh": "Shell", ".bash": "Shell", ".sql": "SQL",
-    ".md": "Markdown", ".yaml": "YAML", ".yml": "YAML", ".toml": "TOML",
-    ".json": "JSON", ".html": "HTML", ".css": "CSS", ".scss": "CSS",
-}
 DEP_MANIFESTS = [
     "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "setup.cfg",
     "setup.py", "requirements.txt", "tox.ini", "Gemfile", "Rakefile",
@@ -64,14 +53,6 @@ def tracked_files():
 def host_sha():
     code, out, _ = run(["git", "rev-parse", "HEAD"])
     return out.strip() if code == 0 and out.strip() else "n/a (not a git repo)"
-
-
-def loc(path):
-    try:
-        with path.open("rb") as fh:
-            return sum(1 for _ in fh)
-    except OSError:
-        return 0
 
 
 def read(name):
@@ -145,54 +126,46 @@ def detect_commands(names, rels):
     return out
 
 
-ENTRY_BASENAMES = ("main.", "index.", "app.", "__main__.py", "cli.")
-ENTRY_PREFIXES = ("cmd/", "bin/", "src/main", "src/bin/")
+DOC_DIRS = ("docs/", "doc/", "documentation/")
+DOC_FILES = ("CONTRIBUTING.md", "ARCHITECTURE.md", "DEVELOPMENT.md",
+             "HACKING.md", "DESIGN.md")
+README_MIN_WORDS = 200
 
-# Code-only subset of LANGS for the total-LOC line: docs, data, and markup are
-# excluded so the number matches the size-profile boundary (~10k LOC).
-NON_CODE_EXTS = {".md", ".yaml", ".yml", ".toml", ".json",
-                 ".html", ".css", ".scss"}
+
+def detect_docs(names, rels):
+    """What the repository already documents. A context file that restates
+    existing docs adds cost without adding information, so /explore points
+    at these instead of summarizing."""
+    out = []
+    for name in sorted(names):
+        if name.lower().startswith("readme"):
+            words = len(read(name).split())
+            if words >= README_MIN_WORDS:
+                out.append(name + " (" + str(words) + " words)")
+    for name in DOC_FILES:
+        if name in names:
+            out.append(name)
+    for d in DOC_DIRS:
+        n = sum(1 for r in rels if r.startswith(d))
+        if n:
+            out.append(d + " (" + str(n) + " files)")
+    return out
 
 
 def main():
     files = tracked_files()
     names_at_root = {p.name for p in files if p.parent == ROOT}
     rel_paths = set()
-    exts = Counter()
-    dir_files = defaultdict(int)
-    dir_loc = defaultdict(int)
-    code_loc = 0
-    entries = []
     for p in files:
         try:
             rel = p.relative_to(ROOT)
         except ValueError:
             continue
-        rels = str(rel).replace("\\", "/")
-        rel_paths.add(rels)
-        seg = rel.parts[0] if len(rel.parts) > 1 else "(root)"
-        dir_files[seg] += 1
-        ext = p.suffix.lower()
-        if ext in LANGS:
-            exts[LANGS[ext]] += 1
-            n = loc(p)
-            dir_loc[seg] += n
-            if ext not in NON_CODE_EXTS:
-                code_loc += n
-        base = p.name
-        if base.startswith(ENTRY_BASENAMES) or rels.startswith(ENTRY_PREFIXES):
-            entries.append(rels)
+        rel_paths.add(str(rel).replace("\\", "/"))
 
-    lines = ["# Repo inventory (probe.py)", ""]
+    lines = ["# Detected commands (probe.py)", ""]
     lines.append("- Host commit: " + host_sha())
     lines.append("- Tracked files: " + str(len(files)))
-    lines.append("- Code LOC (docs/data/markup excluded): " + str(code_loc)
-                 + " (size-profile boundary ~10k)")
-    lines.append("")
-
-    lines += ["## Languages", "", "| Language | Files |", "|---|---|"]
-    for lang, n in exts.most_common(TOP_LANGS):
-        lines.append("| " + lang + " | " + str(n) + " |")
     lines.append("")
 
     cmds = detect_commands(names_at_root, rel_paths)
@@ -200,16 +173,9 @@ def main():
     if cmds:
         for tool, cs in cmds:
             lines.append("- **" + tool + "**: " + "; ".join(cs))
+        lines.append("- confirm these with the user; their commands win")
     else:
         lines.append("- none detected (ask the user)")
-    lines.append("")
-
-    lines += ["## Module map (top-level, by LOC)", "",
-              "| Path | Files | LOC |", "|---|---|---|"]
-    ranked = sorted(dir_files, key=lambda d: (-dir_loc[d], d))[:TOP_DIRS]
-    for d in ranked:
-        lines.append("| " + d + " | " + str(dir_files[d]) + " | "
-                     + str(dir_loc[d]) + " |")
     lines.append("")
 
     deps = sorted(names_at_root & set(DEP_MANIFESTS))
@@ -217,12 +183,13 @@ def main():
     lines += ["## Dependency manifests", "",
               (", ".join(deps) if deps else "none at repo root"), ""]
 
-    lines += ["## Entry-point candidates", ""]
-    if entries:
-        for e in sorted(set(entries))[:TOP_ENTRIES]:
-            lines.append("- " + e)
+    docs = detect_docs(names_at_root, rel_paths)
+    lines += ["## Documentation present", ""]
+    if docs:
+        lines += ["- " + d for d in docs]
+        lines.append("- point at these instead of summarizing the codebase")
     else:
-        lines.append("- none matched (inspect the module map)")
+        lines.append("- none (no README over 200 words, no docs/ tree)")
 
     print("\n".join(lines))
     return 0

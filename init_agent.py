@@ -4,27 +4,22 @@ init_agent.py - Scaffold a project-aware LLM agent (interactive, run in the
 project root). The script only initializes; everything afterwards is done by
 the agent through skills and folder conventions:
 
-  /explore [focus]       sample the codebase; fill the AGENTS.md project
-                         context and .ai/notes.md
-  /spec <id> <title>     write .ai/changes/<id>/spec.md for a non-trivial
-                         change (goal, acceptance criteria, task checklist)
-  /build <id>            implement the spec's tasks, review the diff against
-                         the criteria, finish
-  /import-kb <source>    import an existing knowledge base of any structure:
-                         read, classify, and distill it into the project
-                         context + notes.md
-  /import-agent <source> migrate an existing .ai/ folder (older framework
-                         version or other layout) into the current structure:
-                         knowledge and in-flight change specs
-  /tidy-up [scope]       hygiene sweep that may not change behavior: remove
-                         dead code, propose obsolete files for removal,
-                         shorten overlong comments, drop em dashes from prose
+  /explore [focus]       ask what the code cannot tell the agent; fill the
+                         AGENTS.md project requirements and .ai/notes.md
+  /task-create <id> <title>
+                         opt-in: plan a task the user names in
+                         .ai/tasks/<id>/task.md: type (change, bug,
+                         investigation, test), goal, done-when, steps
+  /task-do <id>          opt-in: work the plan, record findings as they
+                         happen, review the result against done-when, finish
+  /task-list-all         every task with type, status and progress, as one
+                         table (.ai/agent/tools/tasks.py)
   /framework-update      move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
                          shape. Never re-explores
   archive                no command: ask the agent to archive a finished
-                         change; the rules live in AGENTS.md
+                         task; the rules live in AGENTS.md
 
 Prompts: project name, one-line description, harness (claude/copilot/hermes).
 Enter accepts the default; on an existing scaffold the defaults are what the
@@ -36,7 +31,7 @@ written and the old ones the version stamp recorded are moved to
 .ai/agent/.harness-backup/<old-harness>/ (moved, not deleted; files the stamp
 never recorded are left alone and reported). It asks first unless -y is given. Non-TTY runs use the defaults unless overridden by
 the flags below. If a scaffold already exists, init asks before overwriting
-framework files; hand-filled content (notes, specs, the generated
+framework files; hand-filled content (notes, tasks, the generated
 project-context section) is always preserved, never reverted to stubs. To move
 an existing scaffold to a newer framework version, run the agent's /framework-update
 skill rather than re-running init: updating is a merge (keep user edits,
@@ -46,44 +41,48 @@ merges need judgment this script does not have.
 There is one profile. Framework 5.22 removed the large profile (KB manifest,
 hot/cold nodes, INDEX, on-demand phase docs, deterministic KB tools, ticket
 pipeline): the source is read on demand instead, knowledge lives in a dense
-AGENTS.md plus .ai/notes.md, and each non-trivial change gets a lightweight
-spec and one fresh-context review gate.
+AGENTS.md plus .ai/notes.md, and a task the user wants planned gets a
+written plan and one fresh-context review gate.
 
 Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral):
                                conventions, right-sizing rules, commands, and
                                the generated project-context section. Read
-                               natively by Copilot and Hermes; imported via
-                               CLAUDE.md for Claude Code
-  CLAUDE.md (claude)           one-line pointer: @AGENTS.md
+                               natively by Claude Code, Copilot and Hermes
   .ai/notes.md                 running memory: gotchas, runbooks, unwritten
                                rules
-  .ai/changes/<id>/spec.md     per-change spec: goal, acceptance criteria,
-                               task checklist
+  .ai/tasks/<id>/task.md       per-task plan: type, goal, done-when, steps,
+                               findings, outcome
   .ai/.current                 gitignored task cursor: cross-session resume
-                               pointer (active change, files)
+                               pointer (active task, files)
   .ai/agent/tools/probe.py     deterministic repo inventory, used by /explore
+  .ai/agent/tools/tasks.py     deterministic task table, /task-list-all
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
                                loaded once `hermes skills trust` has run in the
                                repo. Same command names as the other
-                               harnesses: /framework-update and /import-agent
-                               are spelled out everywhere because hermes
-                               reserves /update and /import
+                               harnesses: /framework-update is spelled out
+                               everywhere because hermes reserves /update
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
-  .claude/settings.json        permission allow list + Stop hook (claude only)
-  .claude/hooks/*.py           hook scripts: remind about uncommitted .ai
-                               changes
+  .claude/settings.json        permission allow list + hook registration
+                               (claude only)
+  .claude/hooks/*.py           hook scripts, the same two on every harness:
+  .github/hooks/*              block ending a turn with uncommitted .ai
+  .agents/hooks/*              changes, block merging into the default
+                               branch and co-author commit lines. copilot
+                               registers them in .github/hooks/llm-agent.json;
+                               hermes in ~/.hermes/config.yaml via the
+                               shipped dispatcher
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
 
 Versioning:
   .ai/ is excluded from the host project's repo (init appends it to the
   project .gitignore) and tracked in its own git repo at .ai/.git. init
   makes the first commit; afterwards the agent commits .ai changes itself
-  (protocol rule in AGENTS.md, enforced by a Stop hook on claude).
+  (protocol rule in AGENTS.md, enforced by a turn-end hook).
 
 Generated docs use two language registers (concept v5, CONCEPT.md section 8):
-normative docs in plain imperative English, recorded knowledge (notes, specs)
+normative docs in plain imperative English, recorded knowledge (notes, tasks)
 telegraphic. Identifiers verbatim.
 
 Usage:
@@ -267,7 +266,7 @@ def cmd_init(args=None) -> int:
                 print(f"Switching to {harness} regenerates the framework files "
                       f"and retires the {old_harness}\nentry files it recorded "
                       f"into {HARNESS_BACKUP_DIR}/{old_harness}/ (moved, not "
-                      "deleted).\nNotes, specs and the project context are "
+                      "deleted).\nNotes, tasks and the project context are "
                       "preserved.")
                 answer = ask(f"Switch harness {old_harness} -> {harness}? "
                              "(y/N)", "n")
@@ -285,7 +284,7 @@ def cmd_init(args=None) -> int:
     if marker.exists() and not force:
         answer = ask("Scaffold exists. Overwrite regenerates framework files "
                      "(instructions, skills, hooks, settings); hand-filled "
-                     "content (notes, specs) is preserved either way. "
+                     "content (notes, tasks) is preserved either way. "
                      "Overwrite? (y/N)", "n")
         force = answer.lower() in ("y", "yes")
 
