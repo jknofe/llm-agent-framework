@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Task table for /task-list-all.
 
-Reads the frontmatter of every `.ai/tasks/<id>/task.md` (archived ones under
-`.ai/tasks/_archive/` included) and prints one markdown table: id, type,
-status, title, how many steps and done-when criteria are checked, and when the
-task was last touched. The task the resume pointer `.ai/.current` names is
+Reads the frontmatter of every live `.ai/tasks/<id>/task.md` and prints one
+markdown table: id, type, status, title, how many steps and done-when criteria
+are checked, and when the task was last touched. Archived tasks under
+`.ai/tasks/_archive/` are not listed, only counted: archiving is how a task
+leaves the working view. The task the resume pointer `.ai/.current` names is
 marked. Parsing is deterministic so the table never depends on how carefully
 an agent read thirty files.
 
@@ -58,7 +59,7 @@ def current_id():
     return m.group(1) if m else None
 
 
-def load(path, archived):
+def load(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     fm = frontmatter(text)
     steps = checked(text, "Steps")
@@ -71,7 +72,6 @@ def load(path, archived):
         "steps": steps,
         "done_when": done_when,
         "updated": fm.get("updated") or fm.get("created") or "",
-        "archived": archived,
     }
 
 
@@ -92,20 +92,16 @@ def main():
               "Create one with /task-create <id> <title>.")
         return 0
 
-    rows = []
-    for path in sorted(TASKS.glob("*/task.md")):
-        if path.parent.name != "_archive":
-            rows.append(load(path, archived=False))
-    for path in sorted(TASKS.glob("_archive/*/task.md")):
-        rows.append(load(path, archived=True))
+    rows = [load(path) for path in sorted(TASKS.glob("*/task.md"))
+            if path.parent.name != "_archive"]
+    archived = len(list(TASKS.glob("_archive/*/task.md")))
 
     if not rows:
-        print("No tasks in `.ai/tasks/`. Create one with "
-              "/task-create <id> <title>.")
+        print(f"No live tasks in `.ai/tasks/` ({archived} archived). "
+              "Create one with /task-create <id> <title>.")
         return 0
 
-    rows.sort(key=lambda r: (r["archived"],
-                             STATUS_ORDER.get(r["status"], 9),
+    rows.sort(key=lambda r: (STATUS_ORDER.get(r["status"], 9),
                              r["updated"], r["id"]))
     cur = current_id()
 
@@ -113,21 +109,18 @@ def main():
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
         mark = ">" if r["id"] == cur else ""
-        status = r["status"] + (" (archived)" if r["archived"] else "")
         print(f"| {mark} | {cell(r['id'])} | {cell(r['type'])} | "
-              f"{cell(status)} | {cell(r['title'])} | {ratio(r['steps'])} | "
+              f"{cell(r['status'])} | {cell(r['title'])} | {ratio(r['steps'])} | "
               f"{ratio(r['done_when'])} | {cell(r['updated'])} |")
 
     counts = {}
     for r in rows:
-        if not r["archived"]:
-            counts[r["status"]] = counts.get(r["status"], 0) + 1
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
     summary = ", ".join(f"{n} {s}" for s, n in
                         sorted(counts.items(),
                                key=lambda kv: STATUS_ORDER.get(kv[0], 9)))
-    archived = sum(r["archived"] for r in rows)
     print()
-    print(f"{summary or 'no live tasks'}; {archived} archived.")
+    print(f"{summary}; {archived} archived (not listed).")
     if cur:
         print(f"`>` marks the resume pointer in `.ai/.current` ({cur}).")
     return 0

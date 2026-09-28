@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-28, v8.1.** The framework rests on four premises, stated in
+**State: 2026-09-28, v8.2.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -119,9 +119,10 @@ result, a fresh-context `reviewer` sub-agent otherwise) that checks a diff
 against the criteria and an Outcome against its evidence, then distills what
 the repository cannot state into `.ai/notes.md`.
 
-`/task-list-all` prints every task with type, status and progress as one
-table. A script (`tasks.py`) parses the frontmatter; the agent only adds
-what the table cannot show.
+`/task-list-all` prints every live task with type, status and progress as
+one table; archived tasks are counted, not listed, because archiving is how
+a task leaves the working view. A script (`tasks.py`) parses the
+frontmatter; the agent only adds what the table cannot show.
 
 Rules that came from failures, not from theory:
 
@@ -176,7 +177,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 137 lines, the task table only.
+  `tasks.py`: 130 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -332,6 +333,10 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.2 (2026-09-28, `/task-list-all` lists live tasks only. Archived tasks
+under `.ai/tasks/_archive/` are counted in the footer, not shown: the table
+is the working view, and an archive that grows with every finished task
+would bury it. Owner's call after first use.)
 v8.1 (2026-09-28, `/framework-update` takes its migration list from the
 reference's copy of the skill instead of only its own. Found on the 8.0
 migration itself: a 7.1 project runs the 7.1 skill, which does not know the
