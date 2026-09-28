@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-28, v8.0.** The framework rests on four premises, stated in
+**State: 2026-09-28, v8.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 39, unchanged and
+- **Part III** is the revision history, sections 1 to 40, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -163,7 +163,9 @@ Updating a scaffold is a merge, so the agent does it, not the CLI.
 `/framework-update` reads the version stamp, renders a pristine reference,
 then adds, merges, migrates and retires file by file. It never re-runs
 `/explore`: what the project knows is the expensive artifact and is migrated,
-never re-derived.
+never re-derived. The migrations it applies come from the reference's own
+copy of the skill, not the project's: the project's copy is as old as the
+project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
@@ -311,7 +313,7 @@ came from an n=1 haiku round.
 
 # Part III: Revision history
 
-Sections 1 to 39, unchanged, numbered as they have always been because the
+Sections 1 to 40, unchanged, numbered as they have always been because the
 README, the templates and the benchmark reports cite those numbers.
 
 **Sections that describe a framework that no longer exists.** Retired by
@@ -330,6 +332,11 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.1 (2026-09-28, `/framework-update` takes its migration list from the
+reference's copy of the skill instead of only its own. Found on the 8.0
+migration itself: a 7.1 project runs the 7.1 skill, which does not know the
+spec-to-task move and says to leave specs alone. A check renders a reference
+per harness and fails if the path the body names is not there. §40.)
 v8.0 (2026-09-28, Pillar 2 generalized from spec-and-build to plan-and-do
 for any task. `/spec` and `/build` become `/task-create` and `/task-do`; a
 new read-only `/task-list-all` prints every task as a table from a script,
@@ -2592,3 +2599,37 @@ unmigrated project is visible in the table.
 ### Not changed
 Pillar 1, `/explore`, the hooks, the private `.ai` repo, the sized review
 gate, the fresh-session rule, the version stamp, and the opt-in principle.
+
+## 40. The update reads the target version's migrations (2026-09-28, v8.1)
+
+Trigger: reviewing whether `/framework-update` moves a 7.1 project's specs
+to tasks (§39). It does not. The skill a project runs is the copy scaffolded
+with that project, and its migrate list is frozen at that version: the 7.1
+copy has no 8.0 entry, and its 7.0 entry says to leave existing specs and
+`_archive/` exactly as they are. The 8.0 migration exists only in the 8.0
+copy, which the update installs but does not follow. Every earlier shape
+change had the same exposure; 7.0 and 7.1 changed no hand-filled content, so
+it never showed.
+
+### Decision
+Step 4 of the update body now tells the agent that its own list is stale by
+construction and that the authoritative list is step 4 of the reference's
+copy of the skill, which step 2 has already rendered from the current
+generator. The agent applies every entry newer than the recorded version,
+and the reference wins where the two disagree. An entry also applies when
+the stamp already names the new version but the content it migrates is
+still present, so a second run repairs an update that skipped a migration.
+
+The path differs per harness (`.claude/skills/framework-update/SKILL.md`,
+`.agents/skills/framework-update/SKILL.md`,
+`.github/prompts/framework-update.prompt.md`), so it is a slot, and
+`check_templates` renders a reference per harness and fails if the named
+file is absent. A wrong path would fail silently in the field: the agent
+finds nothing and falls back to the stale list.
+
+### What it does not fix
+Projects already on 7.1 or 8.0 run a copy without this instruction. Their
+first update to 8.1 or later installs it; the spec-to-task move then needs
+a second `/framework-update` run, or the plain request to migrate
+`.ai/changes/` as step 4 of the installed skill describes. `tasks.py` flags
+a leftover `.ai/changes/`, so the gap is visible rather than silent.
