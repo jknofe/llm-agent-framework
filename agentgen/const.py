@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "7.1"
+FRAMEWORK_VERSION = "8.0"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -19,11 +19,14 @@ GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
 
 GEN_END = "<!-- END GENERATED:project-context -->"
 
-# Four commands (CONCEPT.md section 38). /tidy-up, /import-kb and
+# Five commands (CONCEPT.md sections 38 and 39). /tidy-up, /import-kb and
 # /import-agent were retired in v7.0: a hygiene sweep serves neither pillar,
 # the KB profile they imported into is gone, and converting an existing setup
-# is a plain request to the agent now that the scaffold is six files.
-SKILLS = ["explore", "spec", "build", "framework-update"]
+# is a plain request to the agent now that the scaffold is six files. 8.0
+# replaced /spec and /build with the typed task path: most of a working day
+# is investigating, bug hunting and testing, not only changing code.
+SKILLS = ["explore", "task-create", "task-do", "task-list-all",
+          "framework-update"]
 
 # Where the hermes harness looks for project skills. Hermes reads both
 # `.hermes/skills/` and `.agents/skills/` under the nearest git root; the
@@ -59,8 +62,9 @@ HARNESS_ENTRY_PATHS = {
 # One short, self-contained, period-terminated line per command.
 HERMES_DESCRIPTIONS = {
     "explore": "Record the commands and rules this project runs on.",
-    "spec": "Opt-in: write a spec for a change the user names.",
-    "build": "Implement a change spec, then review it.",
+    "task-create": "Opt-in: plan a change, bug, investigation or test.",
+    "task-do": "Work a planned task, record findings, review.",
+    "task-list-all": "Show every task and its status as a table.",
     "framework-update": "Move this scaffold to the current framework.",
 }
 
@@ -81,7 +85,7 @@ _SKILL_DESCRIPTIONS = {
 
 ARG_HINTS = {
     "explore": "[focus]",
-    "spec": "<id> <title...>",
-    "build": "<id>",
+    "task-create": "<id> <title...>",
+    "task-do": "<id>",
     "framework-update": "[dry-run]",
 }

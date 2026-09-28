@@ -6,13 +6,13 @@ once in the repository root. After a skill file changes, run `/reload-skills`
 in a running session.
 
 Run one by typing its name as a slash command, with any argument after it
-(`/framework-update dry-run`): `/explore`, `/spec`, `/build`,
-`/framework-update`.
+(`/framework-update dry-run`): `/explore`, `/task-create`, `/task-do`,
+`/task-list-all`, `/framework-update`.
 
 The names are the same on every harness; `/framework-update` is spelled out
 because Hermes reserves `/update`.
 
 Whatever follows the command name reaches the agent as the user instruction;
-nothing is substituted into the skill file. Take change ids and paths from
+nothing is substituted into the skill file. Take task ids and paths from
 that text exactly as the user typed them, and ask when it is missing.
 

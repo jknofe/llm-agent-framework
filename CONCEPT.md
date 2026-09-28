@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-19, v7.1.** The framework rests on four premises, stated in
+**State: 2026-09-28, v8.0.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 38, unchanged and
+- **Part III** is the revision history, sections 1 to 39, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -28,12 +28,15 @@ itself.** `.ai/notes.md` as private memory across sessions, plus a short
 requirements block in `AGENTS.md` holding the commands the project is checked
 with and the tools it requires or forbids.
 
-**Pillar 2. An opt-in spec-and-build path whose value is the plan shown in
-advance.** `/spec` writes down what the agent intends before any code exists,
-so a human can redirect it; `/build` implements it and reviews the diff against
-the criteria. The user starts both. By default the agent just does the task.
+**Pillar 2. An opt-in plan-and-do path for any task, whose value is the plan
+shown in advance.** `/task-create` writes down what the agent intends before
+any work is done, so a human can redirect it; `/task-do` works the plan,
+records findings as they happen, and reviews the result against the task's
+done-when criteria. A task is a code change, a bug, an investigation or a
+test; what counts as done depends on which. The user starts both. By default
+the agent just does the task.
 
-**Property 3. One command set on three harnesses.** Four commands, identical
+**Property 3. One command set on three harnesses.** Five commands, identical
 names and bodies on Claude Code, Copilot and Hermes. No command's name depends
 on where it is typed.
 
@@ -87,35 +90,61 @@ derivable from the repository, and a gotcha noted at the moment it bit is the
 only kind that is still accurate. Without this rule the notes hold only what
 `/explore` asked about.
 
-## Pillar 2: the opt-in spec-and-build path
+## Pillar 2: the opt-in plan-and-do path
 
-`/spec <id> <title>` writes `.ai/changes/<id>/spec.md`: goal, acceptance
-criteria, task checklist, notes. It runs a bounded Q&A with the user and stops.
-The point is the plan a human reads before code exists.
+`/task-create <id> <title>` writes `.ai/tasks/<id>/task.md`: type, goal,
+done-when criteria, steps, and empty Findings and Outcome sections. It runs a
+bounded Q&A with the user and stops. The point is the plan a human reads
+before the work starts.
 
-`/build <id>` works the checklist and ends with a review of the full diff
-against the criteria, sized to the change: inline for one task and a
-one-screen diff, a fresh-context `reviewer` sub-agent otherwise.
+The type decides what done means:
+
+| `type` | Done when |
+|---|---|
+| `change` | the user's criteria, plus the full test and lint suite green |
+| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; suite green. Or, cause only, a write-up another person can act on |
+| `investigation` | the question in Goal answered, every claim citing its evidence, or an explicit "inconclusive" naming what was ruled out. Covers research |
+| `test` | every named scenario run and its result recorded with evidence; new tests pass with the full suite |
+
+Any task that ends up changing code takes the full-suite criterion,
+whatever its type. For bugs and investigations the steps are hypotheses,
+each with how to confirm or rule it out, and the plan is expected to change.
+
+`/task-do <id>` works the steps, appends each finding to the task file as it
+happens, and re-plans in the file when a result invalidates the plan: a
+hypothesis ruled out is struck with its evidence, not silently abandoned. A
+change to the Goal or a done-when criterion goes back to the user. It ends
+with a review sized to the result (inline for one step and a one-screen
+result, a fresh-context `reviewer` sub-agent otherwise) that checks a diff
+against the criteria and an Outcome against its evidence, then distills what
+the repository cannot state into `.ai/notes.md`.
+
+`/task-list-all` prints every task with type, status and progress as one
+table. A script (`tasks.py`) parses the frontmatter; the agent only adds
+what the table cannot show.
 
 Rules that came from failures, not from theory:
 
-- The spec always includes a criterion that the project's full test and lint
-  commands pass. A criterion naming a single test is what produced the one
-  correctness loss the framework has ever caused (Part II, sequence round).
-- `/build` records a failing test as pre-existing only after it fails on a
-  clean checkout and the test has been read. Later sessions act on notes; a
-  wrong note is carried as faithfully as a right one.
+- A code-changing task always includes a criterion that the project's full
+  test and lint commands pass. A criterion naming a single test is what
+  produced the one correctness loss the framework has ever caused (Part II,
+  sequence round).
+- `/task-do` records a failing test as pre-existing only after it fails on
+  a clean checkout and the test has been read. Later sessions act on notes;
+  a wrong note is carried as faithfully as a right one.
 - Neither command ever starts on its own. The default path is direct: read,
-  change, run the full suite, note what is durable, commit `.ai`.
+  do the task, run the full suite if code changed, note what is durable,
+  commit `.ai`.
 
-`status:` in the spec frontmatter (`planned|in-progress|done`) is the index
-across parallel change directories. `.ai/.current` is the resume pointer, one
-per working tree. Parallel work is an intent that was never built and the
-framework claims nothing about it.
+`status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
+index across parallel task directories. `.ai/.current` is the resume
+pointer, one per working tree, starting `task: <id>`. Parallel work is an
+intent that was never built and the framework claims nothing about it.
 
 ## Property 3: one command set
 
-Four commands: `/explore`, `/spec`, `/build`, `/framework-update`. Same names,
+Five commands: `/explore`, `/task-create`, `/task-do`, `/task-list-all`,
+`/framework-update`. Same names,
 same bodies, on all three harnesses; only the entry files differ (Agent Skills
 under `.claude/skills/`, project skills under `.agents/skills/`, prompt files
 under `.github/prompts/`). `AGENTS.md` is the one instructions file and every
@@ -138,15 +167,16 @@ never re-derived.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 491 words on claude, 573 and 572
+- `AGENTS.md` before the generated section: 501 words on claude, 618 and 632
   on copilot and hermes where the balance is that harness's own CLI note.
-  `check_templates` fails above 600. The number is a tripwire against
+  `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-- A claude scaffold records 11 framework files, a copilot one 10, a hermes
-  one 11; four of each are skills, two are hooks (hermes: plus dispatcher
+  `tasks.py`: 137 lines, the task table only.
+- A claude scaffold records 13 framework files, a copilot one 12, a hermes
+  one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
 - Everything else, skill bodies included, is read on demand.
 
@@ -160,6 +190,9 @@ never re-derived.
   none supported it.
 - **Not proven more correct.** The evidence is split and the only measured
   correctness loss was caused by the framework's own spec.
+- **Not measured on anything but code changes.** Every benchmark task was a
+  change with a gate. The bug, investigation and test types rest on the
+  organizational argument of section 39, not on a round.
 
 What can be said: a rule the user states once lands verbatim in the
 requirements block and is still being cited three sessions later; a tool named
@@ -171,15 +204,17 @@ the spec chain costs two to three times.
 Every session, regardless of path:
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
-2. Tests and lint must pass, the whole suite, not only the test a task names.
-   Done = checks green.
-3. `/spec` and `/build` only when the user invokes them.
+2. When code changed, tests and lint must pass, the whole suite, not only the
+   test a task names. Done = checks green. When the task is a question,
+   done = an answer citing its evidence, or "inconclusive" with what was
+   ruled out.
+3. `/task-create` and `/task-do` only when the user invokes them.
 4. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
-5. `.ai/.current` is the resume pointer; read it at session start. `/build`
-   and unrelated tasks run in fresh sessions: instruction adherence decays
-   as a session grows, and the spec is the handoff that makes a fresh
-   session cheap.
+5. `.ai/.current` is the resume pointer; read it at session start.
+   `/task-do` and unrelated tasks run in fresh sessions: instruction
+   adherence decays as a session grows, and the task file is the handoff
+   that makes a fresh session cheap.
 6. Never merge into the default branch unasked. Work on a branch and stop at
    the pull request; merging is the user's action.
 7. Never add a co-author trailer to a commit message. Harnesses inject one by
@@ -230,7 +265,7 @@ repo-specific names.
 ## The rule for future changes
 
 A change that introduces an always-loaded summary of the codebase, or that
-makes spec or review the default, contradicts a measurement. It belongs in
+makes a task plan or review the default, contradicts a measurement. It belongs in
 this file as an argument first, with the evidence that overturns the old one,
 and only then in a template.
 
@@ -276,7 +311,7 @@ came from an n=1 haiku round.
 
 # Part III: Revision history
 
-Sections 1 to 38, unchanged, numbered as they have always been because the
+Sections 1 to 39, unchanged, numbered as they have always been because the
 README, the templates and the benchmark reports cite those numbers.
 
 **Sections that describe a framework that no longer exists.** Retired by
@@ -288,11 +323,23 @@ section 38: **15** (`/import-kb`), **22** (`/goal` as a documented mode, moved
 to the README), **25** (`/import-agent`), **26** (`/tidy-up`). Already marked
 removed in its own heading: **23** (Worker sub-agents).
 
-Everything else still describes current behavior, and sections 36, 37 and 38
-are the reasoning that produced Part I.
+Everything else still describes current behavior, and sections 36 to 39
+are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
+`/build` and `.ai/changes/`, read them as the 7.x names of what section 39
+generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.0 (2026-09-28, Pillar 2 generalized from spec-and-build to plan-and-do
+for any task. `/spec` and `/build` become `/task-create` and `/task-do`; a
+new read-only `/task-list-all` prints every task as a table from a script,
+`tasks.py`. Tasks carry a `type` (`change`, `bug`, `investigation`, `test`)
+that decides what done means, a Findings section written while the work
+happens, and an Outcome. `.ai/changes/<id>/spec.md` moves to
+`.ai/tasks/<id>/task.md`; `/framework-update` migrates existing specs as
+`type: change`. Protocol rule 2 conditions the full-suite rule on code
+having changed and adds the evidence rule for questions. No measurement:
+the argument is organizational, §39.)
 v7.1 (2026-09-19, two git guardrails in the protocol: never merge into the
 default branch without being asked, never add a co-author trailer to a commit
 message. Both are rules the repository cannot state itself and both were
@@ -2464,3 +2511,84 @@ positive result the framework has ever produced is n=1.
 The harness axis, the skill names that remain, the private `.ai` repo and
 its Stop hook, the allowlist, the `reviewer` sub-agent, the sized gate, the
 version stamp and the generated-section markers.
+
+## 39. Plan-and-do for any task (2026-09-28, v8.0)
+
+Trigger: the owner's daily work. About half of it is code changes; the other
+half is investigating, hunting bugs, researching, and testing. The opt-in
+path fit only the first half: a spec's tasks named files, its one fixed
+criterion was a green suite, and `/build` reviewed a diff. An investigation
+has no diff, and "checks green" says nothing about whether a question was
+answered.
+
+### The argument
+Pillar 2's stated value was never specific to code: it is the plan a human
+reads and redirects before work starts (§37, §38). What was code-specific is
+the definition of done and the shape of the review. Generalizing those two
+keeps the pillar's claim and widens where it applies. Nothing becomes a
+default, so the rule for future changes is not engaged.
+
+Three things matter more for a non-code task than for a change, which is why
+the generalization is more than a rename:
+
+1. **Resume state.** A change keeps its state in the diff. An investigation
+   keeps it only in the session, and compaction or the next day loses it.
+   The Findings section, written as findings happen, is that state.
+2. **Hypothesis discipline.** Steps for a bug or an investigation are
+   hypotheses with a check each, cheapest first. A ruled-out hypothesis is
+   struck with its evidence in the file. This extends the old "a test fails
+   twice, rethink" rule to "two hypotheses die without a new lead, rethink",
+   and makes drift from the plan visible instead of silent.
+3. **Evidence-checked review.** The review of an Outcome checks that every
+   claim cites evidence produced in this task, not inferred. Plausible but
+   unverified conclusions are the characteristic failure of an agent
+   answering a question, and the diff review never looked for them.
+
+It also closes a loop between the pillars. Notes grew from `/explore` and
+from correction (7.1). The findings of a bug or an investigation are almost
+always what the repository cannot state (a root cause, how a subsystem
+behaves at runtime), so `/task-do` ends by distilling them into
+`.ai/notes.md`. That makes the task path the richest source of Pillar 1
+content.
+
+### What it costs, stated plainly
+No round measured a non-code task, and none is planned: the measurement
+program halted on 2026-09-14 and this is an organizational argument, which
+is where Part II says the framework's value lies. The plan chain costs what
+the spec chain cost, 2.1x to 2.5x the direct path; for a short question it
+is overhead and the direct path remains the default. AGENTS.md grew by 10
+words on claude and 11 on hermes and shrank by 10 on copilot, whose CLI note
+now shows one generic "read the prompt file and follow it" line instead of
+a paraphrase per command. The scaffold gained one tool, `tasks.py`, and one
+skill.
+
+### Decisions
+- Names: `/task-create`, `/task-do`, `/task-list-all`, chosen by the owner.
+  `/plan` was not an option: Hermes reserves it and the check already bans
+  it, and Claude Code's plan mode already uses the word.
+- Four types, not five: research folds into `investigation`. The type decides
+  done; two types with the same done-when are one type.
+- A code-changing task of any type takes the full-suite criterion. The one
+  measured correctness loss came from a criterion naming a single test, and
+  a bug fix is where that happens most easily.
+- `status` gains `blocked`, because investigations and tests wait on
+  hardware, access or other people far more often than changes do.
+- `/task-list-all` is a script plus a thin skill. The table is deterministic
+  work (§16); the agent adds at most three lines the table cannot show
+  (stale in-progress, blocked reason, done with unchecked criteria).
+- `.ai/.current` starts `task: <id>` so the script can mark it.
+- The `reviewer` sub-agent reviews a diff, an Outcome, or both.
+
+### Migration
+`/framework-update` retires `/spec` and `/build` as ordinary retired
+framework files and migrates the content: `git mv` of `.ai/changes/` to
+`.ai/tasks/` and of each `spec.md` to `task.md`, `_archive/` included;
+`type: change` and `updated:` added to the frontmatter; `Acceptance
+criteria` renamed `Done when` and `Tasks` renamed `Steps`; empty Findings
+and Outcome added. Every goal, criterion, task line and checkbox state is
+kept as written. `tasks.py` flags a leftover `.ai/changes/` so an
+unmigrated project is visible in the table.
+
+### Not changed
+Pillar 1, `/explore`, the hooks, the private `.ai` repo, the sized review
+gate, the fresh-session rule, the version stamp, and the opt-in principle.

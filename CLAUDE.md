@@ -14,7 +14,7 @@ generated file (those live in target projects).
   `render` slot filling, `content` the render_* entry points, `scaffold` what
   gets written where)
 - `templates/` every artifact the scaffold emits, as files
-- `CONCEPT.md` design spec, source of truth (currently v7.1). Part I is the
+- `CONCEPT.md` design spec, source of truth (currently v8.0). Part I is the
   framework as it stands and is normative: when a template and Part I
   disagree, the template is the bug. Part II is the measurement record. Part
   III is the numbered revision history, kept for its evidence; the sections it
@@ -38,7 +38,9 @@ Where things live:
   `content.COMPOSED_BODIES` from `templates/skills/bodies/`
 - Rendered per harness by `render_skills` (claude), `render_hermes_skills`,
   `render_prompt_files` (copilot)
-- Embedded tool script: `render_tool_probe` (`templates/tools/probe.py`)
+- Embedded tool scripts: `render_tool_probe` (`templates/tools/probe.py`),
+  `render_tool_tasks` (`templates/tools/tasks.py`, the `/task-list-all`
+  table)
 - Hooks: `templates/hooks/`; permissions: `render_settings_json` over
   `templates/config/permissions.txt`
 - Adding or removing a command: the roster in `const.SKILLS`, plus its
@@ -65,9 +67,10 @@ Identifiers, paths, commands verbatim. No em dashes.
 
 **What the framework claims (CONCEPT.md Part I):** four premises. Two pillars,
 durable knowledge the repository cannot state itself and an opt-in
-spec-and-build path; two properties, one command set on three harnesses and a
-bounded own footprint. A change that adds an always-loaded summary of the
-codebase, or that makes spec or review the default, contradicts a measurement;
+plan-and-do path for any task (change, bug, investigation, test); two
+properties, one command set on three harnesses and a bounded own footprint. A
+change that adds an always-loaded summary of the codebase, or that makes a task
+plan or review the default, contradicts a measurement;
 argue it in Part I first, with the evidence that overturns the old one. A
 change that *removes* an artifact needs no such argument.
 

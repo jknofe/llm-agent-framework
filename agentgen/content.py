@@ -117,10 +117,30 @@ def render_update_body(harness: str, arg: str) -> str:
             f"   - `{COPILOT_HOOKS_DIR}/llm-agent.json` parses as JSON and every\n"
             "     hook command it names points at a file that exists.\n")
 
-    owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, change specs under\n"
-             "`.ai/changes/`, and the `GENERATED:project-context` section of\n"
-             "AGENTS.md")
+    owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, task files under\n"
+             "`.ai/tasks/` (change specs under `.ai/changes/` before 8.0), and\n"
+             "the `GENERATED:project-context` section of AGENTS.md")
     migrate = (
+        "   - Framework 8.0 replaces `/spec` and `/build` with `/task-create`,\n"
+        "     `/task-do` and `/task-list-all`, and change specs with typed\n"
+        "     task files. The old skill entries are retired framework files;\n"
+        "     the specs are hand-filled content, so migrate them, do not\n"
+        "     regenerate them:\n"
+        "     - `git -C .ai mv changes tasks`. If `tasks/` exists already,\n"
+        "       move each directory under `changes/` into it instead, and\n"
+        "       the contents of `changes/_archive/` into `tasks/_archive/`.\n"
+        "       Then in every task directory, `_archive/` included,\n"
+        "       `git -C .ai mv` its `spec.md` to `task.md`.\n"
+        "     - In each file's frontmatter add `type: change` after `title`\n"
+        "       and `updated:` with the `created` date. Rename the heading\n"
+        "       `## Acceptance criteria` to `## Done when` and `## Tasks` to\n"
+        "       `## Steps`, and add empty `## Findings` and `## Outcome`\n"
+        "       sections before `## Notes`. Keep every goal, criterion,\n"
+        "       task line, and checkbox state exactly as written.\n"
+        "     - If `.ai/.current` names a spec, rewrite it to start with\n"
+        "       `task: <id>` and point at the moved `task.md`.\n"
+        f"     - Run `python3 {TOOLS_DIR}/tasks.py`: every migrated spec\n"
+        "       must appear in the table with type `change`.\n"
         "   - Framework 7.1 retires the `CLAUDE.md` pointer on the claude\n"
         "     harness: Claude Code 2.1.277 and later reads AGENTS.md itself\n"
         "     when no CLAUDE.md exists in the working directory or above it.\n"
@@ -150,10 +170,9 @@ def render_update_body(harness: str, arg: str) -> str:
         "     wants the content off AGENTS.md rather than lost.\n"
         "   - New or renamed sections in the digest: add the heading and move\n"
         "     the matching content that is already there under it.\n"
-        "   - A changed spec format: bring existing `.ai/changes/<id>/spec.md`\n"
-        "     files up to it, keeping every goal, criterion, and task intact.\n"
-        "     7.0 did not change it; leave existing specs and anything under\n"
-        "     `.ai/changes/_archive/` exactly as they are.\n"
+        "   - A changed task format: bring existing `.ai/tasks/<id>/task.md`\n"
+        "     files up to it, keeping every goal, criterion, step, and\n"
+        "     finding intact.\n"
         "   - Moved or renamed directories: `git mv` inside `.ai` so the notes\n"
         "     history survives the move.\n")
 
@@ -166,7 +185,8 @@ def render_update_body(harness: str, arg: str) -> str:
                        migrate=migrate,
                        owned=owned,
                        verify_extra=verify_extra,
-                       verify_tools=f"`{TOOLS_DIR}/probe.py`")
+                       verify_tools=(f"`{TOOLS_DIR}/probe.py` and "
+                                     f"`{TOOLS_DIR}/tasks.py`"))
 
 def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     """(name, description, body) for each command, in roster order.
@@ -279,17 +299,23 @@ def render_prompt_files(specs) -> dict:
     return out
 
 def render_reviewer_agent() -> str:
-    """The fresh-context adversarial reviewer used by /build's review gate."""
+    """The fresh-context adversarial reviewer used by /task-do's review
+    gate. A task's result is a diff, an Outcome, or both, so the reviewer
+    checks whichever the task produced."""
     return render.fill(
         "agents/reviewer.md",
-        coverage=("- Every acceptance criterion is implemented and, where "
-                  "testable, tested.\n"
-                  "- The spec is self-contained: paths explicit, interfaces "
-                  "stated."),
-        desc=("Adversarial fresh-context review of a change's diff against "
-              "its acceptance criteria. Use for the review gate in /build."),
-        input_block=("Input: a code diff plus the change's acceptance "
-                     "criteria in\n`.ai/changes/<id>/spec.md`."))
+        coverage=("- Every Done-when criterion is met and, where testable, "
+                  "tested.\n"
+                  "- Every claim in Outcome cites evidence in Findings, the "
+                  "evidence was\n  produced in this task rather than "
+                  "inferred, and the answer fits the\n  question in Goal. "
+                  "An unsupported claim is a gap even if it sounds right."),
+        desc=("Adversarial fresh-context review of a task's result (diff, "
+              "Outcome, or both) against its Done-when criteria. Use for "
+              "the review gate in /task-do."),
+        input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
+                     "Done when, Findings,\nOutcome) plus the code diff, "
+                     "if the task changed code."))
 
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
@@ -336,6 +362,11 @@ def render_tool_probe() -> str:
     at the start of /explore. Static: the template is a real .py file under
     templates/tools/."""
     return render.load("tools/probe.py")
+
+def render_tool_tasks() -> str:
+    """The task table behind /task-list-all. Static, like the probe: parsing
+    frontmatter is deterministic work, so a script does it."""
+    return render.load("tools/tasks.py")
 
 def render_settings_json() -> str:
     """Project settings (.claude/settings.json): a read-only permission allow

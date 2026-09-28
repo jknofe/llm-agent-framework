@@ -62,7 +62,7 @@ def render_framework_json(root: Path, name: str, harness: str,
 
 def write_owned(path: Path, stub: str, created: list, skipped: list,
                 preserved: list):
-    """Agent/user-owned content (notes, specs): write once. Existing content
+    """Agent/user-owned content (notes, tasks): write once. Existing content
     that differs from the stub is never overwritten, not even on
     overwrite-confirm; hand-filled knowledge must survive re-init."""
     if path.exists():
@@ -373,10 +373,10 @@ def bootstrap_update(root: Path) -> int:
 def scaffold(root: Path, name: str, desc: str, harness: str,
              force: bool, commit_message: str = None,
              reference: bool = False, switch_from: dict = None) -> int:
-    """Write the scaffold: a dense AGENTS.md, running notes, per-change specs,
-    one deterministic inventory tool, and the harness entry files. `.ai/` is a
-    private nested repo (notes + specs); AGENTS.md and the harness directory
-    live in the host repo.
+    """Write the scaffold: a dense AGENTS.md, running notes, per-task plans,
+    two deterministic tools (inventory, task table), and the harness entry
+    files. `.ai/` is a private nested repo (notes + tasks); AGENTS.md and the
+    harness directory live in the host repo.
 
     `switch_from` is the previous version stamp when this run changes the
     scaffold's harness. The new harness's files are written normally; the old
@@ -385,7 +385,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     created, skipped, preserved = [], [], []
     _framework_paths.clear()
 
-    archive = root / ".ai" / "changes" / "_archive"
+    archive = root / ".ai" / "tasks" / "_archive"
     archive.mkdir(parents=True, exist_ok=True)
     if not any(archive.iterdir()):
         (archive / ".gitkeep").touch()
@@ -396,6 +396,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
 
     # Deterministic repo inventory, used at the start of /explore.
     write(root / TOOLS_DIR / "probe.py", render_tool_probe(),
+          force, created, skipped)
+    # Deterministic task table, the whole of /task-list-all.
+    write(root / TOOLS_DIR / "tasks.py", render_tool_tasks(),
           force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section: recover it
@@ -489,7 +492,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                   + ", ".join(left_behind))
     entry = {"claude": ".claude", "hermes": HERMES_SKILLS_DIR}.get(
         harness, ".github/prompts")
-    print(f"\n.ai: notes.md + changes/  |  AGENTS.md + {entry}"
+    print(f"\n.ai: notes.md + tasks/  |  AGENTS.md + {entry}"
           f"  |  project: {name}  |  harness: {harness}")
     if harness == "hermes":
         print(f"\nSkills live in {HERMES_SKILLS_DIR}/. Hermes loads project "
@@ -510,9 +513,11 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               "default branch). Copilot loads them only from a\ntrusted folder: "
               "accept the trust prompt on first start, or COPILOT_ALLOW_ALL=true "
               "for -p runs.")
-        print("\nPrompt files (/explore, /spec, /build) work in VS Code only.")
+        print("\nPrompt files (/explore, /task-create, /task-do, /task-list-all)"
+              " work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
         print("  Explore the project and fill the Project Context + .ai/notes.md.")
-        print('  Spec change <id> "<title>": write .ai/changes/<id>/spec.md.')
-        print("  Build change <id>: implement the spec, then review the diff.")
+        print('  Create task <id> "<title>": plan it in .ai/tasks/<id>/task.md.')
+        print("  Do task <id>: work the plan, record findings, review the result.")
+        print("  List all tasks: run .ai/agent/tools/tasks.py and show the table.")
     return 0

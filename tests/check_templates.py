@@ -61,7 +61,8 @@ def rendered_artifacts():
     out.append(("reviewer", content.render_reviewer_agent()))
     out.append(("settings.json", content.render_settings_json()))
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
-    for fn in ("render_tool_probe", "render_hook_ai_repo_clean",
+    for fn in ("render_tool_probe", "render_tool_tasks",
+               "render_hook_ai_repo_clean",
                "render_hook_git_guard", "render_hook_hermes_dispatch",
                "render_hermes_hooks_yaml", "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
@@ -108,7 +109,8 @@ def check_unfilled():
 
 
 def check_python():
-    for fn in ("render_tool_probe", "render_hook_ai_repo_clean"):
+    for fn in ("render_tool_probe", "render_tool_tasks",
+               "render_hook_ai_repo_clean"):
         try:
             ast.parse(getattr(content, fn)())
         except SyntaxError as e:
@@ -177,11 +179,14 @@ def check_budget():
     requirements, not an overview. Measured on the rendered file, before the
     generated section, on every harness; the copilot CLI note is the largest
     variant. The second half catches prose that still describes the pre-6.0
-    digest, the map leaf 7.0 stopped generating, or a retired command.
+    digest, the map leaf 7.0 stopped generating, or a retired command
+    (8.0 retired /spec and /build together with `.ai/changes/`).
 
     `notes/map.md` is exempt in one place: the /framework-update body has to
     name the leaf to say it must not be deleted. That is checked below rather
     than waived, so a map instruction cannot creep back in anywhere else.
+    The same holds for `.ai/changes/`: only the update body, which migrates
+    it, and the task tool, which points at that migration, may name it.
     """
     for harness in HARNESSES:
         text = content.render_agents_md("p", "d", harness)
@@ -204,6 +209,12 @@ def check_budget():
                 "skill:framework-update"):
             fail("budget", f"{label}: names notes/map.md, retired as "
                            "framework output in 7.0")
+        migrates = (label.endswith("skill:framework-update")
+                    or label == "render_tool_tasks")
+        for retired in ("`/spec", "`/build", "spec.md", ".ai/changes"):
+            if retired in text and not migrates:
+                fail("budget", f"{label}: still names {retired!r}, retired "
+                               "in 8.0")
 
 
 def main():

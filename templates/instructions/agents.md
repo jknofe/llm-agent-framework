@@ -6,11 +6,11 @@ source for structure. Normative text plain imperative, notes telegraphic;
 identifiers, paths, and commands verbatim.
 
 ## Right-sizing
-Do the task directly: read what you need, change it, run the project's full
-test and lint commands, append to `.ai/notes.md` if a decision or gotcha
-emerged, commit `.ai`. `/spec` and `/build` are opt-in, for a change the user
-wants written down and reviewed before it is called done. Never start one on
-your own.
+Do the task directly: read what you need, do it, run the project's full test
+and lint commands if code changed, append to `.ai/notes.md` if a decision,
+gotcha, or finding emerged, commit `.ai`. `/task-create` and `/task-do` are
+opt-in, for a task the user wants planned in writing and reviewed. Never start
+one on your own.
 
 ## Protocol
 1. Read `.ai/notes.md` first. Durable knowledge goes there, appended,
@@ -20,19 +20,18 @@ your own.
    under `.ai/notes/` that a task needs. When the user corrects you, or a
    check fails for a reason the code does not explain, record it there
    before moving on.
-2. Tests and lint must pass, the whole suite, not only the test a task
-   names. Done = checks green.
-3. `/spec <id>` writes `.ai/changes/<id>/spec.md`; `/build <id>` implements
-   it and reviews the diff against its criteria. Both user-invoked, never a
-   default.
+2. Code changed: the whole test and lint suite passes, not only the test a
+   task names. A question: done = an answer citing its evidence, or
+   "inconclusive" with what was ruled out.
+3. `/task-create` and `/task-do` only when the user invokes them.
 4. After changing `.ai/`, commit it in its own repo: `git -C .ai add -A &&
    git -C .ai commit -m "<summary>"`. Never commit `.ai` content to the host
    project repo.${hook_note}
 5. `.ai/.current` (gitignored, one per working tree) is the resume pointer:
-   change id, spec path, modified files. Read it at session start and offer
-   to resume. Run `/build` in a fresh session, not the one that wrote the
-   spec, and start an unrelated task in a fresh session: adherence to
-   instructions decays as a session grows.
+   `task: <id>`, task path, modified files. Read it at session start and
+   offer to resume. Run `/task-do` in a fresh session, not the one that
+   planned the task, and start an unrelated task in a fresh session:
+   adherence to instructions decays as a session grows.
 6. Never merge into the default branch unasked. Stop at the branch or pull
    request; the user merges.
 7. Never add a co-author line to a commit message, even when the harness
@@ -42,19 +41,20 @@ your own.
 | Command | What it does |
 |---|---|
 | `/explore` | Ask what the code cannot tell you; record commands and rules below. |
-| `/spec <id> <title>` | Opt-in: specify a change the user names. |
-| `/build <id>` | Opt-in: implement that spec, review the diff, finish. |
+| `/task-create <id> <title>` | Opt-in: plan a change, bug, investigation, or test. |
+| `/task-do <id>` | Opt-in: work that plan, record findings, review, finish. |
+| `/task-list-all` | Table of every task with type, status, progress. |
 | `/framework-update` | Move this scaffold to the current framework version. |
 
-## Changes layout
+## Tasks layout
 ```
-.ai/changes/<id>/spec.md   # goal, acceptance criteria, tasks, notes
-.ai/notes.md               # running memory hub
-.ai/notes/<topic>.md       # optional leaves, linked from notes.md
+.ai/tasks/<id>/task.md   # goal, done when, steps, findings, outcome, notes
+.ai/notes.md             # running memory hub
+.ai/notes/<topic>.md     # optional leaves, linked from notes.md
 ```
-Spec frontmatter carries `status: planned|in-progress|done`, which is what
-tells parallel changes apart. Archive only on request: move `changes/<id>/`
-to `changes/_archive/`, commit `.ai`.
+Frontmatter: `type: change|bug|investigation|test`,
+`status: planned|in-progress|blocked|done`. Archive only on request: move
+`tasks/<id>/` to `tasks/_archive/`, commit `.ai`.
 
 ${cli_note}## Project requirements
 

@@ -73,8 +73,8 @@ themselves.
 ## Layer 2: Benchmark runs (behavior changes)
 
 A benchmark run = spawn an autonomous agent on a real target repo, drive it
-through the framework phases (init -> explore -> spec/ticket -> [plan] ->
-build), then gate the produced artifact deterministically in Docker.
+through the framework phases (init -> explore -> task-create -> task-do;
+recorded rounds before 8.0 used spec -> build), then gate the produced artifact deterministically in Docker.
 Rule of thumb: a behavior change worth shipping is worth one benchmark cell
 before and after.
 
@@ -100,14 +100,15 @@ EFFORT (tiers low/medium/high defined there).
 
 - **Smoke (default for framework changes):** sonnet + medium, fixed-runbook
   cell 1 (`sh-refactor`, no package install, ~10-20 min) or cell 2
-  (`rust-package`). Exercises explore/spec/build, the review gate, and the
+  (`rust-package`). Exercises explore/task-create/task-do, the review gate, and the
   Docker gate end to end.
 - **Anti-overfitting / new normative text:** the Python/Shell cells (1, 3, 4),
   because they check ecosystem-correctness outside Rust/Debian (right linter
   named unprompted, refactor invariants, root-cause bugfixing).
 ### Invariants every run must satisfy
 
-- Clean `.ai` commit sequence: init -> explore -> spec -> build.
+- Clean `.ai` commit sequence: init -> explore -> task: create -> task: done
+  (spec -> build before 8.0).
 - PASS/FAIL decided only by the deterministic container gate, never by
   impressions; quality dimensions are recorded separately.
 - Raw per-cell results preserved under `benchmarks/<run>/results/`

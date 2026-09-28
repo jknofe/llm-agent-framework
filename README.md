@@ -8,15 +8,18 @@ Copilot, Hermes):
    private memory across sessions, plus a short requirements block in
    `AGENTS.md` holding the commands this project is checked with and the
    tools it requires or forbids.
-2. **An opt-in spec-and-build path.** `/spec` writes down what the agent
-   intends before any code exists, so you can redirect it; `/build`
-   implements it and reviews the diff against the criteria. You start both.
-   By default the agent just does the task.
+2. **An opt-in plan-and-do path for any task.** `/task-create` writes down
+   what the agent intends before any work is done, so you can redirect it;
+   `/task-do` works the plan, records findings as they happen, and reviews
+   the result against the task's done-when criteria. A task is a code
+   change, a bug, an investigation or a test, and each has its own
+   definition of done. You start both. By default the agent just does the
+   task.
 
 Concept: CONCEPT.md.
 
 What the benchmarks support and what they do not (`benchmarks/`, CONCEPT.md
-sections 36 to 38). A spec-and-review chain on every task costs two to three
+sections 36 to 39). A plan-and-review chain on every task costs two to three
 times a bare agent and did not make later tasks on the same repo cheaper or
 more correct with Sonnet 5, so 6.1 made it opt-in. An always-loaded
 repository overview does not help agents find anything (ETH Zurich
@@ -31,8 +34,9 @@ under 650 words, everything else read on demand), which is a different
 claim. Untested: weak models, projects dense in non-derivable context, and
 sessions where a human answers the questions.
 
-Framework 7.0 cut `/tidy-up`, `/import-kb`, `/import-agent` and the
-generated module map; 5.22 removed the large (knowledge-base) profile. See
+Framework 8.0 replaced `/spec` and `/build` with the typed task commands;
+7.0 cut `/tidy-up`, `/import-kb`, `/import-agent` and the generated module
+map; 5.22 removed the large (knowledge-base) profile. See
 [One profile](#one-profile).
 
 ## Install
@@ -55,7 +59,7 @@ The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
 description, claude/copilot/hermes); Enter accepts the defaults. If a
 scaffold already exists it asks before regenerating framework files
-(instructions, skills, hooks, settings); hand-filled notes and specs are
+(instructions, skills, hooks, settings); hand-filled notes and tasks are
 always preserved, never reverted to stubs. `init-agent -h` shows help.
 Everything after init is done by the agent through skills and folder
 conventions:
@@ -69,7 +73,7 @@ framework's version of files you never touched, **merges** the ones you did
 (extra permissions in `.claude/settings.json`, rules you appended to
 AGENTS.md), and **deletes** files the framework has retired along with the
 instructions that still referenced them. Your knowledge is migrated in place,
-never rebuilt: `notes.md`, change specs, and the generated project-context
+never rebuilt: `notes.md`, task files, and the generated project-context
 section are carried into the new shape, so `/framework-update` never re-runs
 `/explore`. It reports every file it touched and what it kept.
 `/framework-update dry-run` prints that report without changing anything.
@@ -99,8 +103,8 @@ command set, then retires the old one: every file the version stamp recorded
 for the previous harness is **moved** to
 `.ai/agent/.harness-backup/<old-harness>/`, never deleted, and directories it
 empties are removed. Files it did not record are yours, so a skill you added
-next to the framework's stays where it is and is reported. Notes, change
-specs and the generated project-context section are preserved as in any
+next to the framework's stays where it is and is reported. Notes, task
+files and the generated project-context section are preserved as in any
 re-init, and AGENTS.md is regenerated so it describes the harness you are
 actually on. It asks first unless you pass `-y`; a scaffold with no recorded
 file list retires nothing and prints what to remove by hand.
@@ -112,24 +116,40 @@ file list retires nothing and prints what to remove by hand.
    into `AGENTS.md`. Your answers are the part that measured positive, so
    letting it run unattended gets you most of the cost and little of the
    benefit.
-2. **Work**: ask for what you want. The agent reads what it needs, makes
-   the change, runs the project's full test and lint commands, notes
+2. **Work**: ask for what you want. The agent reads what it needs, does it,
+   runs the project's full test and lint commands if code changed, notes
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
    path for every task.
-3. **Opt in to a spec** when you want a change written down and reviewed:
-   `/spec FEAT-42 Add a jazzy build` writes `.ai/changes/FEAT-42/spec.md`
-   (goal, acceptance criteria, task checklist); `/build FEAT-42` works the
-   checklist and ends with a fresh-context review of the full diff against
-   the criteria (the `reviewer` subagent where the harness has one). The
-   agent never starts a spec on its own.
-4. **Archive**: just ask the agent ("archive FEAT-42"). It verifies
-   `status: done` and moves the change to `.ai/changes/_archive/`.
+3. **Opt in to a plan** when you want a task written down and reviewed:
+   `/task-create BUG-7 Nav goal lost after reboot` classifies it (`change`,
+   `bug`, `investigation`, `test`) and writes `.ai/tasks/BUG-7/task.md`
+   (goal, done-when criteria for that type, steps; for bugs and
+   investigations the steps are hypotheses with a check each). In a fresh
+   session, `/task-do BUG-7` works it, appends findings with their evidence
+   as they happen, re-plans in the file when a hypothesis dies, and ends
+   with a fresh-context review (the `reviewer` subagent where the harness
+   has one): a diff against the criteria, an outcome against its evidence.
+   Findings the repository cannot state go into `notes.md`. The agent never
+   starts a task plan on its own.
+4. **See where things stand**: `/task-list-all` prints every task as one
+   table (type, status, steps and criteria checked, last update), read-only.
+5. **Archive**: just ask the agent ("archive BUG-7"). It verifies
+   `status: done` and moves the task to `.ai/tasks/_archive/`.
+
+What counts as done, by type:
+
+| `type` | Done when |
+|---|---|
+| `change` | your criteria, plus the full test and lint suite green |
+| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; suite green (or, cause only, a write-up someone can act on) |
+| `investigation` | the question answered with every claim citing evidence, or "inconclusive" naming what was ruled out; covers research |
+| `test` | every named scenario run and its result recorded; new tests pass with the full suite |
 
 The framework is model-agnostic: it never tells the harness which model to
 run, you decide via the harness (for example `/model opusplan` in Claude
-Code to plan on Opus and implement on Sonnet). The self-contained spec and
-the fresh-context review gate are what keep cheap execution safe. If you do
-split models, keep the direction: spec on the strong one.
+Code to plan on Opus and implement on Sonnet). The self-contained task file
+and the fresh-context review gate are what keep cheap execution safe. If you
+do split models, keep the direction: `/task-create` on the strong one.
 
 ## One profile
 
@@ -143,12 +163,12 @@ small one, and it is now the only shape the generator emits:
   ~300 tokens).
 - **`.ai/`** is a private nested git repo (gitignored from the host) holding
   `notes.md` (running memory: decisions, gotchas, domain terms), optional
-  topic leaves under `notes/`, and per-change specs under
-  `changes/<id>/spec.md`.
-- **Four skills**, listed under [Skills](#skills).
+  topic leaves under `notes/`, and per-task plans under
+  `tasks/<id>/task.md`.
+- **Five skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
-  `.ai`-clean Stop hook, the read-only permission allow list, and `probe.py`
-  (command and documentation detection).
+  `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
+  (command and documentation detection), and `tasks.py` (the task table).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
@@ -162,8 +182,8 @@ synced index of it.
 `/framework-update`: there is no reference to render for them, so it stops
 and says so. Scaffold fresh with `init-agent`, then ask the agent to carry
 the old `.ai/` across: the commands and rules into the requirements section,
-the gotchas and decisions into `notes.md`, and any in-flight change into
-`changes/<id>/spec.md`. Framework 7.0 dropped the `/import-agent` skill that
+the gotchas and decisions into `notes.md`, and any in-flight work into
+`tasks/<id>/task.md`. Framework 7.0 dropped the `/import-agent` skill that
 used to script this; with the scaffold at six files it is a plain request.
 
 ## Skills
@@ -181,8 +201,9 @@ All three harnesses invoke them the same way, under the same names:
 | Command | What it does |
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
-| `/spec <id> <title...>` | Opt-in. Writes `.ai/changes/<id>/spec.md` for a change you want specified: goal, acceptance criteria (always including the full suite green), task checklist. No implementation yet. |
-| `/build <id>` | Opt-in. Works that spec's task checklist, then one fresh-context review of the full diff against the acceptance criteria. |
+| `/task-create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Nothing is done yet. |
+| `/task-do <id>` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one fresh-context review of the result (diff, outcome, or both) against the done-when criteria. Distills durable findings into `notes.md`. |
+| `/task-list-all` | Read-only. Every task, archived ones last, as one table: type, status, steps and criteria checked, last update, the one `.ai/.current` points at. Backed by `.ai/agent/tools/tasks.py`. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
@@ -194,7 +215,7 @@ Not part of the framework, but the way to run one of these unattended.
 `/goal` changes only whether the agent stops to ask between steps, so use it
 when the finish line is machine-checkable and no judgment call is expected.
 Point the condition at the artifact that defines done (the gate command, or
-for a spec'd change its acceptance criteria), make the agent show it in
+for a planned task its done-when criteria), make the agent show it in
 output, and cap the turns:
 
 ```
@@ -234,7 +255,7 @@ obedience:
   or LOC table: that is a repository overview, and an overview does not help
   an agent find anything.
 - `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
-  has uncommitted changes, so notes and specs are not silently dropped. Not
+  has uncommitted changes, so notes and task files are not silently dropped. Not
   absolute: every harness overrides a turn-end block after a few consecutive
   passes, so the protocol rule in `AGENTS.md` remains the backstop.
 - `git_guard.py` (before a shell command) blocks the two git guardrails at
@@ -268,12 +289,12 @@ profile entry serves every project and `pre_tool_call` can stay
 runs. Its turn-end event, `pre_verify`, fires only on turns that edited
 files.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
-  reviewer used by `/build`'s review gate.
+  reviewer used by `/task-do`'s review gate.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
 gate. The reviewer subagent is claude-only; Copilot and Hermes have no
-equivalent, there `/build` reviews inline.
+equivalent, there `/task-do` reviews inline.
 
 Hooks only fire when the scaffolded repo is the session's working directory
 (on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
@@ -288,8 +309,9 @@ Code:
 
 - instructions file: `AGENTS.md` (read natively, no pointer file)
 - prompt files: `.github/prompts/*.prompt.md` instead of skills, invoked
-  the same way (`/explore`, `/spec`, ...) in VS Code Copilot Chat;
-  arguments are passed as input variables, e.g. `/spec: ticket=FEAT-42`
+  the same way (`/explore`, `/task-create`, ...) in VS Code Copilot Chat;
+  arguments are passed as input variables, e.g.
+  `/task-do: ticket=FEAT-42`
 - hooks: `.github/hooks/llm-agent.json` plus the two scripts (see
   [Deterministic tools and hooks](#deterministic-tools-and-hooks))
 - no `.claude/settings.json` or reviewer subagent (no equivalent)
@@ -298,7 +320,7 @@ Prompt files require VS Code with the `chat.promptFiles` setting enabled.
 Copilot CLI does not load prompt files; it does read `AGENTS.md`, which
 therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
-`Explore the project and fill the project requirements + .ai/notes.md.`
+`Run task-do FEAT-42: read .github/prompts/task-do.prompt.md and follow it.`
 
 ## Hermes support
 
@@ -334,12 +356,13 @@ only the entry files differ.
 ## What init creates
 
 `init` creates `.ai/notes.md` (running memory for gotchas, runbooks and
-domain terms), `.ai/changes/` (per-change specs, with `_archive/` for
-finished ones), `.ai/agent/tools/probe.py`, the canonical `AGENTS.md`, the
+domain terms), `.ai/tasks/` (per-task plans, with `_archive/` for
+finished ones), `.ai/agent/tools/probe.py` and `tasks.py`, the canonical
+`AGENTS.md`, the
 skills above and, for Claude Code, the reviewer
 subagent, the Stop hook script and `.claude/settings.json` with that hook
 plus a read-only permission allow list (grep, find, ls, cat, awk, read-only
-git, `git -C .ai`, `probe.py`) so exploration and `.ai` commits run without a
+git, `git -C .ai`, `probe.py`, `tasks.py`) so exploration and `.ai` commits run without a
 confirmation prompt per command. Compound commands (`a && b`) only skip the
 prompt when every part of the chain is allowed, so common chain members like
 `cd`, `echo` and `pwd` are included. If you work interactively, Claude Code's
@@ -359,7 +382,7 @@ instead of falling back to the directory name and a blank line. On an existing
 scaffold the prompts are pre-filled with them, so Enter keeps the project as
 it is.
 
-Re-running init never reverts agent or user work: `.ai/notes.md` and specs
+Re-running init never reverts agent or user work: `.ai/notes.md` and tasks
 that differ from their stubs are reported as `preserved`, and an existing
 `GENERATED:project-context` section is carried over into the regenerated
 `AGENTS.md` (also from legacy `CLAUDE.md` scaffolds).

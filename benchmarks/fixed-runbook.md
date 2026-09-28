@@ -26,6 +26,14 @@ Rust, TypeScript/Angular, C++/ROS 2); the design history lives in the git log.
 > **opt-in path**, not the default one. To measure what the framework
 > actually does by default, run the
 > [context-only arm](#context-only-arm-c-cells-scaffold-without-workflow-optional-fixed).
+>
+> **Since 8.0, the opt-in path is `/task-create` and `/task-do`** (CONCEPT.md
+> section 39). Against an 8.0+ scaffold, read "spec skill" in STEP 3 as
+> `.claude/skills/task-create/SKILL.md` (the cell's TASK is a `change`),
+> the spec as `.ai/tasks/<id>/task.md`, acceptance criteria as its done-when
+> criteria, and "build" in STEP 4 as `task-do`. The `.ai` commit sequence
+> becomes init -> explore -> task: create -> task: done. Nothing else
+> changes, so rounds stay comparable with the recorded ones.
 
 ---
 
