@@ -305,7 +305,7 @@ to that commit.
 | `w4-sonnet5-medium-2026-07-17` | Worker sub-agents on a mid-tier model | Retired the idea (section 23). |
 | `u-update-sonnet5-medium-2026-07-28` | The `/framework-update` skill | Agent-driven update works as a merge. |
 | `tidy-up-sonnet5-medium-2026-07-29` | The `/tidy-up` sweep | Worked; cut in v7.0 anyway for serving neither pillar. |
-| ETH Zurich context-file evaluation (external; `agents-md-paper-response.md`) | LLM-generated context files, 4 agent/model pairs, SWE-bench Lite + AGENTbench | Success -0.5% and -2%, cost +20% to +23%. Agents with a file reach the first relevant file no faster. Tools named in the file get used, 1.6 vs 0.01 per task. Killed the digest (v6.0). |
+| ETH Zurich context-file evaluation (external; `docs/history/agents-md-paper-response.md`) | LLM-generated context files, 4 agent/model pairs, SWE-bench Lite + AGENTbench | Success -0.5% and -2%, cost +20% to +23%. Agents with a file reach the first relevant file no faster. Tools named in the file get used, 1.6 vs 0.01 per task. Killed the digest (v6.0). |
 | `v6-vs-5.26-sonnet5-medium-2026-09-14` | 6.0 against 5.26, cell 2 | Both PASS. Verification, not a saving. |
 | `seq-sonnet5-medium-2026-09-14` | Three tasks, two arms, three reps, hidden tests | Marginal cost of tasks 2+3: +74%, +160%, +136%. Amortization failed 0 of 3. One correctness loss from a spec criterion naming a single test. Made spec and build opt-in (v6.1). |
 | `v7-vs-6.1-sonnet5-medium-2026-09-14` | 7.0 against 6.1, framework arm and context-only arm | All four PASS, identical packages. 7.0 was 7% cheaper on one arm and 11% dearer on the other: noise. The useful number: the spec chain costs 2.1x to 2.5x the direct path. |
@@ -2250,7 +2250,7 @@ Trigger: "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful
 for Coding Agents?" (Gloaguen, Muendler, Mueller, Raychev, Vechev; ETH
 Zurich and LogicStar; ICLR 2026 Workshop on Memory for LLM-Based Agentic
 Systems). Full reading and the mapping onto this framework are in
-`agents-md-paper-response.md`. The numbers that decide this section:
+`docs/history/agents-md-paper-response.md`. The numbers that decide this section:
 
 - LLM-generated context files: success -0.5% (SWE-bench Lite) and -2%
   (AGENTbench), cost +20% to +23%, across four agent/model pairs.
