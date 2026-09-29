@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.8.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.9.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -186,7 +186,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 194 lines, the task table only.
+  `tasks.py`: 205 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -342,6 +342,10 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.9 (2026-09-29, the Type and Status columns show the emoji alone, with a
+legend line under the table; an unknown value stays text so a typo in a task
+file shows. The terminal color moves to the id, since a colored emoji does
+not change color. Owner's request.)
 v8.8 (2026-09-29, the task table gets emoji for status and type, a pointing
 hand for the resume pointer and a mark on each flag, so a long table reads
 at a glance. Status is also colored, but only when a person runs `tasks.py`

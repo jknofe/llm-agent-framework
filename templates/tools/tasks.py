@@ -11,8 +11,9 @@ updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
 frontmatter line, a `done` task with unchecked done-when criteria. Only the
 task files are read, and only frontmatter and checkboxes; the output is the
 whole answer, so no agent has to open a task file to add to it. Status and
-type carry an emoji in every view; status is also colored, but only when a
-person runs the script in a terminal (not piped, NO_COLOR unset).
+type show as emoji only, explained by a legend line under the table. The id
+is colored by status, but only when a person runs the script in a terminal
+(not piped, NO_COLOR unset).
 
 Read-only; stdlib only.
 
@@ -38,11 +39,17 @@ TYPE_ICON = {"change": "🔧", "bug": "🐞", "investigation": "🔍", "test": "
 POINTER = "👉"
 FLAG = "❗"
 
-# ANSI color only when a person runs the script in a terminal. The agent reads
-# it through a pipe and copies it into markdown, where escape codes are noise.
+# ANSI color, on the id by status, only when a person runs the script in a
+# terminal. The agent reads it through a pipe and copies it into markdown,
+# where escape codes are noise.
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 STATUS_COLOR = {"in-progress": "33", "blocked": "31", "planned": "2",
                 "done": "32"}
+
+
+LEGEND = ("Legend: " + ", ".join(f"{i} {t}" for t, i in TYPE_ICON.items())
+          + "; " + ", ".join(f"{i} {s}" for s, i in STATUS_ICON.items())
+          + f"; {POINTER} resume pointer, {FLAG} needs a look")
 
 
 def paint(text, code):
@@ -128,8 +135,8 @@ def flags(rows):
                        f"{r['blocked'] or 'no reason recorded'}.")
         elif r["status"] == "done" and r["done_when"][0] < r["done_when"][1]:
             got, total = r["done_when"]
-            out.append(f"- {FLAG} {r['id']}: done with {total - got} of {total} "
-                       "done-when criteria unchecked.")
+            out.append(f"- {FLAG} {r['id']}: done with {total - got} of "
+                       f"{total} done-when criteria unchecked.")
     return out
 
 
@@ -164,13 +171,17 @@ def main():
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
         mark = POINTER if r["id"] == cur else ""
-        kind = f"{TYPE_ICON.get(r['type'], '')} {cell(r['type'])}".strip()
-        state = paint(f"{STATUS_ICON.get(r['status'], '')} "
-                      f"{cell(r['status'])}".strip(),
-                      STATUS_COLOR.get(r["status"]))
-        print(f"| {mark} | {cell(r['id'])} | {kind} | {state} | "
+        # Known values show as their emoji only (see LEGEND); an unknown one
+        # stays text so a typo in a task file is visible, not hidden.
+        kind = TYPE_ICON.get(r["type"]) or cell(r["type"])
+        state = STATUS_ICON.get(r["status"]) or cell(r["status"])
+        ident = paint(cell(r["id"]), STATUS_COLOR.get(r["status"]))
+        print(f"| {mark} | {ident} | {kind} | {state} | "
               f"{cell(r['title'])} | {ratio(r['steps'])} | "
               f"{ratio(r['done_when'])} | {cell(r['updated'])} |")
+
+    print()
+    print(LEGEND)
 
     counts = {}
     for r in rows:
