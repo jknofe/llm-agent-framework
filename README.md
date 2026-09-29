@@ -121,8 +121,8 @@ file list retires nothing and prints what to remove by hand.
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
    path for every task.
 3. **Opt in to a plan** when you want a task written down and reviewed:
-   `/task-create BUG-7 Nav goal lost after reboot` classifies it (`change`,
-   `bug`, `investigation`, `test`) and writes `.ai/tasks/BUG-7/task.md`
+   `/task-create BUG-7 Nav goal lost after reboot` asks you for its type
+   (`change`, `bug`, `investigation`, `test`) unless you named it, and writes `.ai/tasks/BUG-7/task.md`
    (goal, done-when criteria for that type, steps; for bugs and
    investigations the steps are hypotheses with a check each). In a fresh
    session, `/task-do BUG-7` works it, appends findings with their evidence

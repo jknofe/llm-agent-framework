@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-28, v8.2.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.3.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -94,8 +94,9 @@ only kind that is still accurate. Without this rule the notes hold only what
 
 `/task-create <id> <title>` writes `.ai/tasks/<id>/task.md`: type, goal,
 done-when criteria, steps, and empty Findings and Outcome sections. It runs a
-bounded Q&A with the user and stops. The point is the plan a human reads
-before the work starts.
+bounded Q&A with the user and stops. The type comes from the user: when they
+did not name it, the first question asks for it; the agent never infers it.
+The point is the plan a human reads before the work starts.
 
 The type decides what done means:
 
@@ -333,6 +334,11 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.3 (2026-09-29, `/task-create` asks for the task type when the user did
+not name it, instead of classifying it from the title or the code. The type
+decides what done means, so it is the user's call, not the agent's guess.
+An autonomous run still picks one and records it as an assumption. Owner's
+call after first use.)
 v8.2 (2026-09-28, `/task-list-all` lists live tasks only. Archived tasks
 under `.ai/tasks/_archive/` are counted in the footer, not shown: the table
 is the working view, and an archive that grows with every finished task
