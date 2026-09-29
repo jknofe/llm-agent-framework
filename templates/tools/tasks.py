@@ -10,13 +10,16 @@ marked. Below the table it flags what needs a look: an `in-progress` task not
 updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
 frontmatter line, a `done` task with unchecked done-when criteria. Only the
 task files are read, and only frontmatter and checkboxes; the output is the
-whole answer, so no agent has to open a task file to add to it.
+whole answer, so no agent has to open a task file to add to it. Status and
+type carry an emoji in every view; status is also colored, but only when a
+person runs the script in a terminal (not piped, NO_COLOR unset).
 
 Read-only; stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
 import datetime
+import os
 import re
 import sys
 from pathlib import Path
@@ -26,6 +29,25 @@ TASKS = AI / "tasks"
 
 # Open work first, finished work last, archive after everything live.
 STATUS_ORDER = {"in-progress": 0, "blocked": 1, "planned": 2, "done": 3}
+
+# Emoji carry status and type in every view, the agent's markdown reply
+# included. None needs the U+FE0F selector, which misaligns terminal columns.
+STATUS_ICON = {"in-progress": "🔄", "blocked": "⛔", "planned": "📋",
+               "done": "✅"}
+TYPE_ICON = {"change": "🔧", "bug": "🐞", "investigation": "🔍", "test": "🧪"}
+POINTER = "👉"
+FLAG = "❗"
+
+# ANSI color only when a person runs the script in a terminal. The agent reads
+# it through a pipe and copies it into markdown, where escape codes are noise.
+COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+STATUS_COLOR = {"in-progress": "33", "blocked": "31", "planned": "2",
+                "done": "32"}
+
+
+def paint(text, code):
+    return f"\033[{code}m{text}\033[0m" if COLOR and code else text
+
 
 # An in-progress task untouched this long is flagged as stale.
 STALE_DAYS = 14
@@ -99,14 +121,14 @@ def flags(rows):
         if r["status"] == "in-progress":
             age = age_days(r["updated"])
             if age is not None and age > STALE_DAYS:
-                out.append(f"- {r['id']}: in-progress, not updated for "
+                out.append(f"- {FLAG} {r['id']}: in-progress, not updated for "
                            f"{age} days.")
         elif r["status"] == "blocked":
-            out.append(f"- {r['id']}: blocked: "
+            out.append(f"- {FLAG} {r['id']}: blocked: "
                        f"{r['blocked'] or 'no reason recorded'}.")
         elif r["status"] == "done" and r["done_when"][0] < r["done_when"][1]:
             got, total = r["done_when"]
-            out.append(f"- {r['id']}: done with {total - got} of {total} "
+            out.append(f"- {FLAG} {r['id']}: done with {total - got} of {total} "
                        "done-when criteria unchecked.")
     return out
 
@@ -141,15 +163,20 @@ def main():
     print("| | ID | Type | Status | Title | Steps | Done when | Updated |")
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
-        mark = ">" if r["id"] == cur else ""
-        print(f"| {mark} | {cell(r['id'])} | {cell(r['type'])} | "
-              f"{cell(r['status'])} | {cell(r['title'])} | {ratio(r['steps'])} | "
+        mark = POINTER if r["id"] == cur else ""
+        kind = f"{TYPE_ICON.get(r['type'], '')} {cell(r['type'])}".strip()
+        state = paint(f"{STATUS_ICON.get(r['status'], '')} "
+                      f"{cell(r['status'])}".strip(),
+                      STATUS_COLOR.get(r["status"]))
+        print(f"| {mark} | {cell(r['id'])} | {kind} | {state} | "
+              f"{cell(r['title'])} | {ratio(r['steps'])} | "
               f"{ratio(r['done_when'])} | {cell(r['updated'])} |")
 
     counts = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
-    summary = ", ".join(f"{n} {s}" for s, n in
+    summary = ", ".join(f"{STATUS_ICON.get(s, '')} {n} {s}".strip()
+                        for s, n in
                         sorted(counts.items(),
                                key=lambda kv: STATUS_ORDER.get(kv[0], 9)))
     notes = flags(rows)
@@ -159,7 +186,7 @@ def main():
     print()
     print(f"{summary}; {archived} archived (not listed).")
     if cur:
-        print(f"`>` marks the resume pointer in `.ai/.current` ({cur}).")
+        print(f"{POINTER} marks the resume pointer in `.ai/.current` ({cur}).")
     return 0
 
 

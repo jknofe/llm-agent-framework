@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.7.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.8.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -186,7 +186,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 167 lines, the task table only.
+  `tasks.py`: 194 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -342,6 +342,12 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.8 (2026-09-29, the task table gets emoji for status and type, a pointing
+hand for the resume pointer and a mark on each flag, so a long table reads
+at a glance. Status is also colored, but only when a person runs `tasks.py`
+in a terminal: the agent reads it through a pipe and copies it into
+markdown, where escape codes would be noise, and `NO_COLOR` turns it off.
+Owner's request.)
 v8.7 (2026-09-29, `/task-list-all` puts the table in the reply itself. On
 satty the agent ran `tasks.py` and answered "the script's output is above":
 Claude Code collapses tool output, so the user saw a count and no table. The
