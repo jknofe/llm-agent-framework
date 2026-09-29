@@ -41,9 +41,10 @@ Work a planned task. Id: ${arg_ticket}
      this task (the reproduction was run, the command was executed, the
      doc was read) rather than inferred, and that the answer fits the
      question in Goal. A task with both gets both checks.
-   - How: check inline only when the task has a single step and the
-     result is under ~30 lines (diff lines changed, or Outcome lines).
-     Anything larger goes to a fresh context, however simple it looks.
+   - How: size decides, not the number of steps. Check inline only
+     when both the diff and the Outcome are under ~30 lines each (a task
+     with no diff counts only its Outcome). If either is larger, the
+     review goes to a fresh context, however simple it looks.
      Run the `reviewer` sub-agent where the harness supports sub-agents.
      If it cannot be spawned (e.g. you are yourself a sub-agent) and no
      human is available, spawn a fresh general-purpose sub-agent given

@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.5.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.6.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -115,8 +115,9 @@ each with how to confirm or rule it out, and the plan is expected to change.
 happens, and re-plans in the file when a result invalidates the plan: a
 hypothesis ruled out is struck with its evidence, not silently abandoned. A
 change to the Goal or a done-when criterion goes back to the user. It ends
-with a review sized to the result (inline only for a single step and a
-result under ~30 lines, a fresh-context `reviewer` sub-agent otherwise) that
+with a review sized to the result (inline only when the diff and the
+Outcome are each under ~30 lines, a fresh-context `reviewer` sub-agent
+otherwise) that
 checks a diff against the criteria and an Outcome against its evidence, and
 leaves one line in Findings naming the review that ran. It sets `done` only
 with every done-when criterion ticked, then distills what the repository
@@ -341,6 +342,14 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.6 (2026-09-29, the inline review threshold is size only. On satty the
+agent reviewed inline twice where 8.5 required a fresh context: an
+investigation with six steps, no diff and a ten-line Outcome, and a
+five-step docs change with a six-line diff. Both times it judged by size and
+ignored the step count, and both times a sub-agent would have added nothing.
+The rule now matches that judgment and stays checkable: inline when the
+diff and the Outcome are each under ~30 lines, a fresh context when either
+is larger. The Findings line from 8.5 keeps the choice visible.)
 v8.5 (2026-09-29, two `/task-do` rules made checkable. Observed on a live
 repo (satty, sonnet-5.5): an investigation set `done` with 0 of 4 done-when
 criteria ticked, because the skill never said to tick them, and neither run
