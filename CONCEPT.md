@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.4.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.5.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -115,10 +115,12 @@ each with how to confirm or rule it out, and the plan is expected to change.
 happens, and re-plans in the file when a result invalidates the plan: a
 hypothesis ruled out is struck with its evidence, not silently abandoned. A
 change to the Goal or a done-when criterion goes back to the user. It ends
-with a review sized to the result (inline for one step and a one-screen
-result, a fresh-context `reviewer` sub-agent otherwise) that checks a diff
-against the criteria and an Outcome against its evidence, then distills what
-the repository cannot state into `.ai/notes.md`.
+with a review sized to the result (inline only for a single step and a
+result under ~30 lines, a fresh-context `reviewer` sub-agent otherwise) that
+checks a diff against the criteria and an Outcome against its evidence, and
+leaves one line in Findings naming the review that ran. It sets `done` only
+with every done-when criterion ticked, then distills what the repository
+cannot state into `.ai/notes.md`.
 
 `/task-list-all` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
@@ -339,6 +341,15 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.5 (2026-09-29, two `/task-do` rules made checkable. Observed on a live
+repo (satty, sonnet-5.5): an investigation set `done` with 0 of 4 done-when
+criteria ticked, because the skill never said to tick them, and neither run
+used the `reviewer` sub-agent its size called for; one skipped the review
+without a word. Step 8 now ticks each met criterion and refuses `done` while
+one is open (meet it, drop it with the user's agreement, or block). The
+inline review threshold becomes a count, a single step and under ~30 lines,
+and the review that ran is named in one line in Findings. Two runs, no
+benchmark: the defects were in the text, not in a rate.)
 v8.4 (2026-09-29, `/task-list-all` is the script and nothing else. The three
 checks the agent used to add below the table (stale, blocked, done with open
 criteria) move into `tasks.py`, so the agent no longer opens task files to

@@ -41,19 +41,21 @@ Work a planned task. Id: ${arg_ticket}
      this task (the reproduction was run, the command was executed, the
      doc was read) rather than inferred, and that the answer fits the
      question in Goal. A task with both gets both checks.
-   - How: one step and a result under roughly one screen, check inline.
-     Otherwise have it reviewed in a fresh context. Run the `reviewer`
-     sub-agent where the harness supports sub-agents. If it cannot be
-     spawned (e.g. you are yourself a sub-agent) and no human is
-     available, spawn a fresh general-purpose sub-agent given only the
-     task file and the diff; failing that, do a clean-context
-     self-review and note that the `reviewer` sub-agent was
-     unavailable.
+   - How: check inline only when the task has a single step and the
+     result is under ~30 lines (diff lines changed, or Outcome lines).
+     Anything larger goes to a fresh context, however simple it looks.
+     Run the `reviewer` sub-agent where the harness supports sub-agents.
+     If it cannot be spawned (e.g. you are yourself a sub-agent) and no
+     human is available, spawn a fresh general-purpose sub-agent given
+     only the task file and the diff; failing that, do a clean-context
+     self-review and note that the `reviewer` sub-agent was unavailable.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Fix gaps that affect
    correctness or the stated criteria; ignore style-only findings.
-   Sizing down the gate is allowed; skipping it silently is not.
+   Append one line to Findings naming the review that ran (inline,
+   `reviewer` sub-agent, fresh sub-agent, or self-review) and what it
+   found. Sizing down the gate is allowed; skipping it silently is not.
 7. Record.
    - Write `## Outcome`: the result in a few lines. A bug: the cause,
      the reproduction, the fix or who it was handed to. An
@@ -77,8 +79,12 @@ Work a planned task. Id: ${arg_ticket}
      the `GENERATED:project-context` section of `AGENTS.md` and keep
      the section under ~300 tokens. Last, confirm every leaf under
      `.ai/notes/` is linked from `notes.md` and every pointer resolves.
-8. Set `status: done` and `updated: <today>`, delete `.ai/.current`,
-   and commit `.ai` (`task: done <id>`).
+8. Tick each Done-when criterion the result meets, and each finished
+   step. If a criterion stays open, the task is not done: meet it, get
+   the user's agreement to drop it (record that in Notes), or mark the
+   task `blocked`. Only with every criterion ticked, set `status: done`
+   and `updated: <today>`, delete `.ai/.current`, and commit `.ai`
+   (`task: done <id>`).
 
 Escalate instead of improvising: on missing context, do bounded
 discovery then ask the user; if a test fails twice on the same step, or
