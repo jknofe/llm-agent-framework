@@ -133,7 +133,10 @@ file list retires nothing and prints what to remove by hand.
    starts a task plan on its own.
 4. **See where things stand**: `/task-list-all` prints every live task as
    one table (type, status, steps and criteria checked, last update),
-   read-only. Archived tasks are only counted.
+   read-only, and flags stale, blocked and half-done tasks below it. A
+   script produces all of it; to skip the model entirely, run
+   `python3 .ai/agent/tools/tasks.py` in a shell (in Claude Code:
+   `! python3 .ai/agent/tools/tasks.py`). Archived tasks are only counted.
 5. **Archive**: just ask the agent ("archive BUG-7"). It verifies
    `status: done` and moves the task to `.ai/tasks/_archive/`.
 
@@ -204,7 +207,7 @@ All three harnesses invoke them the same way, under the same names:
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task-create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Nothing is done yet. |
 | `/task-do <id>` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one fresh-context review of the result (diff, outcome, or both) against the done-when criteria. Distills durable findings into `notes.md`. |
-| `/task-list-all` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at. Backed by `.ai/agent/tools/tasks.py`. |
+| `/task-list-all` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked and half-done tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.

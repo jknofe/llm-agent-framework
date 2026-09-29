@@ -6,13 +6,17 @@ markdown table: id, type, status, title, how many steps and done-when criteria
 are checked, and when the task was last touched. Archived tasks under
 `.ai/tasks/_archive/` are not listed, only counted: archiving is how a task
 leaves the working view. The task the resume pointer `.ai/.current` names is
-marked. Parsing is deterministic so the table never depends on how carefully
-an agent read thirty files.
+marked. Below the table it flags what needs a look: an `in-progress` task not
+updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
+frontmatter line, a `done` task with unchecked done-when criteria. Only the
+task files are read, and only frontmatter and checkboxes; the output is the
+whole answer, so no agent has to open a task file to add to it.
 
 Read-only; stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
+import datetime
 import re
 import sys
 from pathlib import Path
@@ -22,6 +26,9 @@ TASKS = AI / "tasks"
 
 # Open work first, finished work last, archive after everything live.
 STATUS_ORDER = {"in-progress": 0, "blocked": 1, "planned": 2, "done": 3}
+
+# An in-progress task untouched this long is flagged as stale.
+STALE_DAYS = 14
 
 
 def frontmatter(text):
@@ -72,7 +79,36 @@ def load(path):
         "steps": steps,
         "done_when": done_when,
         "updated": fm.get("updated") or fm.get("created") or "",
+        "blocked": fm.get("blocked") or "",
     }
+
+
+def age_days(value):
+    """Days since an ISO date, or None if it does not parse."""
+    try:
+        day = datetime.date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+    return (datetime.date.today() - day).days
+
+
+def flags(rows):
+    """One line per task that needs a look, in table order."""
+    out = []
+    for r in rows:
+        if r["status"] == "in-progress":
+            age = age_days(r["updated"])
+            if age is not None and age > STALE_DAYS:
+                out.append(f"- {r['id']}: in-progress, not updated for "
+                           f"{age} days.")
+        elif r["status"] == "blocked":
+            out.append(f"- {r['id']}: blocked: "
+                       f"{r['blocked'] or 'no reason recorded'}.")
+        elif r["status"] == "done" and r["done_when"][0] < r["done_when"][1]:
+            got, total = r["done_when"]
+            out.append(f"- {r['id']}: done with {total - got} of {total} "
+                       "done-when criteria unchecked.")
+    return out
 
 
 def cell(value):
@@ -84,9 +120,6 @@ def ratio(pair):
 
 
 def main():
-    if any((AI / "changes").glob("**/spec.md")):
-        print("Found specs under `.ai/changes/` from framework 7.x; "
-              "/framework-update moves them to `.ai/tasks/`.\n")
     if not TASKS.is_dir():
         print("No tasks yet: `.ai/tasks/` does not exist. "
               "Create one with /task-create <id> <title>.")
@@ -119,6 +152,10 @@ def main():
     summary = ", ".join(f"{n} {s}" for s, n in
                         sorted(counts.items(),
                                key=lambda kv: STATUS_ORDER.get(kv[0], 9)))
+    notes = flags(rows)
+    if notes:
+        print()
+        print("\n".join(notes))
     print()
     print(f"{summary}; {archived} archived (not listed).")
     if cur:

@@ -25,9 +25,11 @@ Work a planned task. Id: ${arg_ticket}
    the new steps, and say so in Findings. Do not drift away from the
    written plan without changing it. If the new direction changes the
    Goal or a Done-when criterion, stop and ask the user: they approved
-   the old ones. Mark the task `status: blocked` with the reason in
-   Findings when it cannot continue without something outside your
-   reach (hardware, access, another team).
+   the old ones. Mark the task `status: blocked` when it cannot continue
+   without something outside your reach (hardware, access, another
+   team): add a frontmatter line `blocked: <reason in one line>`, which
+   `/task-list-all` shows, and the detail in Findings. Remove the line
+   when the task resumes.
 5. Whenever the task changes code, keep the project's full test and
    lint commands green, whatever the task's type.
 6. Review gate, sized to the result: before declaring the task done,

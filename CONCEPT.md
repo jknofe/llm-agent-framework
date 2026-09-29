@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.3.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.4.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -122,8 +122,13 @@ the repository cannot state into `.ai/notes.md`.
 
 `/task-list-all` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
-a task leaves the working view. A script (`tasks.py`) parses the
-frontmatter; the agent only adds what the table cannot show.
+a task leaves the working view. A script (`tasks.py`) produces the whole
+answer from the task files' frontmatter and checkboxes, including the
+flags below the table: an `in-progress` task untouched for 14 days, a
+`blocked` task with the reason from its `blocked:` frontmatter line, a `done`
+task with unchecked criteria. The agent only shows the output; it opens no
+file. Outside any agent, `python3 .ai/agent/tools/tasks.py` prints the same
+table with no model involved.
 
 Rules that came from failures, not from theory:
 
@@ -178,7 +183,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 130 lines, the task table only.
+  `tasks.py`: 167 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -334,6 +339,14 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.4 (2026-09-29, `/task-list-all` is the script and nothing else. The three
+checks the agent used to add below the table (stale, blocked, done with open
+criteria) move into `tasks.py`, so the agent no longer opens task files to
+answer; the skill body says to show the output as printed. A blocked task
+carries its reason as a `blocked:` frontmatter line that `/task-do` writes
+and removes. `tasks.py` stops flagging 7.x specs under `.ai/changes/`;
+`/framework-update` owns that migration. The table runs without a model as
+`python3 .ai/agent/tools/tasks.py`. Owner's call after first use.)
 v8.3 (2026-09-29, `/task-create` asks for the task type when the user did
 not name it, instead of classifying it from the title or the code. The type
 decides what done means, so it is the user's call, not the agent's guess.
