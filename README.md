@@ -18,8 +18,8 @@ Copilot, Hermes):
 
 Concept: CONCEPT.md.
 
-What the benchmarks support and what they do not (`benchmarks/`, CONCEPT.md
-sections 36 to 39). A plan-and-review chain on every task costs two to three
+What the benchmarks support and what they do not (CONCEPT.md Part II
+and sections 36 to 39). A plan-and-review chain on every task costs two to three
 times a bare agent and did not make later tasks on the same repo cheaper or
 more correct with Sonnet 5, so 6.1 made it opt-in. An always-loaded
 repository overview does not help agents find anything (ETH Zurich
@@ -121,8 +121,8 @@ file list retires nothing and prints what to remove by hand.
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
    path for every task.
 3. **Opt in to a plan** when you want a task written down and reviewed:
-   `/task-create BUG-7 Nav goal lost after reboot` classifies it (`change`,
-   `bug`, `investigation`, `test`) and writes `.ai/tasks/BUG-7/task.md`
+   `/task-create BUG-7 Nav goal lost after reboot` asks you for its type
+   (`change`, `bug`, `investigation`, `test`) unless you named it, and writes `.ai/tasks/BUG-7/task.md`
    (goal, done-when criteria for that type, steps; for bugs and
    investigations the steps are hypotheses with a check each). In a fresh
    session, `/task-do BUG-7` works it, appends findings with their evidence
@@ -131,8 +131,12 @@ file list retires nothing and prints what to remove by hand.
    has one): a diff against the criteria, an outcome against its evidence.
    Findings the repository cannot state go into `notes.md`. The agent never
    starts a task plan on its own.
-4. **See where things stand**: `/task-list-all` prints every task as one
-   table (type, status, steps and criteria checked, last update), read-only.
+4. **See where things stand**: `/task-list-all` prints every live task as
+   one table (type, status, steps and criteria checked, last update),
+   read-only, and flags stale, blocked and half-done tasks below it. A
+   script produces all of it; to skip the model entirely, run
+   `python3 .ai/agent/tools/tasks.py` in a shell (in Claude Code:
+   `! python3 .ai/agent/tools/tasks.py`). Archived tasks are only counted.
 5. **Archive**: just ask the agent ("archive BUG-7"). It verifies
    `status: done` and moves the task to `.ai/tasks/_archive/`.
 
@@ -203,7 +207,7 @@ All three harnesses invoke them the same way, under the same names:
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task-create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Nothing is done yet. |
 | `/task-do <id>` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one fresh-context review of the result (diff, outcome, or both) against the done-when criteria. Distills durable findings into `notes.md`. |
-| `/task-list-all` | Read-only. Every task, archived ones last, as one table: type, status, steps and criteria checked, last update, the one `.ai/.current` points at. Backed by `.ai/agent/tools/tasks.py`. |
+| `/task-list-all` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked and half-done tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.

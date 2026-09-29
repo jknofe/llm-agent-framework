@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-28, v8.1.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.11.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -94,8 +94,9 @@ only kind that is still accurate. Without this rule the notes hold only what
 
 `/task-create <id> <title>` writes `.ai/tasks/<id>/task.md`: type, goal,
 done-when criteria, steps, and empty Findings and Outcome sections. It runs a
-bounded Q&A with the user and stops. The point is the plan a human reads
-before the work starts.
+bounded Q&A with the user and stops. The type comes from the user: when they
+did not name it, the first question asks for it; the agent never infers it.
+The point is the plan a human reads before the work starts.
 
 The type decides what done means:
 
@@ -114,14 +115,25 @@ each with how to confirm or rule it out, and the plan is expected to change.
 happens, and re-plans in the file when a result invalidates the plan: a
 hypothesis ruled out is struck with its evidence, not silently abandoned. A
 change to the Goal or a done-when criterion goes back to the user. It ends
-with a review sized to the result (inline for one step and a one-screen
-result, a fresh-context `reviewer` sub-agent otherwise) that checks a diff
-against the criteria and an Outcome against its evidence, then distills what
-the repository cannot state into `.ai/notes.md`.
+with a review sized to the result (inline only when the diff and the
+Outcome are each under ~30 lines, a fresh-context `reviewer` sub-agent
+otherwise) that
+checks a diff against the criteria and an Outcome against its evidence
+(every file-and-line citation opened and confirmed), and
+leaves one line in Findings naming the review that ran. It sets `done` only
+with every done-when criterion ticked, then distills what the repository
+cannot state into `.ai/notes.md`.
 
-`/task-list-all` prints every task with type, status and progress as one
-table. A script (`tasks.py`) parses the frontmatter; the agent only adds
-what the table cannot show.
+`/task-list-all` prints every live task with type, status and progress as
+one table; archived tasks are counted, not listed, because archiving is how
+a task leaves the working view. A script (`tasks.py`) produces the whole
+answer from the task files' frontmatter, checkboxes and review line,
+including the flags below the table: an `in-progress` task untouched for 14
+days, a `blocked` task with the reason from its `blocked:` frontmatter line, a
+`done` task with unchecked criteria or without a review line in Findings. The
+agent only shows the output; it opens no file. Outside any agent,
+`python3 .ai/agent/tools/tasks.py` prints the same table with no model
+involved.
 
 Rules that came from failures, not from theory:
 
@@ -176,7 +188,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 137 lines, the task table only.
+  `tasks.py`: 222 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -279,8 +291,13 @@ projects via the recorded file list.
 
 # Part II: What was measured
 
-Rounds live under `benchmarks/<name>/` with a `report.md` and raw per-session
-files. Determinism discipline: everything pinned except MODEL and EFFORT.
+Each round had a `report.md` and raw per-session files under
+`benchmarks/<name>/`, everything pinned except MODEL and EFFORT. The
+`benchmarks/` tree was removed on 2026-09-29 with the measurement program
+halted; this table is the record. The raw files, runbooks and gate tests are
+in git history: `git show 3fe749a:benchmarks/<name>/report.md`, or `git checkout
+3fe749a -- benchmarks` to restore them. Paths to `benchmarks/` in Part III refer
+to that commit.
 
 | Round | What it measured | What it decided |
 |---|---|---|
@@ -290,17 +307,16 @@ files. Determinism discipline: everything pinned except MODEL and EFFORT.
 | `w4-sonnet5-medium-2026-07-17` | Worker sub-agents on a mid-tier model | Retired the idea (section 23). |
 | `u-update-sonnet5-medium-2026-07-28` | The `/framework-update` skill | Agent-driven update works as a merge. |
 | `tidy-up-sonnet5-medium-2026-07-29` | The `/tidy-up` sweep | Worked; cut in v7.0 anyway for serving neither pillar. |
-| ETH Zurich context-file evaluation (external; `agents-md-paper-response.md`) | LLM-generated context files, 4 agent/model pairs, SWE-bench Lite + AGENTbench | Success -0.5% and -2%, cost +20% to +23%. Agents with a file reach the first relevant file no faster. Tools named in the file get used, 1.6 vs 0.01 per task. Killed the digest (v6.0). |
+| ETH Zurich context-file evaluation (external; `docs/history/agents-md-paper-response.md`) | LLM-generated context files, 4 agent/model pairs, SWE-bench Lite + AGENTbench | Success -0.5% and -2%, cost +20% to +23%. Agents with a file reach the first relevant file no faster. Tools named in the file get used, 1.6 vs 0.01 per task. Killed the digest (v6.0). |
 | `v6-vs-5.26-sonnet5-medium-2026-09-14` | 6.0 against 5.26, cell 2 | Both PASS. Verification, not a saving. |
 | `seq-sonnet5-medium-2026-09-14` | Three tasks, two arms, three reps, hidden tests | Marginal cost of tasks 2+3: +74%, +160%, +136%. Amortization failed 0 of 3. One correctness loss from a spec criterion naming a single test. Made spec and build opt-in (v6.1). |
 | `v7-vs-6.1-sonnet5-medium-2026-09-14` | 7.0 against 6.1, framework arm and context-only arm | All four PASS, identical packages. 7.0 was 7% cheaper on one arm and 11% dearer on the other: noise. The useful number: the spec chain costs 2.1x to 2.5x the direct path. |
 | `constraint-sonnet5-medium-2026-09-14` | Does a stated non-derivable rule survive three sessions? 21 sessions, hidden constraint test | 18 of 18 gates passed. Constraint held F 6/6, B 5/6: no support under the pre-stated rule. The round cannot decide, because task N's output became task N+1's local precedent. `/explore` with a human answering landed the rule verbatim 3 of 3. |
 
 **Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
-navigation2) was withdrawn with the amortization thesis and survives only as a
-record. `constraint-runbook.md` is runnable and its four pre-run controls are
-verified, but a deciding round needs a constraint that an earlier task cannot
-seed.
+navigation2) was withdrawn with the amortization thesis. `constraint-runbook.md`
+had its four pre-run controls verified, but a deciding round needs a
+constraint that an earlier task cannot seed. Both were removed with the tree.
 
 **Status of the measurement program:** halted 2026-09-14. Four rounds in one
 day produced no defensible performance benefit, and each failed round bred a
@@ -332,6 +348,76 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.11 (2026-09-29, a skipped review is caught mechanically. The 8.10 re-test
+on Copilot (mai-code-1.1-flash) reached `done` with no review and no
+Findings line, although the skill requires both and the harness can spawn a
+sub-agent. Text alone did not hold, so the check moves into the script, as
+8.4 did for unticked boxes: `tasks.py` flags a `done` task whose Findings
+names no review, and `/task-do` fixes the line's form (`- <date> Review:
+<kind>: <result>`) and sets `done` only once it is there.)
+v8.10 (2026-09-29, the review checks citations, and the fallback order is
+enforced. First Copilot run on satty (gpt-6-luna): an investigation reached
+`done` with 4/4 steps ticked, but its answer was wrong and two citations did
+not say what it claimed (it said `input_scale` does not set the zoom;
+`src/femtovg_area/imp.rs:188` shows it does). Copilot has no `reviewer`, so it
+went straight to a self-review, which agreed with itself. Now every review,
+inline or fresh, opens each file-and-line citation; the fresh context is the
+`reviewer`, else a general-purpose sub-agent, tried before any self-review,
+and a self-review names what was unavailable and why. The `reviewer` brief
+gains the same citation check. Also: `tasks.py` unquotes quoted YAML values,
+which Copilot writes and the table showed with their quotes. The first
+two-digit minor version: `/framework-update` now says to compare version
+parts as numbers, so 8.10 is not read as older than 8.9.)
+v8.9 (2026-09-29, the Type and Status columns show the emoji alone, with a
+legend line under the table; an unknown value stays text so a typo in a task
+file shows. The terminal color moves to the id, since a colored emoji does
+not change color. Owner's request.)
+v8.8 (2026-09-29, the task table gets emoji for status and type, a pointing
+hand for the resume pointer and a mark on each flag, so a long table reads
+at a glance. Status is also colored, but only when a person runs `tasks.py`
+in a terminal: the agent reads it through a pipe and copies it into
+markdown, where escape codes would be noise, and `NO_COLOR` turns it off.
+Owner's request.)
+v8.7 (2026-09-29, `/task-list-all` puts the table in the reply itself. On
+satty the agent ran `tasks.py` and answered "the script's output is above":
+Claude Code collapses tool output, so the user saw a count and no table. The
+8.4 wording "show its output as printed" allowed that reading. The skill now
+says to copy the complete output into the reply verbatim, because the user
+does not see tool output.)
+v8.6 (2026-09-29, the inline review threshold is size only. On satty the
+agent reviewed inline twice where 8.5 required a fresh context: an
+investigation with six steps, no diff and a ten-line Outcome, and a
+five-step docs change with a six-line diff. Both times it judged by size and
+ignored the step count, and both times a sub-agent would have added nothing.
+The rule now matches that judgment and stays checkable: inline when the
+diff and the Outcome are each under ~30 lines, a fresh context when either
+is larger. The Findings line from 8.5 keeps the choice visible.)
+v8.5 (2026-09-29, two `/task-do` rules made checkable. Observed on a live
+repo (satty, sonnet-5.5): an investigation set `done` with 0 of 4 done-when
+criteria ticked, because the skill never said to tick them, and neither run
+used the `reviewer` sub-agent its size called for; one skipped the review
+without a word. Step 8 now ticks each met criterion and refuses `done` while
+one is open (meet it, drop it with the user's agreement, or block). The
+inline review threshold becomes a count, a single step and under ~30 lines,
+and the review that ran is named in one line in Findings. Two runs, no
+benchmark: the defects were in the text, not in a rate.)
+v8.4 (2026-09-29, `/task-list-all` is the script and nothing else. The three
+checks the agent used to add below the table (stale, blocked, done with open
+criteria) move into `tasks.py`, so the agent no longer opens task files to
+answer; the skill body says to show the output as printed. A blocked task
+carries its reason as a `blocked:` frontmatter line that `/task-do` writes
+and removes. `tasks.py` stops flagging 7.x specs under `.ai/changes/`;
+`/framework-update` owns that migration. The table runs without a model as
+`python3 .ai/agent/tools/tasks.py`. Owner's call after first use.)
+v8.3 (2026-09-29, `/task-create` asks for the task type when the user did
+not name it, instead of classifying it from the title or the code. The type
+decides what done means, so it is the user's call, not the agent's guess.
+An autonomous run still picks one and records it as an assumption. Owner's
+call after first use.)
+v8.2 (2026-09-28, `/task-list-all` lists live tasks only. Archived tasks
+under `.ai/tasks/_archive/` are counted in the footer, not shown: the table
+is the working view, and an archive that grows with every finished task
+would bury it. Owner's call after first use.)
 v8.1 (2026-09-28, `/framework-update` takes its migration list from the
 reference's copy of the skill instead of only its own. Found on the 8.0
 migration itself: a 7.1 project runs the 7.1 skill, which does not know the
@@ -2186,7 +2272,7 @@ Trigger: "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful
 for Coding Agents?" (Gloaguen, Muendler, Mueller, Raychev, Vechev; ETH
 Zurich and LogicStar; ICLR 2026 Workshop on Memory for LLM-Based Agentic
 Systems). Full reading and the mapping onto this framework are in
-`agents-md-paper-response.md`. The numbers that decide this section:
+`docs/history/agents-md-paper-response.md`. The numbers that decide this section:
 
 - LLM-generated context files: success -0.5% (SWE-bench Lite) and -2%
   (AGENTbench), cost +20% to +23%, across four agent/model pairs.

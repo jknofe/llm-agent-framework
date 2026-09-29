@@ -11,14 +11,19 @@ same for all of them; what differs is what counts as done.
 1. Read `.ai/notes.md` (and any leaf under `.ai/notes/` the task
    touches) and look at the relevant code, logs, or docs first. If the
    id is missing, propose a short kebab-case one and confirm it.
-2. Classify the task as exactly one `type`:
+2. Set exactly one `type`:
    - `change`: new or altered behavior in the code.
    - `bug`: something misbehaves; find the cause, then fix it or hand
      it on.
    - `investigation`: a question to answer (how something works, why
      it happens, whether an approach or library fits). Covers research.
    - `test`: verify behavior by running scenarios or writing tests.
-   Ask when the user's words fit two types; the type decides done.
+   Take the type only from the user. If they did not name it, ask which
+   of the four it is, before any other question, and wait for the
+   answer. Do not infer it from the title, the id, or the code: the type
+   decides what done means, and that is the user's call. In an
+   autonomous run with no human, pick one and record it as a numbered
+   assumption in Notes, as step 3 does for every open question.
 3. Run a short, bounded Q&A with the user until the done-when criteria
    are unambiguous. For a bug, ask for the symptom, where it shows, and
    any reproduction or log. For an investigation, ask what decision the

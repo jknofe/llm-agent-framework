@@ -116,7 +116,8 @@ ${merge_cases}   - Retired (in the recorded `framework_files`, absent from the
        <tmpdir>/${reference_skill}
 
    Read it first and apply every entry for a version newer than the
-   recorded one; where it and the list below disagree, the reference
+   recorded one, comparing each dot-separated part as a number (8.10 is
+   newer than 8.9); where it and the list below disagree, the reference
    wins. An entry also applies when
    the stamp already records the new version but the content it
    migrates is still there (a second run after an update that skipped

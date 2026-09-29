@@ -25,9 +25,11 @@ Work a planned task. Id: ${arg_ticket}
    the new steps, and say so in Findings. Do not drift away from the
    written plan without changing it. If the new direction changes the
    Goal or a Done-when criterion, stop and ask the user: they approved
-   the old ones. Mark the task `status: blocked` with the reason in
-   Findings when it cannot continue without something outside your
-   reach (hardware, access, another team).
+   the old ones. Mark the task `status: blocked` when it cannot continue
+   without something outside your reach (hardware, access, another
+   team): add a frontmatter line `blocked: <reason in one line>`, which
+   `/task-list-all` shows, and the detail in Findings. Remove the line
+   when the task resumes.
 5. Whenever the task changes code, keep the project's full test and
    lint commands green, whatever the task's type.
 6. Review gate, sized to the result: before declaring the task done,
@@ -38,20 +40,30 @@ Work a planned task. Id: ${arg_ticket}
      evidence recorded in Findings, that the evidence was produced in
      this task (the reproduction was run, the command was executed, the
      doc was read) rather than inferred, and that the answer fits the
-     question in Goal. A task with both gets both checks.
-   - How: one step and a result under roughly one screen, check inline.
-     Otherwise have it reviewed in a fresh context. Run the `reviewer`
-     sub-agent where the harness supports sub-agents. If it cannot be
-     spawned (e.g. you are yourself a sub-agent) and no human is
-     available, spawn a fresh general-purpose sub-agent given only the
-     task file and the diff; failing that, do a clean-context
-     self-review and note that the `reviewer` sub-agent was
-     unavailable.
+     question in Goal. A task with both gets both checks. Whoever
+     reviews opens every file-and-line citation in Findings and Outcome
+     and confirms the source says what the claim says; a citation that
+     does not hold is corrected, or its claim withdrawn.
+   - How: size decides, not the number of steps. Check inline only
+     when both the diff and the Outcome are under ~30 lines each (a task
+     with no diff counts only its Outcome). If either is larger, the
+     review goes to a fresh context, however simple it looks.
+     A fresh context means, in this order: the `reviewer` sub-agent;
+     where the harness has none, or it cannot be spawned (e.g. you are
+     yourself a sub-agent), a fresh general-purpose sub-agent given only
+     the task file and the diff. Try the sub-agent before falling back.
+     Only when no sub-agent can be spawned at all, do a self-review, and
+     say in the Findings line which option was unavailable and why. A
+     self-review is the weakest check: work through the citations one by
+     one instead of re-reading your own conclusion.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Fix gaps that affect
    correctness or the stated criteria; ignore style-only findings.
-   Sizing down the gate is allowed; skipping it silently is not.
+   Append one line to Findings, `- <today> Review: <kind>: <result>`,
+   where kind is inline, `reviewer` sub-agent, fresh sub-agent, or
+   self-review. Sizing down the gate is allowed; skipping it silently is
+   not, and `/task-list-all` flags a done task without this line.
 7. Record.
    - Write `## Outcome`: the result in a few lines. A bug: the cause,
      the reproduction, the fix or who it was handed to. An
@@ -75,8 +87,12 @@ Work a planned task. Id: ${arg_ticket}
      the `GENERATED:project-context` section of `AGENTS.md` and keep
      the section under ~300 tokens. Last, confirm every leaf under
      `.ai/notes/` is linked from `notes.md` and every pointer resolves.
-8. Set `status: done` and `updated: <today>`, delete `.ai/.current`,
-   and commit `.ai` (`task: done <id>`).
+8. Tick each Done-when criterion the result meets, and each finished
+   step. If a criterion stays open, the task is not done: meet it, get
+   the user's agreement to drop it (record that in Notes), or mark the
+   task `blocked`. Only with every criterion ticked and the `Review:`
+   line in Findings, set `status: done` and `updated: <today>`, delete
+   `.ai/.current`, and commit `.ai` (`task: done <id>`).
 
 Escalate instead of improvising: on missing context, do bounded
 discovery then ask the user; if a test fails twice on the same step, or

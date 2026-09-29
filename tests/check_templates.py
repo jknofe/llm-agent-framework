@@ -215,7 +215,7 @@ def check_budget():
     name the leaf to say it must not be deleted. That is checked below rather
     than waived, so a map instruction cannot creep back in anywhere else.
     The same holds for `.ai/changes/`: only the update body, which migrates
-    it, and the task tool, which points at that migration, may name it.
+    it, may name it.
     """
     for harness in HARNESSES:
         text = content.render_agents_md("p", "d", harness)
@@ -238,8 +238,7 @@ def check_budget():
                 "skill:framework-update"):
             fail("budget", f"{label}: names notes/map.md, retired as "
                            "framework output in 7.0")
-        migrates = (label.endswith("skill:framework-update")
-                    or label == "render_tool_tasks")
+        migrates = label.endswith("skill:framework-update")
         for retired in ("`/spec", "`/build", "spec.md", ".ai/changes"):
             if retired in text and not migrates:
                 fail("budget", f"{label}: still names {retired!r}, retired "

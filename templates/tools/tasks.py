@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 """Task table for /task-list-all.
 
-Reads the frontmatter of every `.ai/tasks/<id>/task.md` (archived ones under
-`.ai/tasks/_archive/` included) and prints one markdown table: id, type,
-status, title, how many steps and done-when criteria are checked, and when the
-task was last touched. The task the resume pointer `.ai/.current` names is
-marked. Parsing is deterministic so the table never depends on how carefully
-an agent read thirty files.
+Reads the frontmatter of every live `.ai/tasks/<id>/task.md` and prints one
+markdown table: id, type, status, title, how many steps and done-when criteria
+are checked, and when the task was last touched. Archived tasks under
+`.ai/tasks/_archive/` are not listed, only counted: archiving is how a task
+leaves the working view. The task the resume pointer `.ai/.current` names is
+marked. Below the table it flags what needs a look: an `in-progress` task not
+updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
+frontmatter line, a `done` task with unchecked done-when criteria or with no
+review line in Findings. Only the task files are read: frontmatter,
+checkboxes, and whether Findings names a review. The output is the whole
+answer, so no agent has to open a task file to add to it. Status and
+type show as emoji only, explained by a legend line under the table. The id
+is colored by status, but only when a person runs the script in a terminal
+(not piped, NO_COLOR unset).
 
 Read-only; stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
+import datetime
+import os
 import re
 import sys
 from pathlib import Path
@@ -21,6 +31,34 @@ TASKS = AI / "tasks"
 
 # Open work first, finished work last, archive after everything live.
 STATUS_ORDER = {"in-progress": 0, "blocked": 1, "planned": 2, "done": 3}
+
+# Emoji carry status and type in every view, the agent's markdown reply
+# included. None needs the U+FE0F selector, which misaligns terminal columns.
+STATUS_ICON = {"in-progress": "🔄", "blocked": "⛔", "planned": "📋",
+               "done": "✅"}
+TYPE_ICON = {"change": "🔧", "bug": "🐞", "investigation": "🔍", "test": "🧪"}
+POINTER = "👉"
+FLAG = "❗"
+
+# ANSI color, on the id by status, only when a person runs the script in a
+# terminal. The agent reads it through a pipe and copies it into markdown,
+# where escape codes are noise.
+COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+STATUS_COLOR = {"in-progress": "33", "blocked": "31", "planned": "2",
+                "done": "32"}
+
+
+LEGEND = ("Legend: " + ", ".join(f"{i} {t}" for t, i in TYPE_ICON.items())
+          + "; " + ", ".join(f"{i} {s}" for s, i in STATUS_ICON.items())
+          + f"; {POINTER} resume pointer, {FLAG} needs a look")
+
+
+def paint(text, code):
+    return f"\033[{code}m{text}\033[0m" if COLOR and code else text
+
+
+# An in-progress task untouched this long is flagged as stale.
+STALE_DAYS = 14
 
 
 def frontmatter(text):
@@ -34,17 +72,25 @@ def frontmatter(text):
     for line in text[4:end].splitlines():
         key, sep, value = line.partition(":")
         if sep:
-            out[key.strip()] = value.strip()
+            value = value.strip()
+            # A quoted YAML scalar ("..." or '...') is as valid as a bare one.
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            out[key.strip()] = value
     return out
+
+
+def section(text, heading):
+    """The body of a `## <heading>` section, or ""."""
+    m = re.search(rf"^## {re.escape(heading)}\b.*?$(.*?)(?=^## |\Z)", text,
+                  re.M | re.S)
+    return m.group(1) if m else ""
 
 
 def checked(text, heading):
     """(checked, total) checkboxes under a `## <heading>` section."""
-    m = re.search(rf"^## {re.escape(heading)}\b.*?$(.*?)(?=^## |\Z)", text,
-                  re.M | re.S)
-    if not m:
-        return 0, 0
-    boxes = re.findall(r"^\s*[-*] \[([ xX~-])\]", m.group(1), re.M)
+    boxes = re.findall(r"^\s*[-*] \[([ xX~-])\]", section(text, heading),
+                       re.M)
     return sum(b != " " for b in boxes), len(boxes)
 
 
@@ -58,7 +104,7 @@ def current_id():
     return m.group(1) if m else None
 
 
-def load(path, archived):
+def load(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     fm = frontmatter(text)
     steps = checked(text, "Steps")
@@ -71,8 +117,44 @@ def load(path, archived):
         "steps": steps,
         "done_when": done_when,
         "updated": fm.get("updated") or fm.get("created") or "",
-        "archived": archived,
+        "blocked": fm.get("blocked") or "",
+        # /task-do ends its review gate with a Findings line naming the
+        # review; a done task without one skipped the gate.
+        "reviewed": bool(re.search(r"^\s*[-*].*\breview",
+                                   section(text, "Findings"), re.M | re.I)),
     }
+
+
+def age_days(value):
+    """Days since an ISO date, or None if it does not parse."""
+    try:
+        day = datetime.date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+    return (datetime.date.today() - day).days
+
+
+def flags(rows):
+    """One line per task that needs a look, in table order."""
+    out = []
+    for r in rows:
+        if r["status"] == "in-progress":
+            age = age_days(r["updated"])
+            if age is not None and age > STALE_DAYS:
+                out.append(f"- {FLAG} {r['id']}: in-progress, not updated for "
+                           f"{age} days.")
+        elif r["status"] == "blocked":
+            out.append(f"- {FLAG} {r['id']}: blocked: "
+                       f"{r['blocked'] or 'no reason recorded'}.")
+        elif r["status"] == "done":
+            if r["done_when"][0] < r["done_when"][1]:
+                got, total = r["done_when"]
+                out.append(f"- {FLAG} {r['id']}: done with {total - got} of "
+                           f"{total} done-when criteria unchecked.")
+            if not r["reviewed"]:
+                out.append(f"- {FLAG} {r['id']}: done without a review line "
+                           "in Findings.")
+    return out
 
 
 def cell(value):
@@ -84,52 +166,55 @@ def ratio(pair):
 
 
 def main():
-    if any((AI / "changes").glob("**/spec.md")):
-        print("Found specs under `.ai/changes/` from framework 7.x; "
-              "/framework-update moves them to `.ai/tasks/`.\n")
     if not TASKS.is_dir():
         print("No tasks yet: `.ai/tasks/` does not exist. "
               "Create one with /task-create <id> <title>.")
         return 0
 
-    rows = []
-    for path in sorted(TASKS.glob("*/task.md")):
-        if path.parent.name != "_archive":
-            rows.append(load(path, archived=False))
-    for path in sorted(TASKS.glob("_archive/*/task.md")):
-        rows.append(load(path, archived=True))
+    rows = [load(path) for path in sorted(TASKS.glob("*/task.md"))
+            if path.parent.name != "_archive"]
+    archived = len(list(TASKS.glob("_archive/*/task.md")))
 
     if not rows:
-        print("No tasks in `.ai/tasks/`. Create one with "
-              "/task-create <id> <title>.")
+        print(f"No live tasks in `.ai/tasks/` ({archived} archived). "
+              "Create one with /task-create <id> <title>.")
         return 0
 
-    rows.sort(key=lambda r: (r["archived"],
-                             STATUS_ORDER.get(r["status"], 9),
+    rows.sort(key=lambda r: (STATUS_ORDER.get(r["status"], 9),
                              r["updated"], r["id"]))
     cur = current_id()
 
     print("| | ID | Type | Status | Title | Steps | Done when | Updated |")
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
-        mark = ">" if r["id"] == cur else ""
-        status = r["status"] + (" (archived)" if r["archived"] else "")
-        print(f"| {mark} | {cell(r['id'])} | {cell(r['type'])} | "
-              f"{cell(status)} | {cell(r['title'])} | {ratio(r['steps'])} | "
+        mark = POINTER if r["id"] == cur else ""
+        # Known values show as their emoji only (see LEGEND); an unknown one
+        # stays text so a typo in a task file is visible, not hidden.
+        kind = TYPE_ICON.get(r["type"]) or cell(r["type"])
+        state = STATUS_ICON.get(r["status"]) or cell(r["status"])
+        ident = paint(cell(r["id"]), STATUS_COLOR.get(r["status"]))
+        print(f"| {mark} | {ident} | {kind} | {state} | "
+              f"{cell(r['title'])} | {ratio(r['steps'])} | "
               f"{ratio(r['done_when'])} | {cell(r['updated'])} |")
+
+    print()
+    print(LEGEND)
 
     counts = {}
     for r in rows:
-        if not r["archived"]:
-            counts[r["status"]] = counts.get(r["status"], 0) + 1
-    summary = ", ".join(f"{n} {s}" for s, n in
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    summary = ", ".join(f"{STATUS_ICON.get(s, '')} {n} {s}".strip()
+                        for s, n in
                         sorted(counts.items(),
                                key=lambda kv: STATUS_ORDER.get(kv[0], 9)))
-    archived = sum(r["archived"] for r in rows)
+    notes = flags(rows)
+    if notes:
+        print()
+        print("\n".join(notes))
     print()
-    print(f"{summary or 'no live tasks'}; {archived} archived.")
+    print(f"{summary}; {archived} archived (not listed).")
     if cur:
-        print(f"`>` marks the resume pointer in `.ai/.current` ({cur}).")
+        print(f"{POINTER} marks the resume pointer in `.ai/.current` ({cur}).")
     return 0
 
 
