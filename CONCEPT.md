@@ -289,8 +289,13 @@ projects via the recorded file list.
 
 # Part II: What was measured
 
-Rounds live under `benchmarks/<name>/` with a `report.md` and raw per-session
-files. Determinism discipline: everything pinned except MODEL and EFFORT.
+Each round had a `report.md` and raw per-session files under
+`benchmarks/<name>/`, everything pinned except MODEL and EFFORT. The
+`benchmarks/` tree was removed on 2026-09-29 with the measurement program
+halted; this table is the record. The raw files, runbooks and gate tests are
+in git history: `git show 3fe749a:benchmarks/<name>/report.md`, or `git checkout
+3fe749a -- benchmarks` to restore them. Paths to `benchmarks/` in Part III refer
+to that commit.
 
 | Round | What it measured | What it decided |
 |---|---|---|
@@ -307,10 +312,9 @@ files. Determinism discipline: everything pinned except MODEL and EFFORT.
 | `constraint-sonnet5-medium-2026-09-14` | Does a stated non-derivable rule survive three sessions? 21 sessions, hidden constraint test | 18 of 18 gates passed. Constraint held F 6/6, B 5/6: no support under the pre-stated rule. The round cannot decide, because task N's output became task N+1's local precedent. `/explore` with a human answering landed the rule verbatim 3 of 3. |
 
 **Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
-navigation2) was withdrawn with the amortization thesis and survives only as a
-record. `constraint-runbook.md` is runnable and its four pre-run controls are
-verified, but a deciding round needs a constraint that an earlier task cannot
-seed.
+navigation2) was withdrawn with the amortization thesis. `constraint-runbook.md`
+had its four pre-run controls verified, but a deciding round needs a
+constraint that an earlier task cannot seed. Both were removed with the tree.
 
 **Status of the measurement program:** halted 2026-09-14. Four rounds in one
 day produced no defensible performance benefit, and each failed round bred a

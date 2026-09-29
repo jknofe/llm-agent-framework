@@ -24,8 +24,8 @@ generated file (those live in target projects).
 - `install.sh` shell-function installer
 - `tests/check_templates.py` the property gate (orphans, slots, register,
   hermes frontmatter, AGENTS.md budget)
-- `benchmarks/fixed-runbook.md` fully-pinned reproducible benchmark (only
-  MODEL/EFFORT are user-set); recorded runs land in `benchmarks/<run>/`
+- `tests/task-commands.md` the agent-behavior runbook for the `/task-*`
+  commands; `tests/test_tasks_table.py` the deterministic task-table test
 
 ## Feature development
 
@@ -92,10 +92,12 @@ Full procedure: **[TESTING.md](TESTING.md)**. The short version:
 - Layer 1 (every change): `python3 tests/check_templates.py`, syntax check,
   scaffold all three harness variants into a temp dir, grep the render,
   verify referenced tool paths run, check re-init preservation, sweep for
-  benchmark-term leakage.
-- Layer 2 (behavior changes): run a benchmark cell before and after; the
-  fully-pinned procedure is `benchmarks/fixed-runbook.md`. Smoke = sonnet +
-  medium (fixed-runbook cell 1, sh-refactor).
+  test-target term leakage.
+- Layer 2 (behavior changes): run the affected cases of
+  `tests/task-commands.md` on a live repo, and rerun a failed case after the
+  fix before committing. The benchmark tree is gone (CONCEPT.md Part II says
+  where it is in git history).
 
-Non-negotiables: never scaffold into this repo root; PASS/FAIL comes from the
-deterministic container gate only; generated artifacts stay ecosystem-neutral.
+Non-negotiables: never scaffold into this repo root; judge an agent run from
+the files, the `.ai` log and the transcript, never from the agent's summary;
+generated artifacts stay ecosystem-neutral.

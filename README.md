@@ -18,8 +18,8 @@ Copilot, Hermes):
 
 Concept: CONCEPT.md.
 
-What the benchmarks support and what they do not (`benchmarks/`, CONCEPT.md
-sections 36 to 39). A plan-and-review chain on every task costs two to three
+What the benchmarks support and what they do not (CONCEPT.md Part II
+and sections 36 to 39). A plan-and-review chain on every task costs two to three
 times a bare agent and did not make later tasks on the same repo cheaper or
 more correct with Sonnet 5, so 6.1 made it opt-in. An always-loaded
 repository overview does not help agents find anything (ETH Zurich
