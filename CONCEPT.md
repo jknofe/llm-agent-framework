@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.9.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.10.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -118,7 +118,8 @@ change to the Goal or a done-when criterion goes back to the user. It ends
 with a review sized to the result (inline only when the diff and the
 Outcome are each under ~30 lines, a fresh-context `reviewer` sub-agent
 otherwise) that
-checks a diff against the criteria and an Outcome against its evidence, and
+checks a diff against the criteria and an Outcome against its evidence
+(every file-and-line citation opened and confirmed), and
 leaves one line in Findings naming the review that ran. It sets `done` only
 with every done-when criterion ticked, then distills what the repository
 cannot state into `.ai/notes.md`.
@@ -186,7 +187,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 205 lines, the task table only.
+  `tasks.py`: 209 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -346,6 +347,19 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.10 (2026-09-29, the review checks citations, and the fallback order is
+enforced. First Copilot run on satty (gpt-6-luna): an investigation reached
+`done` with 4/4 steps ticked, but its answer was wrong and two citations did
+not say what it claimed (it said `input_scale` does not set the zoom;
+`src/femtovg_area/imp.rs:188` shows it does). Copilot has no `reviewer`, so it
+went straight to a self-review, which agreed with itself. Now every review,
+inline or fresh, opens each file-and-line citation; the fresh context is the
+`reviewer`, else a general-purpose sub-agent, tried before any self-review,
+and a self-review names what was unavailable and why. The `reviewer` brief
+gains the same citation check. Also: `tasks.py` unquotes quoted YAML values,
+which Copilot writes and the table showed with their quotes. The first
+two-digit minor version: `/framework-update` now says to compare version
+parts as numbers, so 8.10 is not read as older than 8.9.)
 v8.9 (2026-09-29, the Type and Status columns show the emoji alone, with a
 legend line under the table; an unknown value stays text so a typo in a task
 file shows. The terminal color moves to the id, since a colored emoji does

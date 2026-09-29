@@ -319,7 +319,10 @@ def render_reviewer_agent() -> str:
                   "- Every claim in Outcome cites evidence in Findings, the "
                   "evidence was\n  produced in this task rather than "
                   "inferred, and the answer fits the\n  question in Goal. "
-                  "An unsupported claim is a gap even if it sounds right."),
+                  "An unsupported claim is a gap even if it sounds right.\n"
+                  "- Every file-and-line citation in Findings and Outcome "
+                  "holds: open it and\n  confirm the source says what the "
+                  "claim says."),
         desc=("Adversarial fresh-context review of a task's result (diff, "
               "Outcome, or both) against its Done-when criteria. Use for "
               "the review gate in /task-do."),

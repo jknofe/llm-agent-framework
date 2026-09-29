@@ -83,6 +83,8 @@ def main():
              done_when="- [x] c")
         task(root, "plan", "plan", "Planned", "test", "planned", NEW)
         task(root, "typo", "typo", "Typo type", "bugg", "planned", NEW)
+        task(root, "quoted", "quoted", '"Quoted: title"', "'bug'", "planned",
+             NEW)
         task(root, "_archive/old", "old", "Archived", "change", "done", OLD)
         (root / ".ai/.current").write_text("task: fresh\n", encoding="utf-8")
 
@@ -97,8 +99,9 @@ def main():
         order = [ln.split(" | ")[1] for ln in lines
                  if ln.startswith("| ") and " | " in ln
                  and not ln.startswith("| | ID")]
-        check(order == ["stale", "fresh", "noreason", "why", "plan", "typo",
-                        "full", "half"], f"sort order: {order}")
+        check(order == ["stale", "fresh", "noreason", "why", "plan",
+                        "quoted", "typo", "full", "half"],
+              f"sort order: {order}")
 
         # Emoji only for known type and status; unknown value stays text.
         r = row(out, "stale")
@@ -113,6 +116,11 @@ def main():
         check(r and r[3] == "📋", f"planned row: {r}")
         r = row(out, "typo")
         check(r and r[2] == "bugg", f"typo kept as text: {r}")
+
+        # Quoted YAML scalars are unquoted (8.10).
+        r = row(out, "quoted")
+        check(r and r[4] == "Quoted: title" and r[2] == "🐞",
+              f"quoted title and type: {r}")
 
         # Progress counts and pipe escaping.
         r = row(out, "half")
@@ -147,7 +155,7 @@ def main():
             check(f"❗ {quiet}:" not in out, f"{quiet} flagged")
 
         # Footer summary in status order.
-        check("🔄 2 in-progress, ⛔ 2 blocked, 📋 2 planned, ✅ 2 done; "
+        check("🔄 2 in-progress, ⛔ 2 blocked, 📋 3 planned, ✅ 2 done; "
               "1 archived (not listed)." in out, "footer summary")
 
         # No ANSI through a pipe, which is how the agent reads it.

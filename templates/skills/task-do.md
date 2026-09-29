@@ -40,16 +40,22 @@ Work a planned task. Id: ${arg_ticket}
      evidence recorded in Findings, that the evidence was produced in
      this task (the reproduction was run, the command was executed, the
      doc was read) rather than inferred, and that the answer fits the
-     question in Goal. A task with both gets both checks.
+     question in Goal. A task with both gets both checks. Whoever
+     reviews opens every file-and-line citation in Findings and Outcome
+     and confirms the source says what the claim says; a citation that
+     does not hold is corrected, or its claim withdrawn.
    - How: size decides, not the number of steps. Check inline only
      when both the diff and the Outcome are under ~30 lines each (a task
      with no diff counts only its Outcome). If either is larger, the
      review goes to a fresh context, however simple it looks.
-     Run the `reviewer` sub-agent where the harness supports sub-agents.
-     If it cannot be spawned (e.g. you are yourself a sub-agent) and no
-     human is available, spawn a fresh general-purpose sub-agent given
-     only the task file and the diff; failing that, do a clean-context
-     self-review and note that the `reviewer` sub-agent was unavailable.
+     A fresh context means, in this order: the `reviewer` sub-agent;
+     where the harness has none, or it cannot be spawned (e.g. you are
+     yourself a sub-agent), a fresh general-purpose sub-agent given only
+     the task file and the diff. Try the sub-agent before falling back.
+     Only when no sub-agent can be spawned at all, do a self-review, and
+     say in the Findings line which option was unavailable and why. A
+     self-review is the weakest check: work through the citations one by
+     one instead of re-reading your own conclusion.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Fix gaps that affect

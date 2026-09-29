@@ -71,7 +71,11 @@ def frontmatter(text):
     for line in text[4:end].splitlines():
         key, sep, value = line.partition(":")
         if sep:
-            out[key.strip()] = value.strip()
+            value = value.strip()
+            # A quoted YAML scalar ("..." or '...') is as valid as a bare one.
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            out[key.strip()] = value
     return out
 
 
