@@ -60,9 +60,10 @@ Work a planned task. Id: ${arg_ticket}
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Fix gaps that affect
    correctness or the stated criteria; ignore style-only findings.
-   Append one line to Findings naming the review that ran (inline,
-   `reviewer` sub-agent, fresh sub-agent, or self-review) and what it
-   found. Sizing down the gate is allowed; skipping it silently is not.
+   Append one line to Findings, `- <today> Review: <kind>: <result>`,
+   where kind is inline, `reviewer` sub-agent, fresh sub-agent, or
+   self-review. Sizing down the gate is allowed; skipping it silently is
+   not, and `/task-list-all` flags a done task without this line.
 7. Record.
    - Write `## Outcome`: the result in a few lines. A bug: the cause,
      the reproduction, the fix or who it was handed to. An
@@ -89,9 +90,9 @@ Work a planned task. Id: ${arg_ticket}
 8. Tick each Done-when criterion the result meets, and each finished
    step. If a criterion stays open, the task is not done: meet it, get
    the user's agreement to drop it (record that in Notes), or mark the
-   task `blocked`. Only with every criterion ticked, set `status: done`
-   and `updated: <today>`, delete `.ai/.current`, and commit `.ai`
-   (`task: done <id>`).
+   task `blocked`. Only with every criterion ticked and the `Review:`
+   line in Findings, set `status: done` and `updated: <today>`, delete
+   `.ai/.current`, and commit `.ai` (`task: done <id>`).
 
 Escalate instead of improvising: on missing context, do bounded
 discovery then ask the user; if a test fails twice on the same step, or

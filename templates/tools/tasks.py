@@ -8,9 +8,10 @@ are checked, and when the task was last touched. Archived tasks under
 leaves the working view. The task the resume pointer `.ai/.current` names is
 marked. Below the table it flags what needs a look: an `in-progress` task not
 updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
-frontmatter line, a `done` task with unchecked done-when criteria. Only the
-task files are read, and only frontmatter and checkboxes; the output is the
-whole answer, so no agent has to open a task file to add to it. Status and
+frontmatter line, a `done` task with unchecked done-when criteria or with no
+review line in Findings. Only the task files are read: frontmatter,
+checkboxes, and whether Findings names a review. The output is the whole
+answer, so no agent has to open a task file to add to it. Status and
 type show as emoji only, explained by a legend line under the table. The id
 is colored by status, but only when a person runs the script in a terminal
 (not piped, NO_COLOR unset).
@@ -79,13 +80,17 @@ def frontmatter(text):
     return out
 
 
-def checked(text, heading):
-    """(checked, total) checkboxes under a `## <heading>` section."""
+def section(text, heading):
+    """The body of a `## <heading>` section, or ""."""
     m = re.search(rf"^## {re.escape(heading)}\b.*?$(.*?)(?=^## |\Z)", text,
                   re.M | re.S)
-    if not m:
-        return 0, 0
-    boxes = re.findall(r"^\s*[-*] \[([ xX~-])\]", m.group(1), re.M)
+    return m.group(1) if m else ""
+
+
+def checked(text, heading):
+    """(checked, total) checkboxes under a `## <heading>` section."""
+    boxes = re.findall(r"^\s*[-*] \[([ xX~-])\]", section(text, heading),
+                       re.M)
     return sum(b != " " for b in boxes), len(boxes)
 
 
@@ -113,6 +118,10 @@ def load(path):
         "done_when": done_when,
         "updated": fm.get("updated") or fm.get("created") or "",
         "blocked": fm.get("blocked") or "",
+        # /task-do ends its review gate with a Findings line naming the
+        # review; a done task without one skipped the gate.
+        "reviewed": bool(re.search(r"^\s*[-*].*\breview",
+                                   section(text, "Findings"), re.M | re.I)),
     }
 
 
@@ -137,10 +146,14 @@ def flags(rows):
         elif r["status"] == "blocked":
             out.append(f"- {FLAG} {r['id']}: blocked: "
                        f"{r['blocked'] or 'no reason recorded'}.")
-        elif r["status"] == "done" and r["done_when"][0] < r["done_when"][1]:
-            got, total = r["done_when"]
-            out.append(f"- {FLAG} {r['id']}: done with {total - got} of "
-                       f"{total} done-when criteria unchecked.")
+        elif r["status"] == "done":
+            if r["done_when"][0] < r["done_when"][1]:
+                got, total = r["done_when"]
+                out.append(f"- {FLAG} {r['id']}: done with {total - got} of "
+                           f"{total} done-when criteria unchecked.")
+            if not r["reviewed"]:
+                out.append(f"- {FLAG} {r['id']}: done without a review line "
+                           "in Findings.")
     return out
 
 

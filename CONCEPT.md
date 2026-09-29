@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.10.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.11.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -127,12 +127,13 @@ cannot state into `.ai/notes.md`.
 `/task-list-all` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
 a task leaves the working view. A script (`tasks.py`) produces the whole
-answer from the task files' frontmatter and checkboxes, including the
-flags below the table: an `in-progress` task untouched for 14 days, a
-`blocked` task with the reason from its `blocked:` frontmatter line, a `done`
-task with unchecked criteria. The agent only shows the output; it opens no
-file. Outside any agent, `python3 .ai/agent/tools/tasks.py` prints the same
-table with no model involved.
+answer from the task files' frontmatter, checkboxes and review line,
+including the flags below the table: an `in-progress` task untouched for 14
+days, a `blocked` task with the reason from its `blocked:` frontmatter line, a
+`done` task with unchecked criteria or without a review line in Findings. The
+agent only shows the output; it opens no file. Outside any agent,
+`python3 .ai/agent/tools/tasks.py` prints the same table with no model
+involved.
 
 Rules that came from failures, not from theory:
 
@@ -187,7 +188,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 209 lines, the task table only.
+  `tasks.py`: 222 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
   one 13; five of each are skills, two are hooks (hermes: plus dispatcher
   and config snippet).
@@ -347,6 +348,13 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.11 (2026-09-29, a skipped review is caught mechanically. The 8.10 re-test
+on Copilot (mai-code-1.1-flash) reached `done` with no review and no
+Findings line, although the skill requires both and the harness can spawn a
+sub-agent. Text alone did not hold, so the check moves into the script, as
+8.4 did for unticked boxes: `tasks.py` flags a `done` task whose Findings
+names no review, and `/task-do` fixes the line's form (`- <date> Review:
+<kind>: <result>`) and sets `done` only once it is there.)
 v8.10 (2026-09-29, the review checks citations, and the fallback order is
 enforced. First Copilot run on satty (gpt-6-luna): an investigation reached
 `done` with 4/4 steps ticked, but its answer was wrong and two citations did

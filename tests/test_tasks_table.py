@@ -33,14 +33,14 @@ def check(cond, msg):
 
 
 def task(root, rel, tid, title, typ, status, updated, extra="",
-         done_when="- [ ] c", steps="- [x] a\n- [ ] b"):
+         done_when="- [ ] c", steps="- [x] a\n- [ ] b", findings=""):
     d = root / ".ai" / "tasks" / rel
     d.mkdir(parents=True, exist_ok=True)
     (d / "task.md").write_text(
         f"---\nid: {tid}\ntitle: {title}\ntype: {typ}\nstatus: {status}\n"
         f"created: {OLD}\nupdated: {updated}\n{extra}---\n## Goal\nx\n"
         f"## Done when\n{done_when}\n## Steps\n{steps}\n## Findings\n"
-        "## Outcome\n## Notes\n", encoding="utf-8")
+        f"{findings}## Outcome\n## Notes\n", encoding="utf-8")
 
 
 def run(root, env_extra=None):
@@ -77,10 +77,15 @@ def main():
              NEW, extra="blocked: waiting for rig access\n")
         task(root, "noreason", "noreason", "Blocked, no reason",
              "investigation", "blocked", NEW)
+        reviewed = f"- {NEW} Review: inline: criteria met.\n"
         task(root, "half", "half", "Half done", "change", "done", NEW,
-             done_when="- [x] c\n- [ ] d")
+             done_when="- [x] c\n- [ ] d", findings=reviewed)
         task(root, "full", "full", "Full done", "change", "done", NEW,
-             done_when="- [x] c")
+             done_when="- [x] c", findings=reviewed)
+        # "review" in the Goal or Notes does not count, only in Findings.
+        task(root, "unrev", "unrev", "No review", "change", "done", OLD,
+             done_when="- [x] c", findings="- found x, see Notes\n",
+             extra="")
         task(root, "plan", "plan", "Planned", "test", "planned", NEW)
         task(root, "typo", "typo", "Typo type", "bugg", "planned", NEW)
         task(root, "quoted", "quoted", '"Quoted: title"', "'bug'", "planned",
@@ -100,7 +105,7 @@ def main():
                  if ln.startswith("| ") and " | " in ln
                  and not ln.startswith("| | ID")]
         check(order == ["stale", "fresh", "noreason", "why", "plan",
-                        "quoted", "typo", "full", "half"],
+                        "quoted", "typo", "unrev", "full", "half"],
               f"sort order: {order}")
 
         # Emoji only for known type and status; unknown value stays text.
@@ -151,11 +156,15 @@ def main():
               "blocked without reason flag")
         check("❗ half: done with 1 of 2 done-when criteria unchecked." in out,
               "half-done flag")
+        check("❗ unrev: done without a review line in Findings." in out,
+              "unreviewed flag")
+        check("❗ half: done without a review line" not in out,
+              "reviewed task flagged as unreviewed")
         for quiet in ("fresh", "full", "plan"):
             check(f"❗ {quiet}:" not in out, f"{quiet} flagged")
 
         # Footer summary in status order.
-        check("🔄 2 in-progress, ⛔ 2 blocked, 📋 3 planned, ✅ 2 done; "
+        check("🔄 2 in-progress, ⛔ 2 blocked, 📋 3 planned, ✅ 3 done; "
               "1 archived (not listed)." in out, "footer summary")
 
         # No ANSI through a pipe, which is how the agent reads it.
