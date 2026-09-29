@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.6.** The framework rests on four premises, stated in
+**State: 2026-09-29, v8.7.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -342,6 +342,12 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v8.7 (2026-09-29, `/task-list-all` puts the table in the reply itself. On
+satty the agent ran `tasks.py` and answered "the script's output is above":
+Claude Code collapses tool output, so the user saw a count and no table. The
+8.4 wording "show its output as printed" allowed that reading. The skill now
+says to copy the complete output into the reply verbatim, because the user
+does not see tool output.)
 v8.6 (2026-09-29, the inline review threshold is size only. On satty the
 agent reviewed inline twice where 8.5 required a fresh context: an
 investigation with six steps, no diff and a ten-line Outcome, and a
