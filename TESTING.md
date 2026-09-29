@@ -13,7 +13,13 @@ themselves.
    python3 tests/check_templates.py
    python3 tests/test_bootstrap_update.py
    python3 tests/test_harness_switch.py
+   python3 tests/test_tasks_table.py
    ```
+   The last one checks everything the `/task-list-all` table promises
+   without an agent (live tasks only, sort order, emoji and legend, the three
+   flags, the resume pointer, no ANSI through a pipe). Agent behavior of the
+   three `/task-*` commands is covered by [tests/task-commands.md](tests/task-commands.md),
+   run after changing them.
    The third scaffolds one harness, switches to another, and checks that the
    old command set is gone, that a user-added skill next to it is not, that
    retired files land in the backup, and that a switch is never silent.
