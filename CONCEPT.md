@@ -2765,3 +2765,25 @@ the plan shown before that is the point of Pillar 2.
 
 Name: `/task`, singular. `/tasks` is taken in Copilot CLI and as a Hermes
 alias of `/agents`; both are now in `check_templates`' reserved list.
+
+Verified on satty `f578432` (2026-09-30), one task per type on Claude Code
+(sonnet-5.5) and Copilot CLI (Auto), without a Rust toolchain, cargo
+criteria waived where files changed: all eight reached `done` with every
+criterion ticked, a `Review:` line, and citations that hold on inspection.
+Every run called `tasks.py resolve` first. Two defects surfaced and were
+fixed in the skill before the acceptance runs that count:
+
+- Claude ran an investigation as one write: plan and result together, no
+  `task: create` commit, no `in-progress`, no `.ai/.current`. "Continue
+  straight into Do" was read as "skip Do's bookkeeping". The skill now keeps
+  the phases apart in the record; the re-run committed the plan, set the
+  pointer, and closed with `task: done`.
+- Copilot answered `list` with a bullet summary after reading `tasks.py`
+  itself. In the combined file the List section sits at the end, 200 lines
+  after the instruction that sent it there; 8.9's standalone file had
+  passed. `list` is now handled completely in Dispatch, at the top, with
+  the instruction not to read further; both harnesses then printed the
+  table verbatim.
+
+Remaining, not a rule failure: Copilot once named a done commit after the
+change rather than `task: done <id>`.

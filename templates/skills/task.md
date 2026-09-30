@@ -13,7 +13,10 @@ task, and the agent never starts one on its own.
 ## Dispatch
 
 Read the first word of the arguments:
-- `list`, or no arguments at all: go to List.
+- `list`, or no arguments at all: run `python3 ${tools_dir}/tasks.py`
+  and reply with its complete output, verbatim, and nothing else. Do
+  not read the script, the task files or the rest of this file first;
+  see List for why.
 - `create <id> <title...>`: resolve `<id>`, then Create.
 - `do [<id>]`: resolve `<id>` (none: the resume pointer), then Do.
 - anything else is an id, maybe followed by a title: resolve it, and
@@ -116,8 +119,12 @@ verdict; act on it:
 
 Then, by type:
 - `investigation`: do not stop. The planning has done most of the
-  reading, so continue straight into Do in this session, without
-  waiting for the user and without a fresh session.
+  reading, so continue into Do in this session, without waiting for the
+  user and without a fresh session. Keep the two phases apart in the
+  record: the plan is written and committed first (`task: create <id>`,
+  step 5), then Do runs from its step 1 (`status: in-progress`,
+  `.ai/.current`), and its findings go in as they happen. Never write
+  plan and result in one go.
 - `change`, `bug`, `test`: stop here. Show the plan and wait: a plan
   the user can read and redirect before anything is done is what this
   path is for. The work is `/task do <id>`, in a fresh session: the task

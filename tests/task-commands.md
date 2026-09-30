@@ -298,6 +298,15 @@ Not failures of a rule, but worth watching:
   pointer of a blocked first one. The agent reported it; the table then
   points at the newer task.
 
+Seen in the 9.0 acceptance run (2026-09-30):
+
+- Claude Code may open "Teach auto mode about your environment?", which
+  offers to scan shell history and other repositories. It is not a task
+  question: answer it with Esc, never with the recommended option, and
+  rerun the prompt it swallowed.
+- An agent driven from outside must not confirm a folder-trust prompt
+  blindly; move the cursor to the option explicitly and read it back first.
+
 ## Appendix: driving the agent with herdr
 
 Useful when one agent runs the cases on another. Load the herdr skill
