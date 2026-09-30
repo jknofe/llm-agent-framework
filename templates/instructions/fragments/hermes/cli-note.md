@@ -6,8 +6,8 @@ once in the repository root. After a skill file changes, run `/reload-skills`
 in a running session.
 
 Run one by typing its name as a slash command, with any argument after it
-(`/framework-update dry-run`): `/explore`, `/task-create`, `/task-do`,
-`/task-list-all`, `/framework-update`.
+(`/framework-update dry-run`): `/explore`, `/task` (`/task create <id>
+<title>`, `/task do <id>`, `/task list`), `/framework-update`.
 
 The names are the same on every harness; `/framework-update` is spelled out
 because Hermes reserves `/update`.

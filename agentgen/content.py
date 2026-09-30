@@ -130,11 +130,16 @@ def render_update_body(harness: str, arg: str) -> str:
              "`.ai/tasks/` (change specs under `.ai/changes/` before 8.0), and\n"
              "the `GENERATED:project-context` section of AGENTS.md")
     migrate = (
-        "   - Framework 8.0 replaces `/spec` and `/build` with `/task-create`,\n"
-        "     `/task-do` and `/task-list-all`, and change specs with typed\n"
-        "     task files. The old skill entries are retired framework files;\n"
-        "     the specs are hand-filled content, so migrate them, do not\n"
-        "     regenerate them:\n"
+        "   - Framework 9.0 folds `/task-create`, `/task-do` and\n"
+        "     `/task-list-all` into one `/task` (`create`, `do`, `list`). The\n"
+        "     three old skill entries are retired framework files: delete\n"
+        "     them through the recorded file list. Task files under\n"
+        "     `.ai/tasks/` keep their format; nothing there changes.\n"
+        "   - Framework 8.0 replaces `/spec` and `/build` with typed task\n"
+        "     commands (since 9.0 the one `/task`), and change specs with\n"
+        "     typed task files. The old skill entries are retired framework\n"
+        "     files; the specs are hand-filled content, so migrate them, do\n"
+        "     not regenerate them:\n"
         "     - `git -C .ai mv changes tasks`. If `tasks/` exists already,\n"
         "       move each directory under `changes/` into it instead, and\n"
         "       the contents of `changes/_archive/` into `tasks/_archive/`.\n"
@@ -309,7 +314,7 @@ def render_prompt_files(specs) -> dict:
     return out
 
 def render_reviewer_agent() -> str:
-    """The fresh-context adversarial reviewer used by /task-do's review
+    """The fresh-context adversarial reviewer used by /task do's review
     gate. A task's result is a diff, an Outcome, or both, so the reviewer
     checks whichever the task produced."""
     return render.fill(
@@ -325,7 +330,7 @@ def render_reviewer_agent() -> str:
                   "claim says."),
         desc=("Adversarial fresh-context review of a task's result (diff, "
               "Outcome, or both) against its Done-when criteria. Use for "
-              "the review gate in /task-do."),
+              "the review gate in /task do."),
         input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
                      "Done when, Findings,\nOutcome) plus the code diff, "
                      "if the task changed code."))
@@ -377,8 +382,9 @@ def render_tool_probe() -> str:
     return render.load("tools/probe.py")
 
 def render_tool_tasks() -> str:
-    """The task table behind /task-list-all. Static, like the probe: parsing
-    frontmatter is deterministic work, so a script does it."""
+    """The task table and create-or-do resolver behind /task. Static, like
+    the probe: parsing frontmatter is deterministic work, so a script does
+    it."""
     return render.load("tools/tasks.py")
 
 def render_settings_json() -> str:

@@ -1,8 +1,9 @@
 # Task commands: regression runbook
 
-How to check that `/task-create`, `/task-do` and `/task-list-all` still
+How to check that `/task` (`create`, `do`, `list`, and the create-or-do
+resolver) still
 behave as CONCEPT.md Part I (Pillar 2) says. Run it after any change to
-`templates/skills/task-*.md`, `templates/tools/tasks.py`, the task file
+`templates/skills/task.md`, `templates/tools/tasks.py`, the task file
 format, or the review gate, and before merging a branch that touches them.
 
 Two parts:
@@ -38,7 +39,7 @@ python3 <framework-checkout>/init_agent.py --harness claude -y --name satty
   whether `cargo` was on PATH; with it, TC-D3 does not apply and TC-D1 to
   TC-D4 should end `done` instead.
 - **Model:** record it. Reference runs used sonnet-5.5 at medium effort.
-- **Fresh session per `/task-do`:** `/clear` before each one, as the skill
+- **Fresh session per `/task do`:** `/clear` before each one, as the skill
   requires. The task file is the handoff, not the conversation.
 - **Answering Q&A:** pick the option the agent marks as recommended, unless
   the case says otherwise. Note every question it asked.
@@ -89,11 +90,23 @@ EOF
 
 ## Test cases
 
-### /task-create
+### /task create
+
+**TC-R1: the script decides create or do** (9.0)
+
+Run `/task <id>` without a subcommand three times: for a new id with a
+title, for an existing unfinished task, and for an id close to an existing
+one (e.g. `login-timeout-fix` next to `fix-login-timeout`).
+
+Pass when the transcript shows `tasks.py resolve <id>` before anything else,
+the new id is created, the existing task is worked (not planned again), and
+the close id is asked about instead of created. Fail: the agent searches
+with grep or ls to decide, or creates a second task for the same thing.
+
 
 **TC-C1: type is asked, never inferred** (8.3)
 
-Prompt: `/task-create config-errors-no-abort Config errors should not abort
+Prompt: `/task create config-errors-no-abort Config errors should not abort
 startup (issue #663): warn and fall back to defaults`
 
 Pass when all hold:
@@ -109,9 +122,9 @@ after other questions.
 Create one task per remaining type, naming the type in the prompt:
 
 ```
-/task-create text-undo-redo Undo/redo for text does not work as expected (issue #674). Type: bug
-/task-create blur-scaling Why does the blur result depend on the display scaling (issue #602)? Type: investigation
-/task-create config-parse-tests Cover config.toml parsing in src/configuration.rs with tests: valid file, unknown keys, bad values. Type: test
+/task create text-undo-redo Undo/redo for text does not work as expected (issue #674). Type: bug
+/task create blur-scaling Why does the blur result depend on the display scaling (issue #602)? Type: investigation
+/task create config-parse-tests Cover config.toml parsing in src/configuration.rs with tests: valid file, unknown keys, bad values. Type: test
 ```
 
 Pass when, for each:
@@ -127,35 +140,35 @@ Pass when, for each:
 - One `.ai` commit `task: create <id>` per task. No host repo change, no
   `.ai/.current`, work not started.
 
-### /task-do
+### /task do
 
-Run each in a fresh session (`/clear`, then `/task-do <id>`).
+Run each in a fresh session (`/clear`, then `/task do <id>`).
 
-**TC-D1: investigation to done, small result** (8.5, 8.6)
+**TC-D1: investigation runs in one go** (8.5, 8.6, 9.0)
 
-Task: `blur-scaling` or a new investigation, for example
-`/task-create input-scale-window Why does --input-scale have the inverse
-effect on the window size (issue #689)? Type: investigation`.
+Prompt: `/task input-scale-window Why does --input-scale have the inverse
+effect on the window size (issue #689)? Type: investigation`
 
 Pass when all hold:
+- No question after the type (here none at all, the type is given); open
+  points are numbered assumptions in Notes.
+- The same session goes from create straight into do: the `.ai` log shows
+  `task: create <id>` and then `task: done <id>` with no user turn between.
 - `status: done`, and the table shows Steps and Done when fully ticked
-  (n/n), with no "done with ... unchecked" flag for it.
-- `.ai/.current` was written at the start (transcript) and is gone at the
-  end.
-- Findings are dated and each cites evidence (file and line, command and
-  output). A claim that was derived rather than run says so.
+  (n/n), with no flag for it.
+- `.ai/.current` was written at the start of do and is gone at the end.
+- Findings are dated and each cites evidence. Open each file-and-line
+  citation: every one says what the claim says.
 - `git diff --stat` shows no host repo change.
-- A Findings line names the review that ran. Inline is correct only when
-  the Outcome is under ~30 lines (no diff).
-- Outcome written; a distilled line appended to `.ai/notes.md`; last `.ai`
-  commit is `task: done <id>`.
+- A `Review:` line in Findings names the review; inline only with an
+  Outcome under ~30 lines.
 
 **TC-D2: diff over ~30 lines goes to a fresh context** (8.6)
 
 Create with the cargo criteria waived, so the task can reach the review
 gate without a toolchain:
 
-`/task-create readme-keybindings Add a reference table of every default
+`/task create readme-keybindings Add a reference table of every default
 keyboard shortcut to README.md, taken from src/keybindings.rs and the tool
 code, one row per shortcut. Docs only, hand-written README prose, no Rust
 source change. There is no Rust toolchain here; I waive all cargo-based
@@ -189,7 +202,7 @@ test step may have no review line. That is correct.
 
 **TC-D4: small diff, inline review** (8.6)
 
-`/task-create readme-troubleshooting Add a Troubleshooting section to
+`/task create readme-troubleshooting Add a Troubleshooting section to
 README.md covering --input-scale and HiDPI window size, blur looking
 different at different zoom levels, and what happens on a broken config
 file. Docs only, hand-written README prose, no Rust source change. There is
@@ -201,11 +214,11 @@ review with its size, and the task ends `done` with every criterion ticked.
 If the diff comes out over 30 lines, the case turns into TC-D2 and must pass
 as that.
 
-### /task-list-all
+### /task list
 
 **TC-L1: the table is the reply** (8.4, 8.7, 8.9)
 
-Run `/task-list-all` in a fresh session, twice.
+Run `/task list` in a fresh session, twice.
 
 Pass when, both times:
 - The reply contains the complete table, the legend line under it, the
@@ -215,6 +228,41 @@ Pass when, both times:
 - The transcript shows exactly one tool call, the `tasks.py` run, and no
   file reads.
 - `git -C .ai status --short` is empty afterwards (read-only).
+
+### Acceptance: one task per type (9.0)
+
+The goal set for 9.0: a Claude and a Copilot session each pass one task of
+every type on satty. All four finish without a Rust toolchain; the cargo
+criteria of the three that touch files are waived in the prompt.
+
+| Type | Task | Invocation |
+|---|---|---|
+| investigation | `input-scale-window` (issue #689), as TC-D1 | `/task <id> ... Type: investigation` |
+| bug | `nextrelease-typo`: `release.nu:106` replaces `NEXTRELEASE` with the version, but README line 139 says `NEXTRELASE` for pixelate, so a release keeps the placeholder | `/task create`, then `/task <id>` in a fresh session |
+| change | `readme-troubleshooting`, as TC-D4 | `/task create`, then `/task do <id>` in a fresh session |
+| test | `keybinds-consistency`: every action under `[keybinds]` in `config.toml` exists in `src/keybindings.rs` and in the README | `/task create`, then `/task <id>` in a fresh session |
+
+Prompts (Copilot CLI: wrap each as `Run task ...: read
+.github/prompts/task.prompt.md and follow it.`):
+
+```
+/task input-scale-window Why does --input-scale have the inverse effect on the window size (issue #689)? Type: investigation
+/task create nextrelease-typo The release script leaves a NEXTRELEASE placeholder in the README for pixelate. Docs and release text only, no Rust source change; no Rust toolchain here, I waive all cargo-based criteria. Type: bug
+/task create readme-troubleshooting Add a Troubleshooting section to README.md covering --input-scale and HiDPI window size, blur looking different at different zoom levels, and what happens on a broken config file. Docs only, no Rust source change; no Rust toolchain here, I waive all cargo-based criteria. Type: change
+/task create keybinds-consistency Check that every action under [keybinds] in config.toml exists in src/keybindings.rs and is documented in README.md; record each mismatch as a finding, fix nothing. No Rust toolchain here, I waive all cargo-based criteria. Type: test
+```
+
+A type passes when:
+- investigation: TC-D1.
+- bug, change, test: create asks its Q&A (answer with the recommended
+  option) and stops without working; the fresh session's `/task <id>` or
+  `/task do <id>` resolves to `DO` and works it to `done`, all criteria
+  ticked or waived as agreed, a `Review:` line, citations that hold. Bug:
+  a reproduction that fails before the fix and passes after (for example
+  the release `sed` on a copy of README, then a grep for `NEXTRELASE`).
+  Test: one result per scenario with evidence, mismatches recorded as
+  findings, nothing fixed.
+- `/task list` afterwards shows all four done, no flag for any of them.
 
 ## Recording a run
 
@@ -246,7 +294,7 @@ Not failures of a rule, but worth watching:
 - The auto-mode classifier of Claude Code can drop out mid-run and deny
   every write. The correct behavior, seen once: stop, list what is still
   open, finish on retry. A run hit by it is not a test result; rerun it.
-- `.ai/.current` is shared: `/task-do` on a second task overwrites the
+- `.ai/.current` is shared: `/task do` on a second task overwrites the
   pointer of a blocked first one. The agent reported it; the table then
   points at the newer task.
 

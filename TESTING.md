@@ -15,11 +15,12 @@ themselves.
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
    ```
-   The last one checks everything the `/task-list-all` table promises
-   without an agent (live tasks only, sort order, emoji and legend, the three
-   flags, the resume pointer, no ANSI through a pipe). Agent behavior of the
-   three `/task-*` commands is covered by [tests/task-commands.md](tests/task-commands.md),
-   run after changing them.
+   The last one checks everything `tasks.py` promises, without an agent: the
+   `/task list` table (live tasks only, sort order, emoji and legend, the
+   flags, the resume pointer, no ANSI through a pipe) and the `/task`
+   create-or-do resolver (every verdict, near-duplicates). Agent behavior of
+   `/task` is covered by [tests/task-commands.md](tests/task-commands.md),
+   run after changing it.
    The third scaffolds one harness, switches to another, and checks that the
    old command set is gone, that a user-added skill next to it is not, that
    retired files land in the backup, and that a switch is never silent.
@@ -80,8 +81,8 @@ themselves.
 
 Run the affected cases of [tests/task-commands.md](tests/task-commands.md)
 live on the pinned target repository, before and after the change. It covers
-`/task-create`, `/task-do` and `/task-list-all`: seven cases, each with its
-prompt, pass criteria and the command that decides it. A FAIL that comes from
+`/task create`, `/task do`, `/task list` and the create-or-do resolver, each
+case with its prompt, pass criteria and the command that decides it. A FAIL that comes from
 the skill text gets a template fix, a CONCEPT.md version entry citing the
 case, and a rerun of that case before the commit.
 

@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-29, v8.11.** The framework rests on four premises, stated in
+**State: 2026-09-30, v9.0.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 40, unchanged and
+- **Part III** is the revision history, sections 1 to 41, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -29,14 +29,14 @@ requirements block in `AGENTS.md` holding the commands the project is checked
 with and the tools it requires or forbids.
 
 **Pillar 2. An opt-in plan-and-do path for any task, whose value is the plan
-shown in advance.** `/task-create` writes down what the agent intends before
-any work is done, so a human can redirect it; `/task-do` works the plan,
+shown in advance.** `/task create` writes down what the agent intends before
+any work is done, so a human can redirect it; `/task do` works the plan,
 records findings as they happen, and reviews the result against the task's
 done-when criteria. A task is a code change, a bug, an investigation or a
-test; what counts as done depends on which. The user starts both. By default
+test; what counts as done depends on which. The user starts it. By default
 the agent just does the task.
 
-**Property 3. One command set on three harnesses.** Five commands, identical
+**Property 3. One command set on three harnesses.** Three commands, identical
 names and bodies on Claude Code, Copilot and Hermes. No command's name depends
 on where it is typed.
 
@@ -92,11 +92,23 @@ only kind that is still accurate. Without this rule the notes hold only what
 
 ## Pillar 2: the opt-in plan-and-do path
 
-`/task-create <id> <title>` writes `.ai/tasks/<id>/task.md`: type, goal,
-done-when criteria, steps, and empty Findings and Outcome sections. It runs a
-bounded Q&A with the user and stops. The type comes from the user: when they
-did not name it, the first question asks for it; the agent never infers it.
-The point is the plan a human reads before the work starts.
+One command, `/task`, with `create`, `do` and `list`. Whether a task exists
+is decided by a script, not by the agent looking around: `tasks.py resolve
+<id>` prints one verdict (`CREATE`, `DO`, `DONE`, `ARCHIVED`, `INVALID`,
+`NONE`), matches ids case-insensitively, and names close existing ids as
+`SIMILAR` so a second task for the same thing is asked about before it is
+made. `/task <id> [title]` without a subcommand goes wherever the verdict
+says.
+
+`/task create <id> <title>` writes `.ai/tasks/<id>/task.md`: type, goal,
+done-when criteria, steps, and empty Findings and Outcome sections. The type
+comes from the user: when they did not name it, the first question asks for
+it; the agent never infers it. For a `change`, `bug` or `test` it runs a
+bounded Q&A and stops: the point is the plan a human reads before the work
+starts, and the work runs later in a fresh session. An `investigation` asks
+nothing after the type and runs straight on into `do` in the same session:
+planning an investigation is most of doing it, and the user redirects from
+the answer, which cites its evidence, rather than from a plan.
 
 The type decides what done means:
 
@@ -111,7 +123,7 @@ Any task that ends up changing code takes the full-suite criterion,
 whatever its type. For bugs and investigations the steps are hypotheses,
 each with how to confirm or rule it out, and the plan is expected to change.
 
-`/task-do <id>` works the steps, appends each finding to the task file as it
+`/task do <id>` works the steps, appends each finding to the task file as it
 happens, and re-plans in the file when a result invalidates the plan: a
 hypothesis ruled out is struck with its evidence, not silently abandoned. A
 change to the Goal or a done-when criterion goes back to the user. It ends
@@ -124,7 +136,7 @@ leaves one line in Findings naming the review that ran. It sets `done` only
 with every done-when criterion ticked, then distills what the repository
 cannot state into `.ai/notes.md`.
 
-`/task-list-all` prints every live task with type, status and progress as
+`/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
 a task leaves the working view. A script (`tasks.py`) produces the whole
 answer from the task files' frontmatter, checkboxes and review line,
@@ -141,7 +153,7 @@ Rules that came from failures, not from theory:
   test and lint commands pass. A criterion naming a single test is what
   produced the one correctness loss the framework has ever caused (Part II,
   sequence round).
-- `/task-do` records a failing test as pre-existing only after it fails on
+- `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
 - Neither command ever starts on its own. The default path is direct: read,
@@ -155,7 +167,7 @@ intent that was never built and the framework claims nothing about it.
 
 ## Property 3: one command set
 
-Five commands: `/explore`, `/task-create`, `/task-do`, `/task-list-all`,
+Three commands: `/explore`, `/task` (`create`, `do`, `list`),
 `/framework-update`. Same names,
 same bodies, on all three harnesses; only the entry files differ (Agent Skills
 under `.claude/skills/`, project skills under `.agents/skills/`, prompt files
@@ -222,11 +234,12 @@ Every session, regardless of path:
    test a task names. Done = checks green. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
-3. `/task-create` and `/task-do` only when the user invokes them.
+3. `/task` only when the user invokes it.
 4. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
 5. `.ai/.current` is the resume pointer; read it at session start.
-   `/task-do` and unrelated tasks run in fresh sessions: instruction
+   `/task do` (except an investigation, run in one go by `/task create`)
+   and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
    that makes a fresh session cheap.
 6. Never merge into the default branch unasked. Work on a branch and stop at
@@ -348,6 +361,12 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v9.0 (2026-09-30, one `/task` command replaces `/task-create`, `/task-do`
+and `/task-list-all`, with `create`, `do` and `list`. A script decides
+whether a task exists (`tasks.py resolve`), so `/task <id>` alone goes to
+create or do without the agent searching. An investigation is planned and
+worked in one go, with no Q&A after the type; the other types are planned
+as before. The three old skill entries are retired framework files. §41.)
 v8.11 (2026-09-29, a skipped review is caught mechanically. The 8.10 re-test
 on Copilot (mai-code-1.1-flash) reached `done` with no review and no
 Findings line, although the skill requires both and the harness can spawn a
@@ -2719,3 +2738,30 @@ first update to 8.1 or later installs it; the spec-to-task move then needs
 a second `/framework-update` run, or the plain request to migrate
 `.ai/changes/` as step 4 of the installed skill describes. `tasks.py` flags
 a leftover `.ai/changes/`, so the gap is visible rather than silent.
+
+## 41. One /task command, a script decides create or do (2026-09-30, v9.0)
+
+Owner's request after the satty runs of 8.3 to 8.11: three commands for one
+object is two too many, and "does this task exist?" should not depend on how
+an agent searches. `/task-create`, `/task-do` and `/task-list-all` become
+`/task create|do|list`; the bodies keep their rules word for word, so every
+fix of 8.3 to 8.11 carries over.
+
+The create-or-do decision moved into `tasks.py resolve`, for the reason 8.4
+moved the table there: parsing is deterministic work. An agent asked to find
+out whether `fix-login` exists will grep, guess from titles, or miss an
+archived task; the script checks the live and archived directories,
+case-insensitively, and reports near-duplicates (difflib ratio 0.6, or two
+shared id words of three letters or more) as `SIMILAR`, which the skill
+turns into a question instead of a second task.
+
+An investigation no longer stops after planning. Its plan is a list of
+hypotheses with checks, and writing that list is most of the investigation;
+stopping for a human to approve it bought a pause and nothing else. It also
+asks nothing after the type: the decision it feeds and when to stop looking
+become numbered assumptions in Notes, visible in the result. The other types
+keep the stop: a change, a bug fix or a test campaign acts on the code, and
+the plan shown before that is the point of Pillar 2.
+
+Name: `/task`, singular. `/tasks` is taken in Copilot CLI and as a Hermes
+alias of `/agents`; both are now in `check_templates`' reserved list.

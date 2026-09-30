@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Task table for /task-list-all.
+"""Task table and id resolver for /task.
 
-Reads the frontmatter of every live `.ai/tasks/<id>/task.md` and prints one
-markdown table: id, type, status, title, how many steps and done-when criteria
-are checked, and when the task was last touched. Archived tasks under
+`tasks.py` or `tasks.py list`, the `/task list` answer: reads the
+frontmatter of every live `.ai/tasks/<id>/task.md` and prints one markdown
+table: id, type, status, title, how many steps and done-when criteria are
+checked, and when the task was last touched. Archived tasks under
 `.ai/tasks/_archive/` are not listed, only counted: archiving is how a task
 leaves the working view. The task the resume pointer `.ai/.current` names is
 marked. Below the table it flags what needs a look: an `in-progress` task not
@@ -16,11 +17,23 @@ type show as emoji only, explained by a legend line under the table. The id
 is colored by status, but only when a person runs the script in a terminal
 (not piped, NO_COLOR unset).
 
+`tasks.py resolve [<id>]` decides whether `/task` creates or works a task, so
+no agent has to search for one: it prints one verdict line, then a sentence.
+  CREATE <id>     no task with that id; SIMILAR lines name close existing ids
+  DO <id>         a live task that is not done (planned, in-progress, blocked)
+  DONE <id>       a live task that is done
+  ARCHIVED <id>   only under `_archive/`
+  INVALID         not usable as an id (a title without an id, a path)
+  NONE            no id given and no resume pointer
+Ids match case-insensitively; the verdict carries the id as it is on disk.
+Without an id, the task `.ai/.current` points at is resolved.
+
 Read-only; stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
 import datetime
+import difflib
 import os
 import re
 import sys
@@ -118,7 +131,7 @@ def load(path):
         "done_when": done_when,
         "updated": fm.get("updated") or fm.get("created") or "",
         "blocked": fm.get("blocked") or "",
-        # /task-do ends its review gate with a Findings line naming the
+        # /task do ends its review gate with a Findings line naming the
         # review; a done task without one skipped the gate.
         "reviewed": bool(re.search(r"^\s*[-*].*\breview",
                                    section(text, "Findings"), re.M | re.I)),
@@ -165,10 +178,86 @@ def ratio(pair):
     return f"{pair[0]}/{pair[1]}" if pair[1] else "-"
 
 
+ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+
+def task_dirs(archived=False):
+    """{id: task.md path} of live (or archived) tasks."""
+    base = TASKS / "_archive" if archived else TASKS
+    return {p.parent.name: p for p in base.glob("*/task.md")
+            if p.parent.name != "_archive"}
+
+
+def similar(tid, ids):
+    """Existing ids close enough to `tid` to be a possible duplicate."""
+    low = {i.lower(): i for i in ids}
+    close = difflib.get_close_matches(tid.lower(), list(low), n=3,
+                                      cutoff=0.6)
+    words = {w for w in re.split(r"[-_.]", tid.lower()) if len(w) >= 3}
+    for key, orig in low.items():
+        shared = words & {w for w in re.split(r"[-_.]", key) if len(w) >= 3}
+        if key not in close and (len(shared) >= 2 or tid.lower() in key
+                                 or key in tid.lower()):
+            close.append(key)
+    return [low[k] for k in close]
+
+
+def resolve(arg):
+    """Print the verdict for `/task <id>`; see the module docstring."""
+    if not arg:
+        cur = current_id()
+        if not cur:
+            print("NONE")
+            print("No id given and no resume pointer in `.ai/.current`.")
+            return 0
+        arg = cur
+        print(f"# no id given; resuming `.ai/.current` ({cur})")
+    if not ID_RE.fullmatch(arg):
+        print(f"INVALID {arg}")
+        print("Not usable as a task id: use a short kebab-case id "
+              "(letters, digits, - _ .), e.g. fix-login-timeout.")
+        return 0
+    live, archived = task_dirs(), task_dirs(archived=True)
+    for ids, where in ((live, "live"), (archived, "archive")):
+        match = next((i for i in ids if i.lower() == arg.lower()), None)
+        if not match:
+            continue
+        r = load(ids[match])
+        if where == "archive":
+            print(f"ARCHIVED {match}")
+            print(f"Archived task `.ai/tasks/_archive/{match}/task.md` "
+                  f"({r['type']}, {r['status']}). Do not create it again.")
+        elif r["status"] == "done":
+            print(f"DONE {match}")
+            print(f"Task `.ai/tasks/{match}/task.md` ({r['type']}) is done: "
+                  f"{r['title']}")
+        else:
+            print(f"DO {match} status={r['status']} type={r['type']}")
+            print(f"Task `.ai/tasks/{match}/task.md` exists: {r['title']}")
+        return 0
+    print(f"CREATE {arg}")
+    near = similar(arg, list(live) + list(archived))
+    for i in near:
+        src = live.get(i) or archived.get(i)
+        r = load(src)
+        state = "archived" if i in archived and i not in live else r["status"]
+        print(f"SIMILAR {i} ({state}): {r['title']}")
+    print(f"No task `{arg}` yet." + (" Close ids exist; ask whether one of "
+                                     "them is meant." if near else ""))
+    return 0
+
+
 def main():
+    args = sys.argv[1:]
+    if args and args[0] == "resolve":
+        return resolve(args[1] if len(args) > 1 else "")
+    if args and args[0] != "list":
+        print(f"Unknown argument {args[0]!r}. Usage: tasks.py [list] | "
+              "tasks.py resolve [<id>]")
+        return 2
     if not TASKS.is_dir():
         print("No tasks yet: `.ai/tasks/` does not exist. "
-              "Create one with /task-create <id> <title>.")
+              "Create one with /task create <id> <title>.")
         return 0
 
     rows = [load(path) for path in sorted(TASKS.glob("*/task.md"))
@@ -177,7 +266,7 @@ def main():
 
     if not rows:
         print(f"No live tasks in `.ai/tasks/` ({archived} archived). "
-              "Create one with /task-create <id> <title>.")
+              "Create one with /task create <id> <title>.")
         return 0
 
     rows.sort(key=lambda r: (STATUS_ORDER.get(r["status"], 9),

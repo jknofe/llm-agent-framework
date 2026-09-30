@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "8.11"
+FRAMEWORK_VERSION = "9.0"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -19,14 +19,15 @@ GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
 
 GEN_END = "<!-- END GENERATED:project-context -->"
 
-# Five commands (CONCEPT.md sections 38 and 39). /tidy-up, /import-kb and
+# Three commands (CONCEPT.md sections 38, 39 and 41). /tidy-up, /import-kb and
 # /import-agent were retired in v7.0: a hygiene sweep serves neither pillar,
 # the KB profile they imported into is gone, and converting an existing setup
 # is a plain request to the agent now that the scaffold is six files. 8.0
 # replaced /spec and /build with the typed task path: most of a working day
-# is investigating, bug hunting and testing, not only changing code.
-SKILLS = ["explore", "task-create", "task-do", "task-list-all",
-          "framework-update"]
+# is investigating, bug hunting and testing, not only changing code. 9.0
+# folded /task-create, /task-do and /task-list-all into one /task whose
+# create-or-do decision is made by `tasks.py resolve`, not by the agent.
+SKILLS = ["explore", "task", "framework-update"]
 
 # Where the hermes harness looks for project skills. Hermes reads both
 # `.hermes/skills/` and `.agents/skills/` under the nearest git root; the
@@ -62,9 +63,7 @@ HARNESS_ENTRY_PATHS = {
 # One short, self-contained, period-terminated line per command.
 HERMES_DESCRIPTIONS = {
     "explore": "Record the commands and rules this project runs on.",
-    "task-create": "Opt-in: plan a change, bug, investigation or test.",
-    "task-do": "Work a planned task, record findings, review.",
-    "task-list-all": "Show every task and its status as a table.",
+    "task": "Opt-in: create, work or list typed tasks.",
     "framework-update": "Move this scaffold to the current framework.",
 }
 
@@ -85,7 +84,6 @@ _SKILL_DESCRIPTIONS = {
 
 ARG_HINTS = {
     "explore": "[focus]",
-    "task-create": "<id> <title...>",
-    "task-do": "<id>",
+    "task": "[create|do|list] <id> [title...]",
     "framework-update": "[dry-run]",
 }

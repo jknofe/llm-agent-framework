@@ -6,14 +6,14 @@ the agent through skills and folder conventions:
 
   /explore [focus]       ask what the code cannot tell the agent; fill the
                          AGENTS.md project requirements and .ai/notes.md
-  /task-create <id> <title>
-                         opt-in: plan a task the user names in
-                         .ai/tasks/<id>/task.md: type (change, bug,
-                         investigation, test), goal, done-when, steps
-  /task-do <id>          opt-in: work the plan, record findings as they
-                         happen, review the result against done-when, finish
-  /task-list-all         every task with type, status and progress, as one
-                         table (.ai/agent/tools/tasks.py)
+  /task [create|do|list] <id> [title]
+                         opt-in: create plans a task in
+                         .ai/tasks/<id>/task.md (type change, bug,
+                         investigation, test; goal, done-when, steps), do
+                         works it and reviews the result, list prints every
+                         task as one table. With an id alone,
+                         tasks.py resolve decides create or do. An
+                         investigation is planned and worked in one go
   /framework-update      move the scaffold to the current framework version:
                          merge the framework files, retire what the framework
                          dropped, migrate hand-filled content into the new
@@ -56,7 +56,7 @@ Context layout:
   .ai/.current                 gitignored task cursor: cross-session resume
                                pointer (active task, files)
   .ai/agent/tools/probe.py     deterministic repo inventory, used by /explore
-  .ai/agent/tools/tasks.py     deterministic task table, /task-list-all
+  .ai/agent/tools/tasks.py     task table and create-or-do resolver, /task
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
                                loaded once `hermes skills trust` has run in the
