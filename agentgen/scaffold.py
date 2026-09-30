@@ -397,7 +397,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     # Deterministic repo inventory, used at the start of /explore.
     write(root / TOOLS_DIR / "probe.py", render_tool_probe(),
           force, created, skipped)
-    # Deterministic task table, the whole of /task-list-all.
+    # Task table and create-or-do resolver behind /task.
     write(root / TOOLS_DIR / "tasks.py", render_tool_tasks(),
           force, created, skipped)
 
@@ -513,11 +513,11 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               "default branch). Copilot loads them only from a\ntrusted folder: "
               "accept the trust prompt on first start, or COPILOT_ALLOW_ALL=true "
               "for -p runs.")
-        print("\nPrompt files (/explore, /task-create, /task-do, /task-list-all)"
+        print("\nPrompt files (/explore, /task, /framework-update)"
               " work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
         print("  Explore the project and fill the Project Context + .ai/notes.md.")
-        print('  Create task <id> "<title>": plan it in .ai/tasks/<id>/task.md.')
-        print("  Do task <id>: work the plan, record findings, review the result.")
-        print("  List all tasks: run .ai/agent/tools/tasks.py and show the table.")
+        print('  Run task create <id> "<title>": read '
+              '.github/prompts/task.prompt.md and follow it.')
+        print("  Run task do <id> / Run task list: the same prompt file.")
     return 0

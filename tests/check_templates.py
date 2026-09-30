@@ -164,7 +164,8 @@ def check_hermes():
     names = {rel.split("/")[0] for rel in emitted}
     for reserved in ("update", "import", "plan", "init", "review", "learn",
                      "memory", "skills", "config", "model", "help", "new",
-                     "clear", "resume", "goal", "diff", "status", "export"):
+                     "clear", "resume", "goal", "diff", "status", "export",
+                     "tasks", "agents"):
         if reserved in names:
             fail("hermes", f"/{reserved} collides with a hermes built-in")
 
@@ -243,6 +244,10 @@ def check_budget():
             if retired in text and not migrates:
                 fail("budget", f"{label}: still names {retired!r}, retired "
                                "in 8.0")
+        for retired in ("/task-create", "/task-do", "/task-list-all"):
+            if retired in text and not migrates:
+                fail("budget", f"{label}: still names {retired!r}, folded "
+                               "into /task in 9.0")
 
 
 def main():

@@ -8,12 +8,12 @@ Copilot, Hermes):
    private memory across sessions, plus a short requirements block in
    `AGENTS.md` holding the commands this project is checked with and the
    tools it requires or forbids.
-2. **An opt-in plan-and-do path for any task.** `/task-create` writes down
+2. **An opt-in plan-and-do path for any task.** `/task create` writes down
    what the agent intends before any work is done, so you can redirect it;
-   `/task-do` works the plan, records findings as they happen, and reviews
+   `/task do` works the plan, records findings as they happen, and reviews
    the result against the task's done-when criteria. A task is a code
    change, a bug, an investigation or a test, and each has its own
-   definition of done. You start both. By default the agent just does the
+   definition of done. You start it. By default the agent just does the
    task.
 
 Concept: CONCEPT.md.
@@ -121,17 +121,21 @@ file list retires nothing and prints what to remove by hand.
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
    path for every task.
 3. **Opt in to a plan** when you want a task written down and reviewed:
-   `/task-create BUG-7 Nav goal lost after reboot` asks you for its type
-   (`change`, `bug`, `investigation`, `test`) unless you named it, and writes `.ai/tasks/BUG-7/task.md`
-   (goal, done-when criteria for that type, steps; for bugs and
-   investigations the steps are hypotheses with a check each). In a fresh
-   session, `/task-do BUG-7` works it, appends findings with their evidence
+   `/task create BUG-7 Nav goal lost after reboot` asks you for its type
+   (`change`, `bug`, `investigation`, `test`) unless you named it, and
+   writes `.ai/tasks/BUG-7/task.md` (goal, done-when criteria for that
+   type, steps; for bugs and investigations the steps are hypotheses with a
+   check each). `/task BUG-7 ...` without `create` or `do` works too: a
+   script checks whether BUG-7 exists and picks create or do, and asks
+   first if a similar id is already there. An investigation is planned and
+   worked in one go, with no questions after the type. Anything else waits
+   for you: in a fresh session, `/task do BUG-7` works it, appends findings with their evidence
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
    Findings the repository cannot state go into `notes.md`. The agent never
    starts a task plan on its own.
-4. **See where things stand**: `/task-list-all` prints every live task as
+4. **See where things stand**: `/task list` prints every live task as
    one table (type, status, steps and criteria checked, last update),
    read-only, and flags stale, blocked and half-done tasks below it. A
    script produces all of it; to skip the model entirely, run
@@ -153,7 +157,7 @@ The framework is model-agnostic: it never tells the harness which model to
 run, you decide via the harness (for example `/model opusplan` in Claude
 Code to plan on Opus and implement on Sonnet). The self-contained task file
 and the fresh-context review gate are what keep cheap execution safe. If you
-do split models, keep the direction: `/task-create` on the strong one.
+do split models, keep the direction: `/task create` on the strong one.
 
 ## One profile
 
@@ -205,9 +209,10 @@ All three harnesses invoke them the same way, under the same names:
 | Command | What it does |
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
-| `/task-create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Nothing is done yet. |
-| `/task-do <id>` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one fresh-context review of the result (diff, outcome, or both) against the done-when criteria. Distills durable findings into `notes.md`. |
-| `/task-list-all` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked and half-done tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
+| `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. A change, bug or test stops there; an investigation runs straight on into `do`. |
+| `/task do [<id>]` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
+| `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
@@ -293,12 +298,13 @@ profile entry serves every project and `pre_tool_call` can stay
 runs. Its turn-end event, `pre_verify`, fires only on turns that edited
 files.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
-  reviewer used by `/task-do`'s review gate.
+  reviewer used by `/task do`'s review gate.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
-gate. The reviewer subagent is claude-only; Copilot and Hermes have no
-equivalent, there `/task-do` reviews inline.
+gate. The reviewer subagent is claude-only; on Copilot and Hermes
+`/task do` hands a large result to a fresh general-purpose sub-agent where
+the harness can spawn one, and only otherwise reviews it itself, saying why.
 
 Hooks only fire when the scaffolded repo is the session's working directory
 (on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
@@ -313,9 +319,9 @@ Code:
 
 - instructions file: `AGENTS.md` (read natively, no pointer file)
 - prompt files: `.github/prompts/*.prompt.md` instead of skills, invoked
-  the same way (`/explore`, `/task-create`, ...) in VS Code Copilot Chat;
+  the same way (`/explore`, `/task`, ...) in VS Code Copilot Chat;
   arguments are passed as input variables, e.g.
-  `/task-do: ticket=FEAT-42`
+  `/task: ticket=do FEAT-42`
 - hooks: `.github/hooks/llm-agent.json` plus the two scripts (see
   [Deterministic tools and hooks](#deterministic-tools-and-hooks))
 - no `.claude/settings.json` or reviewer subagent (no equivalent)
@@ -324,7 +330,7 @@ Prompt files require VS Code with the `chat.promptFiles` setting enabled.
 Copilot CLI does not load prompt files; it does read `AGENTS.md`, which
 therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
-`Run task-do FEAT-42: read .github/prompts/task-do.prompt.md and follow it.`
+`Run task do FEAT-42: read .github/prompts/task.prompt.md and follow it.`
 
 ## Hermes support
 

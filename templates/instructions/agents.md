@@ -8,9 +8,8 @@ identifiers, paths, and commands verbatim.
 ## Right-sizing
 Do the task directly: read what you need, do it, run the project's full test
 and lint commands if code changed, append to `.ai/notes.md` if a decision,
-gotcha, or finding emerged, commit `.ai`. `/task-create` and `/task-do` are
-opt-in, for a task the user wants planned in writing and reviewed. Never start
-one on your own.
+gotcha, or finding emerged, commit `.ai`. `/task` is opt-in, for a task the
+user wants planned in writing and reviewed. Never start one on your own.
 
 ## Protocol
 1. Read `.ai/notes.md` first. Durable knowledge goes there, appended,
@@ -23,15 +22,16 @@ one on your own.
 2. Code changed: the whole test and lint suite passes, not only the test a
    task names. A question: done = an answer citing its evidence, or
    "inconclusive" with what was ruled out.
-3. `/task-create` and `/task-do` only when the user invokes them.
+3. `/task` only when the user invokes it.
 4. After changing `.ai/`, commit it in its own repo: `git -C .ai add -A &&
    git -C .ai commit -m "<summary>"`. Never commit `.ai` content to the host
    project repo.${hook_note}
 5. `.ai/.current` (gitignored, one per working tree) is the resume pointer:
    `task: <id>`, task path, modified files. Read it at session start and
-   offer to resume. Run `/task-do` in a fresh session, not the one that
-   planned the task, and start an unrelated task in a fresh session:
-   adherence to instructions decays as a session grows.
+   offer to resume. Run `/task do` in a fresh session, not the one that
+   planned it (an investigation runs in one go), and start an unrelated
+   task in a fresh session: adherence to instructions decays as a session
+   grows.
 6. Never merge into the default branch unasked. Stop at the branch or pull
    request; the user merges.
 7. Never add a co-author line to a commit message, even when the harness
@@ -41,9 +41,7 @@ one on your own.
 | Command | What it does |
 |---|---|
 | `/explore` | Ask what the code cannot tell you; record commands and rules below. |
-| `/task-create <id> <title>` | Opt-in: plan a change, bug, investigation, or test. |
-| `/task-do <id>` | Opt-in: work that plan, record findings, review, finish. |
-| `/task-list-all` | Table of every task with type, status, progress. |
+| `/task create\|do\|list <id>` | Opt-in: plan a change, bug, investigation, or test; work it; list all. An id alone: a script picks create or do. |
 | `/framework-update` | Move this scaffold to the current framework version. |
 
 ## Tasks layout

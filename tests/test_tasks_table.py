@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Regression test for the task table behind /task-list-all (tasks.py).
+"""Regression test for tasks.py, the script behind /task.
 
-The script is the whole answer of /task-list-all (CONCEPT.md, Pillar 2), so
-everything it promises is checked here without an agent: live tasks only,
-archive counted, sort order, emoji columns and legend, the three flags, the
-resume pointer, a typo kept visible, no ANSI codes through a pipe, and the
-two empty states. Builds fixture task files in a temp dir; stdlib only.
+`tasks.py list` is the whole answer of `/task list` and `tasks.py resolve`
+decides whether `/task <id>` creates or works a task (CONCEPT.md, Pillar 2),
+so everything both promise is checked here without an agent. Table: live
+tasks only, archive counted, sort order, emoji columns and legend, the flags,
+the resume pointer, a typo kept visible, no ANSI codes through a pipe, the two
+empty states. Resolver: every verdict, case-insensitive ids, near-duplicate
+ids, the resume pointer. Builds fixture task files in a temp dir; stdlib
+only.
 
 Usage: python3 tests/test_tasks_table.py
 """
@@ -43,13 +46,20 @@ def task(root, rel, tid, title, typ, status, updated, extra="",
         f"{findings}## Outcome\n## Notes\n", encoding="utf-8")
 
 
-def run(root, env_extra=None):
+def run(root, *args, env_extra=None):
     env = dict(os.environ)
     env.pop("NO_COLOR", None)
     env.update(env_extra or {})
     return subprocess.run(
-        [sys.executable, str(root / ".ai/agent/tools/tasks.py")],
+        [sys.executable, str(root / ".ai/agent/tools/tasks.py"), *args],
         capture_output=True, text=True, env=env, check=True).stdout
+
+
+def verdict(root, *args):
+    """First line of `tasks.py resolve ...`, skipping a `#` comment."""
+    lines = [ln for ln in run(root, "resolve", *args).splitlines()
+             if not ln.startswith("#")]
+    return lines[0] if lines else ""
 
 
 def row(out, tid):
@@ -172,6 +182,33 @@ def main():
 
         # Retired 7.x check stays gone (8.4).
         check(".ai/changes" not in out, "7.x changes/ check came back")
+        check(run(root, "list") == out, "`list` differs from no argument")
+
+        # Resolver (9.0): one verdict per case, id as it is on disk.
+        check(verdict(root, "plan") == "DO plan status=planned type=test",
+              "resolve planned task")
+        check(verdict(root, "why").startswith("DO why status=blocked"),
+              "resolve blocked task")
+        check(verdict(root, "full") == "DONE full", "resolve done task")
+        check(verdict(root, "FRESH").startswith("DO fresh "),
+              "resolve is case-insensitive")
+        check(verdict(root, "old") == "ARCHIVED old", "resolve archived")
+        check(verdict(root, "brand-new") == "CREATE brand-new",
+              "resolve unknown id")
+        near = run(root, "resolve", "review-no")
+        check(near.startswith("CREATE review-no")
+              and "SIMILAR" not in near, "no false near-duplicate")
+        near = run(root, "resolve", "done-half")
+        check("SIMILAR half (done)" in near, f"near-duplicate: {near!r}")
+        check(verdict(root, "two words").startswith("INVALID"),
+              "resolve rejects a title as id")
+        check(verdict(root, "../etc").startswith("INVALID"),
+              "resolve rejects a path")
+        check(verdict(root) == "DO fresh status=in-progress type=change",
+              "resolve without id follows the resume pointer")
+        (root / ".ai/.current").unlink()
+        check(verdict(root) == "NONE", "resolve without id or pointer")
+        (root / ".ai/.current").write_text("task: fresh\n", encoding="utf-8")
 
         # Empty state 2: tasks directory with only archived tasks.
         for d in (root / ".ai/tasks").iterdir():
