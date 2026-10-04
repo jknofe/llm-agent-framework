@@ -17,8 +17,6 @@ def _entry_note(harness: str) -> str:
     """Where AGENTS.md tells the reader the commands live, per harness."""
     if harness == "claude":
         return "packaged as Agent Skills under `.claude/skills/`"
-    if harness == "hermes":
-        return f"packaged as Agent Skills under `{HERMES_SKILLS_DIR}/`"
     return "exposed as prompt files under `.github/prompts/`"
 
 def render_agents_md(project_name: str, description: str = "",
@@ -36,8 +34,6 @@ def render_agents_md(project_name: str, description: str = "",
     cli_note = ""
     if harness == "copilot":
         cli_note = render.load("instructions/fragments/copilot/cli-note.md")
-    elif harness == "hermes":
-        cli_note = render.load("instructions/fragments/hermes/cli-note.md")
     return render.fill("instructions/agents.md",
                        cli_note=cli_note,
                        entry_note=entry_note,
@@ -60,8 +56,7 @@ def render_update_body(harness: str, arg: str) -> str:
     expensive artifact, so an update migrates it and never re-derives it.
 
     Varies on harness, which decides which framework files exist to merge:
-    settings, hooks and skills on claude, project skills and hooks on hermes,
-    prompt files and hooks on copilot, and where the reference's own copy of
+    settings, hooks and skills on claude, prompt files and hooks on copilot, and where the reference's own copy of
     this skill sits.
 
     The migrate list is frozen into every project at the version it was
@@ -85,28 +80,6 @@ def render_update_body(harness: str, arg: str) -> str:
         verify_extra = (
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
             "     it names points at a file that exists.\n")
-    elif harness == "hermes":
-        reference_skill = f"{HERMES_SKILLS_DIR}/framework-update/SKILL.md"
-        backup_paths = (f"AGENTS.md, `{HERMES_SKILLS_DIR}/` and "
-                        f"`{HERMES_HOOKS_DIR}/`")
-        merge_cases = (
-            "     - AGENTS.md outside the GENERATED markers: project-specific\n"
-            "       rules a user appended below the framework text.\n"
-            f"     - skills under `{HERMES_SKILLS_DIR}/` or hooks under\n"
-            f"       `{HERMES_HOOKS_DIR}/` present here but not in the\n"
-            "       reference: the user's own, unless the generator's history\n"
-            "       says otherwise. Settle it with the orphan test below rather\n"
-            "       than assuming either way.\n")
-        verify_extra = (
-            f"   - Every `{HERMES_SKILLS_DIR}/<name>/SKILL.md` starts with `---` at\n"
-            "     byte zero and its `name` matches its directory. Reload them in a\n"
-            "     running session with `/reload-skills`.\n"
-            f"   - `{HERMES_HOOKS_DIR}/hermes-hooks.yaml` matches the entries in\n"
-            "     `~/.hermes/config.yaml`; if they differ, show the user the\n"
-            "     diff to merge, since the framework never writes outside the\n"
-            "     repository. The dispatcher copy at\n"
-            "     `~/.hermes/agent-hooks/llm-agent-hook.py` is the user's to\n"
-            "     refresh from `hermes_dispatch.py` when it changed.\n")
     else:
         reference_skill = ".github/prompts/framework-update.prompt.md"
         backup_paths = (f"AGENTS.md, `.github/prompts/` and "
@@ -266,40 +239,6 @@ def render_skills(specs) -> dict:
         )
     return out
 
-def render_hermes_skills(specs) -> dict:
-    """Hermes project skills: `.agents/skills/<name>/SKILL.md`.
-
-    Same open SKILL.md standard as the claude harness and the same bodies; the
-    frontmatter is what differs. Hermes wants a semantic version, a platform
-    list and its own metadata block, and it caps the description at 60
-    characters, so the long template descriptions give way to
-    HERMES_DESCRIPTIONS. `disable-model-invocation` is a claude key and is not
-    emitted here; hermes has no equivalent, so the skills stay model-loadable
-    on that harness. Names match the other harnesses exactly; where a name
-    would collide with a hermes built-in the framework renames it everywhere
-    rather than only here (CONCEPT.md section 35).
-
-    Hermes only discovers these once the repository is trusted, which the user
-    does with `hermes skills trust`; the AGENTS.md note says so.
-    """
-    out = {}
-    for name, _desc, body in specs:
-        out[f"{name}/SKILL.md"] = (
-            "---\n"
-            f"name: {name}\n"
-            f"description: {HERMES_DESCRIPTIONS[name]}\n"
-            f"version: {FRAMEWORK_VERSION}.0\n"
-            # Audited rather than copied: every skill drives the agent's own
-            # tools plus python3 and git, and all three platforms have those.
-            "platforms: [linux, macos, windows]\n"
-            "metadata:\n"
-            "  hermes:\n"
-            "    tags: [agent-framework, workflow]\n"
-            "---\n"
-            f"{body}"
-        )
-    return out
-
 def render_prompt_files(specs) -> dict:
     """Copilot prompt files: .github/prompts/<name>.prompt.md, VS Code only.
     `specs` is a command_specs list."""
@@ -342,12 +281,6 @@ def render_hook_ai_repo_clean() -> str:
 
 def render_hook_git_guard() -> str:
     return render.load("hooks/git_guard.py")
-
-def render_hook_hermes_dispatch() -> str:
-    return render.load("hooks/hermes_dispatch.py")
-
-def render_hermes_hooks_yaml() -> str:
-    return render.load("config/hermes-hooks.yaml")
 
 def render_copilot_hooks_json() -> str:
     """Copilot hooks (.github/hooks/llm-agent.json): the same two scripts as

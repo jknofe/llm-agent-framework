@@ -26,7 +26,7 @@ generated file (those live in target projects).
 - `README.md` user-facing docs
 - `install.sh` shell-function installer
 - `tests/check_templates.py` the property gate (orphans, slots, register,
-  hermes frontmatter, AGENTS.md budget)
+  same command names per harness, AGENTS.md budget)
 - `tests/task-commands.md` the agent-behavior runbook for the `/task-*`
   commands; `tests/test_tasks_table.py` the deterministic task-table test
 
@@ -41,7 +41,7 @@ Where things live:
 - Skill bodies: `templates/skills/<name>.md`, one per rostered command; the
   two that vary on harness beyond slot filling are composed in
   `content.COMPOSED_BODIES` from `templates/skills/bodies/`
-- Rendered per harness by `render_skills` (claude), `render_hermes_skills`,
+- Rendered per harness by `render_skills` (claude) and
   `render_prompt_files` (copilot)
 - Embedded tool scripts: `render_tool_probe` (`templates/tools/probe.py`),
   `render_tool_tasks` (`templates/tools/tasks.py`, the `/task list` table
@@ -49,8 +49,8 @@ Where things live:
 - Hooks: `templates/hooks/`; permissions: `render_settings_json` over
   `templates/config/permissions.txt`
 - Adding or removing a command: the roster in `const.SKILLS`, plus its
-  `HERMES_DESCRIPTIONS` and `ARG_HINTS` entries. `check_templates` fails if
-  a template is orphaned or a hermes description is missing or too long.
+  `ARG_HINTS` and `SKILL_EFFORT` entries. `check_templates` fails if a
+  template is orphaned.
 - Re-init preservation logic: `write_owned` (keeps hand-filled content, never
   reverts to stubs)
 - Framework updates: `render_update_body` (the `/framework-update` skill body,
@@ -62,9 +62,11 @@ Where things live:
   projects via the recorded file list. Do not add a Python update path;
   updating is a merge and belongs to the agent (CONCEPT.md section 24).
 
-One axis cuts through most functions: **harness** (`claude`, `copilot`,
-`hermes`). When you add behavior, handle all three or state why one is
-skipped. The profile axis is gone (5.22 removed the large profile).
+One axis cuts through most functions: **harness** (`const.HARNESSES`:
+`claude`, `copilot`). When you add behavior, handle both or state why one is
+skipped. Hermes was dropped in 10.0 (CONCEPT.md section 43); only the
+switch off it remains (`RETIRED_HARNESSES`). The profile axis is gone (5.22
+removed the large profile).
 
 **Language register (CONCEPT.md section 8):** normative docs (AGENTS.md,
 skill bodies) in plain imperative English; notes content telegraphic.
@@ -73,7 +75,7 @@ Identifiers, paths, commands verbatim. No em dashes.
 **What the framework claims (CONCEPT.md Part I):** four premises. Two pillars,
 durable knowledge the repository cannot state itself and an opt-in
 plan-and-do path for any task (change, bug, investigation, test); two
-properties, one command set on three harnesses and a bounded own footprint. A
+properties, one command set on two harnesses and a bounded own footprint. A
 change that adds an always-loaded summary of the codebase, or that makes a task
 plan or review the default, contradicts a measurement;
 argue it in Part I first, with the evidence that overturns the old one. A
@@ -98,7 +100,7 @@ Full procedure: **[TESTING.md](TESTING.md)**. The short version:
   `python3 tests/check_templates.py` and nothing else.
 - Layer 1 (any change under `templates/`, `agentgen/`, `tests/`, or to
   `init_agent.py`): `python3 tests/check_templates.py`, syntax check,
-  scaffold all three harness variants into a temp dir, grep the render,
+  scaffold both harness variants into a temp dir, grep the render,
   verify referenced tool paths run, check re-init preservation, sweep for
   test-target term leakage.
 - Layer 2 (behavior changes): run the affected cases of

@@ -43,8 +43,8 @@ python3 <framework-checkout>/init_agent.py --harness claude -y --name satty
   requires. The task file is the handoff, not the conversation.
 - **Answering Q&A:** pick the option the agent marks as recommended, unless
   the case says otherwise. Note every question it asked.
-- **Other harnesses:** the same cases apply to copilot and hermes, with one
-  difference: they have no `reviewer` sub-agent, so TC-D2 expects the
+- **Copilot:** the same cases apply, with one difference: it has no
+  `reviewer` sub-agent, so TC-D2 expects the
   documented fallback (a fresh general-purpose sub-agent, or a clean-context
   self-review that says the `reviewer` was unavailable).
 

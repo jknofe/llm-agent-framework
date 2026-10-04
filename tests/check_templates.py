@@ -12,8 +12,7 @@ unanswerable while the content lived inside string literals:
   python     do the rendered tools and hooks parse as Python?
   json       does the rendered settings.json parse as JSON?
   register   do the templates honor the no-em-dash rule (CONCEPT section 8)?
-  hermes     do the hermes skill descriptions fit that harness's 60-char cap,
-             and does every harness expose the same command names?
+  names      does every harness expose the same command names?
   reference  does the /framework-update body name the path where the
              reference scaffold really holds its own copy of that skill?
   budget     does AGENTS.md stay a requirements file (CONCEPT sections 36
@@ -39,9 +38,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from agentgen import content, render  # noqa: E402
-from agentgen.const import HERMES_DESCRIPTIONS, SKILLS  # noqa: E402
-
-HARNESSES = ("claude", "copilot", "hermes")
+from agentgen.const import HARNESSES, SKILLS  # noqa: E402
 failures = []
 
 
@@ -70,8 +67,7 @@ def rendered_artifacts():
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
     for fn in ("render_tool_probe", "render_tool_tasks",
                "render_hook_ai_repo_clean",
-               "render_hook_git_guard", "render_hook_hermes_dispatch",
-               "render_hermes_hooks_yaml", "render_notes_stub"):
+               "render_hook_git_guard", "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
     return out
 
@@ -140,46 +136,17 @@ def check_register():
             fail("register", f"em dash in template: {rel}")
 
 
-def check_hermes():
-    """Hermes frontmatter rules the generator must not break: one short
-    description per rostered command, at or below 60 characters, ending in a
-    period, and a lowercase-hyphenated skill name matching its directory."""
-    for name in sorted(SKILLS):
-        desc = HERMES_DESCRIPTIONS.get(name)
-        if desc is None:
-            fail("hermes", f"no hermes description for /{name}")
-            continue
-        if len(desc) > 60:
-            fail("hermes", f"/{name} description is {len(desc)} chars (max 60)")
-        if not desc.endswith("."):
-            fail("hermes", f"/{name} description does not end with a period")
-    emitted = content.render_hermes_skills(
-        content.command_specs("hermes", "$F", "$T"))
-    for rel, text in emitted.items():
-        cmd = rel.split("/")[0]
-        if not re.fullmatch(r"[a-z][a-z0-9-]*", cmd):
-            fail("hermes", f"skill name not lowercase-hyphenated: {cmd}")
-        if not text.startswith("---\n"):
-            fail("hermes", f"{cmd}: SKILL.md does not open with ---")
-        if f"\nname: {cmd}\n" not in text:
-            fail("hermes", f"{cmd}: name does not match its directory")
-    names = {rel.split("/")[0] for rel in emitted}
-    for reserved in ("update", "import", "plan", "init", "review", "learn",
-                     "memory", "skills", "config", "model", "help", "new",
-                     "clear", "resume", "goal", "diff", "status", "export",
-                     "tasks", "agents"):
-        if reserved in names:
-            fail("hermes", f"/{reserved} collides with a hermes built-in")
-
-    # The same names on every harness (CONCEPT.md section 35). A per-harness
-    # rename is what this used to do, and re-introducing one silently is the
-    # regression worth catching.
-    for harness in ("claude", "copilot"):
-        other = {name for name, _d, _b in
-                 content.command_specs(harness, "$F", "$T")}
-        if other != names:
-            fail("hermes", f"{harness} emits {sorted(other)}, "
-                           f"hermes emits {sorted(names)}")
+def check_names():
+    """The same command names on every harness (CONCEPT.md section 35). A
+    per-harness rename is what this used to do, and re-introducing one
+    silently is the regression worth catching."""
+    emitted = {h: {name for name, _d, _b in
+                   content.command_specs(h, "$F", "$T")} for h in HARNESSES}
+    first = emitted[HARNESSES[0]]
+    for h in HARNESSES[1:]:
+        if emitted[h] != first:
+            fail("names", f"{h} emits {sorted(emitted[h])}, "
+                          f"{HARNESSES[0]} emits {sorted(first)}")
 
 
 def check_reference():
@@ -254,7 +221,7 @@ def check_budget():
 
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_register, check_hermes, check_reference,
+                  check_json, check_register, check_names, check_reference,
                   check_budget):
         check()
     if failures:

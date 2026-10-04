@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-10-04, v9.1.** The framework rests on four premises, stated in
+**State: 2026-10-04, v10.0.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 42, unchanged and
+- **Part III** is the revision history, sections 1 to 43, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -36,8 +36,8 @@ done-when criteria. A task is a code change, a bug, an investigation or a
 test; what counts as done depends on which. The user starts it. By default
 the agent just does the task.
 
-**Property 3. One command set on three harnesses.** Three commands, identical
-names and bodies on Claude Code, Copilot and Hermes. No command's name depends
+**Property 3. One command set on two harnesses.** Three commands, identical
+names and bodies on Claude Code and Copilot. No command's name depends
 on where it is typed.
 
 **Property 4. Economical about its own text, not about the session.** The
@@ -169,19 +169,21 @@ intent that was never built and the framework claims nothing about it.
 
 Three commands: `/explore`, `/task` (`create`, `do`, `list`),
 `/framework-update`. Same names,
-same bodies, on all three harnesses; only the entry files differ (Agent Skills
-under `.claude/skills/`, project skills under `.agents/skills/`, prompt files
-under `.github/prompts/`). `AGENTS.md` is the one instructions file and every
+same bodies, on both harnesses; only the entry files differ (Agent Skills
+under `.claude/skills/`, prompt files under `.github/prompts/`). `AGENTS.md` is the one instructions file and every
 harness reads it natively; since 7.1 no `CLAUDE.md` pointer is written. The
 condition on claude: no `CLAUDE.md` or `CLAUDE.local.md` in the project
 directory or above it, and a session that can load `AGENTS.md` (not Bedrock,
 not telemetry-off). Where that fails the user adds a one-line `@AGENTS.md`
 import themselves. A name that collides with a harness built-in is
 renamed on **every** harness, which is why the update command is
-`/framework-update` everywhere.
+`/framework-update` everywhere (Hermes reserved `/update`; the name outlived
+Hermes support, section 43).
 
 Switching harness is tooling, not an update: `init-agent --harness <name>`
-writes the new set and retires the recorded old one into a backup.
+writes the new set and retires the recorded old one into a backup. It is
+also the only path a scaffold built for Hermes still has: init and the
+update refuse to render Hermes and print the switch instead.
 
 Updating a scaffold is a merge, so the agent does it, not the CLI.
 `/framework-update` reads the version stamp, renders a pristine reference,
@@ -193,16 +195,15 @@ project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 509 words on claude, 644 and 647
-  on copilot and hermes where the balance is that harness's own CLI note.
+- `AGENTS.md` before the generated section: 509 words on claude, 644 on
+  copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: 222 lines, the task table only.
-- A claude scaffold records 13 framework files, a copilot one 12, a hermes
-  one 13, counting the two `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -265,8 +266,8 @@ commit whose message carries a co-author line). A rule that can be checked
 deterministically gets a hook and stays in the protocol text as the backstop,
 because instructions are advisory and hooks are not.
 
-The two hook scripts are the same file on every harness. Claude Code, Copilot
-(CLI, VS Code, cloud agent) and Hermes all pipe a JSON payload with `cwd`,
+The two hook scripts are the same file on every harness. Claude Code and
+Copilot (CLI, VS Code, cloud agent) both pipe a JSON payload with `cwd`,
 `tool_name` and `tool_input.command` to stdin and accept `{"decision":
 "block", "reason": ...}` on stdout, so one script serves all of them; only
 the tool's name and the registration differ:
@@ -278,14 +279,6 @@ the tool's name and the registration differ:
   Loaded only from a trusted folder; an untrusted checkout runs with no
   hooks and no warning, which is why the AGENTS.md note names the
   condition.
-- hermes: `.agents/hooks/`, but Hermes registers shell hooks only in the
-  profile's `~/.hermes/config.yaml`, never per repository. The scaffold
-  therefore ships a dispatcher the user installs once under
-  `~/.hermes/agent-hooks/`; it runs `<session cwd>/.agents/hooks/<name>.py`
-  and is a no-op where no scaffold exists, so the one profile entry serves
-  every project and can stay fail-closed. `pre_verify` is the turn-end
-  event; it fires only on turns that edited files, and `extra.attempt` is
-  its loop guard.
 
 Every harness overrides a turn-end block after a few consecutive passes and
 runs hooks only when the repository is the session's working directory, so
@@ -363,7 +356,9 @@ section 36: **1** (Knowledge Base), **2** (Phases), **4** (Ticket lifecycle),
 selection), **21** (Explore-freshness guard). Retired by the v7.0 cut list in
 section 38: **15** (`/import-kb`), **22** (`/goal` as a documented mode, moved
 to the README), **25** (`/import-agent`), **26** (`/tidy-up`). Already marked
-removed in its own heading: **23** (Worker sub-agents).
+removed in its own heading: **23** (Worker sub-agents). Retired by section
+43: **30** (Hermes as a third harness), and the Hermes parts of 32, 34, 35
+and 39.
 
 Everything else still describes current behavior, and sections 36 to 39
 are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
@@ -371,6 +366,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.0 (2026-10-04, Hermes support dropped, section 43. Two harnesses,
+claude and copilot. init, `--emit-reference` and `--bootstrap-update`
+refuse `hermes` and print the switch to a supported harness, which retires
+the recorded `.agents/` files into the harness backup; the out-of-repo
+`~/.hermes` hook entries are the user's to remove. The `/framework-update`
+name stays.)
 
 v9.1 (2026-10-04, execution rules from the Opus 5.5 prompting guide plus
 the owner's point-by-point decisions. AGENTS.md: keep going without status
@@ -2914,3 +2916,48 @@ form and its docs teach agents to type it. The guard now unwraps a leading
 `tests/test_git_guard.py` pins both the bare and the proxied forms; it
 fails five cases on the old hook. Not covered, as before: a line inside
 `sh -c`, and `gh` after `env` assignments (`git` after `env` is caught).
+
+## 43. Hermes support dropped (2026-10-04, v10.0)
+
+Owner's decision: drop the Hermes harness completely. A change that removes
+an artifact needs no argument against a measurement (Part I); this one
+removes a whole harness, so Property 3 now reads two harnesses, not three.
+
+What went:
+
+- The render path: `render_hermes_skills`, the dispatcher and the
+  `hermes-hooks.yaml` snippet, the hermes AGENTS.md and skill fragments,
+  `HERMES_DESCRIPTIONS` and the hermes argument wording, the `extra.attempt`
+  loop guard in `ai_repo_clean.py`, and the `check_templates` hermes check
+  (60-character descriptions, built-in collisions). The check that every
+  harness emits the same command names stays, as `names`.
+- `hermes` as a harness choice for a new scaffold.
+
+What stayed, and why:
+
+- `/framework-update` keeps its name. Hermes reserving `/update` was the
+  reason for it, but renaming a command breaks every existing project,
+  and the rule that a collision renames on every harness still holds.
+- Recognizing a Hermes scaffold (`RETIRED_HARNESSES`, the `.agents/skills`
+  detection, the `hermes` entry in `HARNESS_ENTRY_PATHS`). Without it a
+  Hermes project would get a bare argparse error, and the switch could not
+  report the files it left behind. `--harness hermes` stays a valid
+  argparse choice for the same reason.
+
+The path off Hermes is the existing harness switch: `init-agent --harness
+claude` (or `copilot`) writes the new set and moves every recorded
+`.agents/` file into `.ai/agent/.harness-backup/hermes/`, keeping notes,
+tasks and the project context. init with `--harness hermes`,
+`--emit-reference --harness hermes` (what an old Hermes `/framework-update`
+runs) and `--bootstrap-update` on a Hermes tree all exit 1 with those
+instructions. A re-init naming no harness prints them and defaults to
+claude. The profile entries in `~/.hermes/config.yaml` and the installed
+dispatcher are outside the repository, which init never touches; the
+message names them, and leaving them is harmless because the dispatcher is
+a no-op without `.agents/hooks/`.
+
+Test: `test_harness_switch.py` now switches claude to copilot, and its new
+`off_retired` case builds a real Hermes scaffold with the 9.0 generator
+from git history (`216e269` on main), checks the refusal and the message,
+and checks that the switch retires all seven recorded `.agents/` files into
+the backup with the notes intact. It skips on a shallow clone.

@@ -238,7 +238,8 @@ def detect_scaffold(root: Path):
     size: 'large' when the KB manifest exists (a pre-5.22 scaffold, which this
           generator can no longer render), else 'small' when AGENTS.md does.
     harness: 'claude' when `.claude/` exists, else 'hermes' when
-             `.agents/skills/` exists, else 'copilot' when
+             `.agents/skills/` exists (retired in 10.0, reported so the
+             caller can say how to switch), else 'copilot' when
              `.github/prompts/` exists, else 'claude'.
     name: parsed from the AGENTS.md '# Agent: <name>' title, else the dir name.
     """
@@ -251,7 +252,7 @@ def detect_scaffold(root: Path):
         return None
     if (root / ".claude").exists():
         harness = "claude"
-    elif (root / HERMES_SKILLS_DIR).exists():
+    elif (root / RETIRED_HARNESSES["hermes"]).exists():
         harness = "hermes"
     elif (root / ".github" / "prompts").exists():
         harness = "copilot"
@@ -265,6 +266,28 @@ def detect_scaffold(root: Path):
                 name = line.split(":", 1)[1].strip() or name
                 break
     return size, harness, name
+
+# What a retired harness left outside the repository, which init never
+# touches: the user's to remove once no project uses that harness.
+RETIRED_CLEANUP = {
+    "hermes": ("\nOutside the repository, once no project uses hermes any "
+               "more: remove the llm-agent-hook\nentries from "
+               "~/.hermes/config.yaml and ~/.hermes/agent-hooks/"
+               "llm-agent-hook.py.\nThe dispatcher is a no-op in a "
+               "project without .agents/hooks/, so leaving it is harmless."),
+}
+
+def retired_harness_message(harness: str) -> str:
+    """What to tell a user whose scaffold is built for a harness this
+    generator no longer renders. A switch is the way off it: init retires the
+    recorded files into the harness backup and keeps notes, tasks and the
+    project context, as for any other switch."""
+    return (f"Framework 10.0 dropped the {harness} harness. Switch this "
+            "scaffold to a supported one:\n"
+            "  init-agent --harness claude     (or --harness copilot)\n"
+            f"The {harness} files it recorded move to "
+            f"{HARNESS_BACKUP_DIR}/{harness}/; notes,\ntasks and the project "
+            "context are kept." + RETIRED_CLEANUP.get(harness, ""))
 
 def bootstrap_update(root: Path) -> int:
     """Deliver the /framework-update skill into a scaffold that predates it,
@@ -296,6 +319,9 @@ def bootstrap_update(root: Path) -> int:
               "bootstrap; run init-agent to create one.", file=sys.stderr)
         return 1
     size, harness, name = detected
+    if harness in RETIRED_HARNESSES:
+        print(retired_harness_message(harness), file=sys.stderr)
+        return 1
 
     stamp = root / FRAMEWORK_JSON
     if stamp.exists():
@@ -328,9 +354,6 @@ def bootstrap_update(root: Path) -> int:
     if harness == "claude":
         rel = Path(".claude") / "skills" / cmd / "SKILL.md"
         body = content.render_skills(update_spec)[f"{cmd}/SKILL.md"]
-    elif harness == "hermes":
-        rel = Path(HERMES_SKILLS_DIR) / cmd / "SKILL.md"
-        body = content.render_hermes_skills(update_spec)[f"{cmd}/SKILL.md"]
     else:
         rel = Path(".github") / "prompts" / f"{cmd}.prompt.md"
         body = content.render_prompt_files(update_spec)[f"{cmd}.prompt.md"]
@@ -357,9 +380,6 @@ def bootstrap_update(root: Path) -> int:
     print("\nNothing else was touched. The agent does the merge; start it "
           "with:")
     if harness == "claude":
-        print(f"  /{cmd}")
-    elif harness == "hermes":
-        print("  hermes skills trust     (once, in this repository)")
         print(f"  /{cmd}")
     else:
         # Prompt files are a VS Code feature. Copilot CLI does not read
@@ -425,20 +445,6 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_git_guard(), force, created, skipped)
         write(root / ".claude" / "settings.json",
               render_settings_json(), force, created, skipped)
-    elif harness == "hermes":
-        for rel, body in render_hermes_skills(
-                command_specs(harness, HERMES_ARG_FOCUS,
-                              HERMES_ARG_TICKET)).items():
-            write(root / HERMES_SKILLS_DIR / rel, body,
-                  force, created, skipped)
-        write(root / HERMES_HOOKS_DIR / "ai_repo_clean.py",
-              render_hook_ai_repo_clean(), force, created, skipped)
-        write(root / HERMES_HOOKS_DIR / "git_guard.py",
-              render_hook_git_guard(), force, created, skipped)
-        write(root / HERMES_HOOKS_DIR / "hermes_dispatch.py",
-              render_hook_hermes_dispatch(), force, created, skipped)
-        write(root / HERMES_HOOKS_DIR / "hermes-hooks.yaml",
-              render_hermes_hooks_yaml(), force, created, skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}",
@@ -494,23 +500,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
             print(f"\nLeft in place under the old harness (not framework-"
                   "owned, so yours to keep or\nremove): "
                   + ", ".join(left_behind))
-    entry = {"claude": ".claude", "hermes": HERMES_SKILLS_DIR}.get(
-        harness, ".github/prompts")
+    entry = ".claude" if harness == "claude" else ".github/prompts"
     print(f"\n.ai: notes.md + tasks/  |  AGENTS.md + {entry}"
           f"  |  project: {name}  |  harness: {harness}")
-    if harness == "hermes":
-        print(f"\nSkills live in {HERMES_SKILLS_DIR}/. Hermes loads project "
-              "skills only from a trusted repo:")
-        print("  hermes skills trust     (once, in this repository)")
-        print("  /reload-skills          (in a running session)")
-        print("Renamed to clear a hermes built-in: /framework-update.")
-        print(f"\nHooks live in {HERMES_HOOKS_DIR}/. Hermes reads hooks from the "
-              "profile config, not the repo:")
-        print("  mkdir -p ~/.hermes/agent-hooks && install -m 755 "
-              f"{HERMES_HOOKS_DIR}/hermes_dispatch.py "
-              "~/.hermes/agent-hooks/llm-agent-hook.py")
-        print(f"  merge {HERMES_HOOKS_DIR}/hermes-hooks.yaml into "
-              "~/.hermes/config.yaml (once; serves every project)")
     if harness == "copilot":
         print(f"\nHooks in {COPILOT_HOOKS_DIR}/llm-agent.json run in Copilot CLI, "
               "VS Code and the cloud agent\n(the cloud agent reads them from the "

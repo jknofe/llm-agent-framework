@@ -11,7 +11,7 @@ Blocked, with the reason fed back to the agent:
 
 One script for every harness. They share the Claude Code wire shape, so
 only names differ: the tool is `Bash` (Claude Code), `bash` (Copilot CLI),
-`runTerminalCommand` (VS Code) or `terminal` (Hermes), and its arguments
+or `runTerminalCommand` (VS Code), and its arguments
 arrive as `tool_input` or `toolArgs`. Any tool call carrying a string
 `command` is inspected. A block is exit 2 with the reason on stderr, which
 every harness honours, plus the same decision as stdout JSON in the shapes

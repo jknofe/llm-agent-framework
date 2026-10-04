@@ -27,6 +27,9 @@ What it pins down, in order of how badly it would hurt to get wrong:
                      /explore has overwritten the seeded context, so a run
                      that cannot read them back renames the project to its
                      directory and blanks the one-liner.
+  off_retired        a scaffold built for hermes, dropped in 10.0, is told
+                     how to switch rather than re-rendered, and the switch
+                     retires every hermes file it recorded.
 """
 
 import json
@@ -38,6 +41,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 FW = REPO / "init_agent.py"
 BACKUP = ".ai/agent/.harness-backup"
+# The 9.0 merge on main: the last framework there that rendered hermes.
+HERMES_LAST = "216e269"
 
 failures = []
 
@@ -81,14 +86,14 @@ def test_switch(tmp: Path):
         "<!-- Populated by /explore. Do not edit by hand. -->",
         "MODULE MAP: hand filled."))
 
-    r = run(root, "--harness", "hermes", "-y")
+    r = run(root, "--harness", "copilot", "-y")
     if r.returncode != 0:
         fail("switch", f"exit {r.returncode}: {r.stderr}")
         return
 
-    if not (root / ".agents/skills/explore/SKILL.md").exists():
-        fail("switch", "new harness skills not written")
-    if not (root / ".agents/hooks/git_guard.py").exists():
+    if not (root / ".github/prompts/explore.prompt.md").exists():
+        fail("switch", "new harness prompt files not written")
+    if not (root / ".github/hooks/git_guard.py").exists():
         fail("switch", "new harness hooks not written")
 
     for gone in (".claude/skills/explore/SKILL.md", ".claude/settings.json"):
@@ -108,11 +113,11 @@ def test_switch(tmp: Path):
         fail("content_preserved", "notes.md was reverted")
     if "MODULE MAP" not in agents.read_text():
         fail("content_preserved", "project-context section was lost")
-    if "Running the workflows in Hermes" not in agents.read_text():
+    if ".github/prompts/" not in agents.read_text():
         fail("content_preserved", "AGENTS.md still describes the old harness")
 
     recorded = stamp(root)
-    if recorded["harness"] != "hermes":
+    if recorded["harness"] != "copilot":
         fail("stamp_follows", f"harness is {recorded['harness']}")
     stale = [f for f in recorded["framework_files"]
              if f.startswith(".claude") or f == "CLAUDE.md"]
@@ -125,11 +130,11 @@ def test_switch(tmp: Path):
 
 
 def test_not_a_switch(tmp: Path):
-    root = make_scaffold(tmp, "hermes", 2)
-    r = run(root, "--harness", "hermes", "-y")
+    root = make_scaffold(tmp, "copilot", 2)
+    r = run(root, "--harness", "copilot", "-y")
     if "retired" in r.stdout or "Switched harness" in r.stdout:
         fail("not_a_switch", "same harness triggered a switch")
-    if not (root / ".agents/skills/explore/SKILL.md").exists():
+    if not (root / ".github/prompts/explore.prompt.md").exists():
         fail("not_a_switch", "re-init lost the skills")
 
 
@@ -166,7 +171,7 @@ def test_identity_kept(tmp: Path):
     agents.write_text(body[:start + 3] + "\nMODULE MAP: src/.\n" + body[end:])
 
     # Re-run naming neither, then switch harness naming neither.
-    for args in (("--harness", "claude", "-y"), ("--harness", "hermes", "-y")):
+    for args in (("--harness", "claude", "-y"), ("--harness", "copilot", "-y")):
         r = subprocess.run([sys.executable, str(FW), *args],
                            cwd=str(root), capture_output=True, text=True)
         if r.returncode != 0:
@@ -184,6 +189,63 @@ def test_identity_kept(tmp: Path):
             fail("identity_kept", f"{args}: AGENTS.md title is {title!r}")
 
 
+def test_off_retired(tmp: Path) -> int:
+    """A scaffold built for hermes, which 10.0 dropped, by the last framework
+    on main that rendered it. Re-running init without --harness, or asking
+    for hermes, must say how to switch and write nothing; switching to claude
+    must retire every hermes file the stamp recorded and keep the notes.
+    Returns 1 when the fixture commit is unavailable (shallow clone)."""
+    gen = tmp / "gen-9.0"
+    archive = subprocess.run(["git", "-C", str(REPO), "archive", HERMES_LAST],
+                             capture_output=True)
+    if archive.returncode != 0:
+        return 1
+    gen.mkdir()
+    subprocess.run(["tar", "-x", "-C", str(gen)], input=archive.stdout,
+                   check=True)
+    root = tmp / "proj-hermes"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "."], cwd=str(root), check=True)
+    subprocess.run([sys.executable, str(gen / "init_agent.py"), "--name", "t",
+                    "--description", "d", "--harness", "hermes", "-y"],
+                   cwd=str(root), capture_output=True, check=True)
+    notes = root / ".ai/notes.md"
+    notes.write_text(notes.read_text() + "\nHAND EDIT\n")
+    old = stamp(root)["framework_files"]
+    hermes_files = [f for f in old if f.startswith(".agents/")]
+
+    # Asking for hermes is refused with the way off it, and writes nothing.
+    before = stamp(root)
+    r = run(root, "--harness", "hermes", "-y")
+    if r.returncode == 0:
+        fail("off_retired", "--harness hermes returned success")
+    if "dropped the hermes harness" not in r.stderr:
+        fail("off_retired", "--harness hermes gave no switch instructions")
+    if stamp(root) != before:
+        fail("off_retired", "--harness hermes changed the scaffold")
+
+    # A re-init naming no harness says so too, then takes the default
+    # (claude); -y confirms the switch.
+    r = run(root, "-y")
+    if r.returncode != 0:
+        fail("off_retired", f"switch failed: {r.stderr}")
+        return 0
+    if "dropped the hermes harness" not in r.stdout:
+        fail("off_retired", "re-init gave no switch instructions")
+    if stamp(root)["harness"] != "claude":
+        fail("off_retired", "stamp does not record claude after the switch")
+    live = [f for f in hermes_files if (root / f).exists()]
+    if live:
+        fail("off_retired", f"hermes files still live: {live}")
+    lost = [f for f in hermes_files
+            if not (root / BACKUP / "hermes" / f).exists()]
+    if lost:
+        fail("off_retired", f"hermes files not in the backup: {lost}")
+    if "HAND EDIT" not in notes.read_text():
+        fail("off_retired", "notes.md was reverted")
+    return 0
+
+
 def main():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
@@ -191,12 +253,14 @@ def main():
         test_not_a_switch(tmp)
         test_refusable(tmp)
         test_identity_kept(tmp)
+        skipped = test_off_retired(tmp)
     if failures:
         print(f"FAIL ({len(failures)})")
         for f in failures:
             print("  " + f)
         return 1
-    print("ok: 4 harness-switch tests passed")
+    note = " (off_retired skipped: shallow clone)" if skipped else ""
+    print(f"ok: {5 - skipped} harness-switch tests passed{note}")
     return 0
 
 
