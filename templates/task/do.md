@@ -3,13 +3,20 @@
 Read by `/task` after `tasks.py resolve` printed `DO <id>`, or by Create
 for an investigation. Work the task from its file.
 
-1. Load `.ai/tasks/<id>/task.md`; set `status: in-progress` and
-   `updated: <today>`. Read `.ai/notes.md`, and any leaf under
-   `.ai/notes/` the task touches. Write `.ai/.current` (gitignored, one
-   per working tree) starting with the line `task: <id>`, then the task
-   path and the date, so the work can be resumed; keep its
-   modified-files list current as you go. If the session is compacted,
-   that file and the Findings section are the backup of exactly what to
+Change the task's status and `.ai/.current` only through
+`python3 ${tools_dir}/tasks.py start` and `finish`, never with shell
+redirects or in-place edits; edit the task file's sections with your file
+editing tool. Commit `.ai` from the project root with the relative form,
+`git -C .ai add -A && git -C .ai commit -m "<message>"`, never an absolute
+path. Those are the forms the permission allowlist matches.
+
+1. Run `python3 ${tools_dir}/tasks.py start <id>`: it sets
+   `status: in-progress` and `updated:`, clears a `blocked:` line, and
+   writes `.ai/.current` (gitignored, one per working tree), the resume
+   pointer. Load `.ai/tasks/<id>/task.md`. Read `.ai/notes.md`, and any
+   leaf under `.ai/notes/` the task touches. Keep the `modified:` list in
+   `.ai/.current` current as you go. If the session is compacted, that
+   file and the Findings section are the backup of exactly what to
    preserve.
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
@@ -25,11 +32,12 @@ for an investigation. Work the task from its file.
    the new steps, and say so in Findings. Do not drift away from the
    written plan without changing it. If the new direction changes the
    Goal or a Done-when criterion, stop and ask the user: they approved
-   the old ones. Mark the task `status: blocked` when it cannot continue
-   without something outside your reach (hardware, access, another
-   team): add a frontmatter line `blocked: <reason in one line>`, which
-   `/task list` shows, and the detail in Findings. Remove the line
-   when the task resumes.
+   the old ones. When the task cannot continue without something outside
+   your reach (hardware, access, another team), put the detail in
+   Findings and run `python3 ${tools_dir}/tasks.py finish <id> blocked
+   <reason in one line>`: it sets `status: blocked` and the `blocked:`
+   line `/task list` shows, and keeps `.ai/.current`. `tasks.py start`
+   clears the block when the task resumes.
 5. Whenever the task changes code, whatever its type: iterate with the
    tests that cover the change, and have the project's full test and
    lint commands green before the review gate.
@@ -95,10 +103,11 @@ for an investigation. Work the task from its file.
      `.ai/notes/` is linked from `notes.md` and every pointer resolves.
 8. Tick each Done-when criterion the result meets, and each finished
    step. If a criterion stays open, the task is not done: meet it, get
-   the user's agreement to drop it (record that in Notes), or mark the
-   task `blocked`. Only with every criterion ticked and the `Review:`
-   line in Findings, set `status: done` and `updated: <today>`, delete
-   `.ai/.current`, and commit `.ai` (`task: done <id>`).
+   the user's agreement to drop it (record that in Notes), or finish the
+   task as `blocked`. Then run `python3 ${tools_dir}/tasks.py finish <id>
+   done`. It refuses while a criterion is unticked or the `Review:` line
+   is missing; otherwise it sets `status: done`, deletes `.ai/.current`,
+   and prints the commit to run (`task: done <id>`). Run it.
 
 Escalate instead of improvising: on missing context, do bounded
 discovery then ask the user; if a test fails twice on the same step, or

@@ -176,7 +176,9 @@ small one, and it is now the only shape the generator emits:
 - **Five skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
-  (command and documentation detection), and `tasks.py` (the task table).
+  (command and documentation detection), and `tasks.py` (the task table,
+  the create-or-do resolver, and `start`/`finish`, the status bookkeeping of
+  `/task do`).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the

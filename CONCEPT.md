@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-10-04, v10.0.** The framework rests on four premises, stated in
+**State: 2026-10-04, v10.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 43, unchanged and
+- **Part III** is the revision history, sections 1 to 44, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -147,6 +147,13 @@ agent only shows the output; it opens no file. Outside any agent,
 `python3 .ai/agent/tools/tasks.py` prints the same table with no model
 involved.
 
+The task's bookkeeping is the same script: `tasks.py start <id>` sets
+`in-progress` and writes the resume pointer `.ai/.current`, and `tasks.py
+finish <id> done|blocked [reason]` closes it. `finish done` refuses while a
+criterion is unticked or the review line is missing, so the gate the
+table flags afterwards is also enforced before. Neither commits; the agent
+commits `.ai` with the relative `git -C .ai` (section 44).
+
 Rules that came from failures, not from theory:
 
 - A code-changing task always includes a criterion that the project's full
@@ -202,7 +209,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 222 lines, the task table only.
+  `tasks.py`: 437 lines: the task table, the resolver, and `start`/`finish`.
 - A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
@@ -366,6 +373,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.1 (2026-10-04, task bookkeeping in the script, section 44. `tasks.py
+start` and `finish done|blocked` set status, the `blocked:` line and the
+resume pointer; `finish done` refuses an unmet gate. `do.md` routes every
+status change through them and every `.ai` commit through the relative
+`git -C .ai`. Runbook: TC-D5, TC-E1, TC-E2 and a bookkeeping criterion for
+every do case.)
 
 v10.0 (2026-10-04, Hermes support dropped, section 43. Two harnesses,
 claude and copilot. init, `--emit-reference` and `--bootstrap-update`
@@ -2961,3 +2975,54 @@ Test: `test_harness_switch.py` now switches claude to copilot, and its new
 from git history (`216e269` on main), checks the refusal and the message,
 and checks that the switch retires all seven recorded `.agents/` files into
 the backup with the notes intact. It skips on a shallow clone.
+
+## 44. Task bookkeeping moves into tasks.py (2026-10-04, v10.1)
+
+Source: the Layer 2 round 2 in section 42. Of the observations recorded
+there, the permission friction is the one the framework causes. `do.md`
+asked for five bookkeeping acts (set `in-progress`, write `.ai/.current`,
+set `blocked` with a reason, set `done`, delete `.ai/.current`) and said
+what, not how. Agents filled the gap with `printf > .ai/.current`, `rm
+.ai/.current`, `sed -i` and Python heredocs on the task file, and committed
+with `git -C <absolute path>/.ai`. The read-only allowlist matches none of
+these, and a project path cannot be put in a template. Interactive sessions
+prompt for each; headless runs deny them, which cost TC-D4 most of its 63
+turns and left TC-D2 with `.ai` uncommitted. RTK was ruled out: its hook
+auto-allows the relative `git -C .ai` chain and leaves the rest alone, and
+0.51.0 fixed the doubled `-U0` diff output seen in the same round.
+
+Change:
+
+- `tasks.py start <id>`: `status: in-progress`, `updated:`, a `blocked:`
+  line dropped, `.ai/.current` written, or kept when it already names the
+  task so a resumed task keeps its `modified:` list.
+- `tasks.py finish <id> blocked <reason>`: `status: blocked`, the one-line
+  `blocked:` reason, `.ai/.current` kept for the resume, which TC-D3
+  expects.
+- `tasks.py finish <id> done`: refuses, exit 1, while a done-when
+  criterion is unticked or Findings has no review line, the two things the
+  table flags on a `done` task; otherwise sets the status and deletes
+  `.ai/.current`. A rule `do.md` only stated is now checked.
+- Both edit only the frontmatter block and `.ai/.current` and print the
+  commit to run; neither commits, since committing `.ai` stays the agent's
+  act under protocol rule 1 and the turn-end hook.
+- `do.md` routes step 1, the block rule and step 8 through the script and
+  says, once, to change status only that way, to edit task sections with
+  the file-editing tool, and to commit with the relative `git -C .ai` from
+  the project root. `create.md` step 5 names the same commit form.
+
+Considered and dropped: a rule keeping machine facts ("no Rust toolchain on
+this Mac") out of `.ai/notes.md`. `.ai` is private to one checkout, so such
+a fact is real knowledge for the next session there; it looked like noise
+only because the runbook removes `cargo` on purpose. The one note that was
+wrong, a dated "checkout is behind main", came from the pinned detached
+checkout; a rule waits for a second sighting outside that setup.
+
+No AGENTS.md text changed (copilot stays at 644 of 650 words). Tests:
+`test_tasks_table.py` covers start, finish done (refused and accepted),
+finish blocked (reason required, written, flagged), resume clearing the
+block, and the frontmatter rewrite leaving the body byte for byte. Runbook:
+a bookkeeping criterion for every do case, and the three cases round 2 ran
+outside the runbook, TC-D5 (mechanical diff, inline review), TC-E1 (trivial
+direct change in one turn) and TC-E2 (an answered question stays settled).
+Layer 2 for this change: rerun TC-D2, TC-D3 and TC-D4.
