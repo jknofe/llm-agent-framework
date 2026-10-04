@@ -104,18 +104,30 @@ the close id is asked about instead of created. Fail: the agent searches
 with grep or ls to decide, or creates a second task for the same thing.
 
 
-**TC-C1: type is asked, never inferred** (8.3)
+**TC-C1: type is asked, never inferred** (8.3, 9.1)
 
 Prompt: `/task create config-errors-no-abort Config errors should not abort
 startup (issue #663): warn and fall back to defaults`
 
 Pass when all hold:
-- The first question asks for the type and offers `change`, `bug`,
-  `investigation`, `test`. No type is picked before the answer.
+- The first message asks for the type and offers `change`, `bug`,
+  `investigation`, `test`, together with the done-when questions in the
+  same message. No type is picked before the answer.
 - After answering `change`, the file has `type: change`.
 
-Fail: the file has a type the user never gave, or the type question comes
-after other questions.
+Fail: the file has a type the user never gave, the type question comes
+after other questions, or the type is asked alone and the done-when
+questions follow in a second round trip.
+
+**TC-C1b: Create and Do are read from their part files** (9.1)
+
+Any create or do run, on each harness. From the transcript:
+- After `tasks.py resolve`, the agent reads `.ai/agent/task/create.md`
+  (CREATE) or `.ai/agent/task/do.md` (DO) before acting.
+- `/task list` reads neither part file.
+
+Fail: the agent acts on a verdict without reading its part file, or
+improvises the steps.
 
 **TC-C2: type given, per-type plan** (8.0, 8.3)
 
@@ -138,7 +150,9 @@ Pass when, for each:
   criterion.
 - Steps for `bug` and `investigation` are hypotheses with a check each.
 - One `.ai` commit `task: create <id>` per task. No host repo change, no
-  `.ai/.current`, work not started.
+  `.ai/.current`, work not started. Exception: `investigation` continues into Do
+  after its `task: create` commit (9.0); judge its create half from that
+  commit, its Do half by TC-D1.
 
 ### /task do
 

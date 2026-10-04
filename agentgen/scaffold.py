@@ -400,6 +400,10 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     # Task table and create-or-do resolver behind /task.
     write(root / TOOLS_DIR / "tasks.py", render_tool_tasks(),
           force, created, skipped)
+    # /task's Create and Do bodies, read on demand by the /task skill.
+    for part in ("create", "do"):
+        write(root / TASK_DIR / f"{part}.md", render_task_part(part),
+              force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section: recover it
     # (also from legacy CLAUDE.md scaffolds) so re-init never reverts /explore.

@@ -1,12 +1,12 @@
 # Testing
 
 How to validate a change to this framework. Two layers: fast mechanical checks
-(run on every change) and live agent-behavior cases (run for behavior changes
+(run on every code change) and live agent-behavior cases (run for behavior changes
 worth shipping). The generator renders templates, so the tests are "does it render,
 does it run, does an agent behave" plus a property check over the templates
 themselves.
 
-## Layer 1: Mechanical checks (every change, <1 min)
+## Layer 1: Mechanical checks (code changes, <1 min; docs only: check_templates alone)
 
 0. **Template properties and bootstrap**
    ```bash
@@ -14,7 +14,11 @@ themselves.
    python3 tests/test_bootstrap_update.py
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
+   python3 tests/test_git_guard.py
    ```
+   The fourth runs the git guard hook on the commands it must block, bare
+   and behind a proxy (`rtk gh ...`, `rtk run "<line>"`), and on read-only
+   ones it must let through.
    The last one checks everything `tasks.py` promises, without an agent: the
    `/task list` table (live tasks only, sort order, emoji and legend, the
    flags, the resume pointer, no ANSI through a pipe) and the `/task`

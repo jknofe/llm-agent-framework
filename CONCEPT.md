@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-30, v9.0.** The framework rests on four premises, stated in
+**State: 2026-10-04, v9.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 41, unchanged and
+- **Part III** is the revision history, sections 1 to 42, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -193,7 +193,7 @@ project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 501 words on claude, 618 and 632
+- `AGENTS.md` before the generated section: 509 words on claude, 644 and 647
   on copilot and hermes where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
@@ -202,9 +202,10 @@ project's version and cannot know what the new version changed.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: 222 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
-  one 13; five of each are skills, two are hooks (hermes: plus dispatcher
-  and config snippet).
-- Everything else, skill bodies included, is read on demand.
+  one 13, counting the two `/task` parts under `.ai/agent/task/`.
+- Everything else, skill bodies included, is read on demand. `/task` loads
+  only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
+  verdict sends the agent there (section 42).
 
 ## What the framework does not claim
 
@@ -227,28 +228,38 @@ the spec chain costs two to three times.
 
 ## The protocol
 
-Every session, regardless of path:
+Every session, regardless of path. `/task` runs only when the user invokes
+it; the Right-sizing paragraph of AGENTS.md says so, so the protocol does not
+repeat it.
+
+Execution (section 42): keep going while a step needs no input, with status
+notes in the same message as the next action; stop only when blocked on the
+user, when a workflow says so, or before anything destructive. An answered
+question stays settled unless the user reopens it. Every run ends with the
+headings Blocked on me, Changed, Found. Most direct tasks add nothing to
+`.ai/notes.md`.
+
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
 2. When code changed, tests and lint must pass, the whole suite, not only the
-   test a task names. Done = checks green. When the task is a question,
+   test a task names. Done = checks green. While iterating, the covering
+   tests suffice; docs or comments only need no suite run. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
-3. `/task` only when the user invokes it.
-4. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
+3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
-5. `.ai/.current` is the resume pointer; read it at session start.
+4. `.ai/.current` is the resume pointer; read it at session start.
    `/task do` (except an investigation, run in one go by `/task create`)
    and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
    that makes a fresh session cheap.
-6. Never merge into the default branch unasked. Work on a branch and stop at
+5. Never merge into the default branch unasked. Work on a branch and stop at
    the pull request; merging is the user's action.
-7. Never add a co-author trailer to a commit message. Harnesses inject one by
+6. Never add a co-author trailer to a commit message. Harnesses inject one by
    default; the scaffold overrides it.
 
 Enforced mechanically where possible: a turn-end hook blocks ending a turn
-while `.ai` is dirty, and a pre-tool hook blocks rules 6 and 7 at the shell
+while `.ai` is dirty, and a pre-tool hook blocks rules 5 and 6 at the shell
 (`git merge` on the default branch, `git push` targeting it, `gh pr merge`, a
 commit whose message carries a co-author line). A rule that can be checked
 deterministically gets a hook and stays in the protocol text as the backstop,
@@ -361,6 +372,15 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v9.1 (2026-10-04, execution rules from the Opus 5.5 prompting guide plus
+the owner's point-by-point decisions. AGENTS.md: keep going without status
+stops, answered questions stay settled, a three-heading run summary, most
+direct tasks add no note, covering tests while iterating and the full suite
+once before done, no suite for docs or comments; protocol rule 3 folded into
+Right-sizing, rules renumber. `/task`: type asked with the done-when Q&A in
+one message, mechanical diffs reviewed inline, only load-bearing citations
+all opened, Create and Do split into `.ai/agent/task/` and read on demand.
+Claude: `effort` frontmatter on skills and `reviewer`. §42.)
 v9.0 (2026-09-30, one `/task` command replaces `/task-create`, `/task-do`
 and `/task-list-all`, with `create`, `do` and `list`. A script decides
 whether a task exists (`tasks.py resolve`), so `/task <id>` alone goes to
@@ -2787,3 +2807,110 @@ fixed in the skill before the acceptance runs that count:
 
 Remaining, not a rule failure: Copilot once named a done commit after the
 change rather than `task: done <id>`.
+
+## 42. Execution rules for models that think on their own (2026-10-04, v9.1)
+
+Source: Anthropic, "Getting the most out of Opus 5.5"
+(https://claude.dev/blog/getting-the-most-out-of-opus-5-5/). Owner's report
+before the change: easy tasks feel slow, the agent overthinks or inflates
+them.
+
+The guide's points, checked against 9.0:
+
+- No "think step by step" or "think carefully" lines: none in any template.
+  Nothing to do; effort is a harness setting, not prompt text.
+- Name the finish line: `/task` has Done-when; the direct path has rule 2.
+- A checklist that survives compaction: `.ai/.current` and Findings.
+- Check sub-agent evidence: the review gate and the `reviewer` brief.
+- Keep going, status in the same message as the next action, stop only when
+  blocked or before destructive actions: missing. Added as `## Execution`.
+- A fixed run summary (Blocked on me, Changed, Found): missing. Added.
+- "Treat an answered question as done": missing for the direct path, where a
+  long session is most likely. Added.
+
+One addition of our own: the direct path said to append to `.ai/notes.md`
+"if a decision, gotcha, or finding emerged", which together with the turn-end
+hook nudges the agent to find something to write on every task. It now says
+most direct tasks add nothing.
+
+Decided with the owner, point by point, after the first cut:
+
+- Type question (v8.3): still asked, never inferred, but in one message
+  with the done-when Q&A instead of a separate round trip first. TC-C1
+  updated.
+- Review gate (v8.6): size alone sent a 40-line rename to a sub-agent.
+  Inline now also covers a mechanical diff (rename, move, reformat,
+  regenerated file, no logic changed); the Review line names why, so the
+  choice stays checkable.
+- Suite runs (rule 2): iterate on the tests covering the change, the whole
+  test and lint suite once before done. Docs or comments only: no suite
+  run. The guarantee at done is unchanged; only the runs in between drop.
+- Citations (v8.10): every citation the Outcome rests on is opened, as
+  before; citations in Findings the Outcome does not use (ruled-out
+  hypotheses, side notes) are spot-checked, up to three. The v8.10 failure
+  was in the Outcome and stays covered.
+- Skill size: `/task` was 13 KB and loaded whole for every call, `list`
+  included. Split: the skill keeps Dispatch and List; Create and Do move to
+  `.ai/agent/task/create.md` and `do.md`, one harness-neutral copy beside
+  the tools, read only after `tasks.py resolve` names the branch. Risk, from
+  v9.0: Copilot drifted in a long combined file; whether every harness
+  reads the part file before acting needs a Layer 2 run on all three.
+- Effort (Claude only, verified against code.claude.com docs, skills and
+  sub-agents pages, 2026-10-04): `effort` frontmatter on each skill,
+  `medium` for `/task` and `/explore`, `high` for `/framework-update`, and
+  `high` on the `reviewer`. No project `effortLevel`: the direct path keeps
+  each user's own default. Copilot and Hermes document no equivalent.
+- Working on the framework (repo `CLAUDE.md`, `TESTING.md`): Layer 1 only
+  for changes under `templates/`, `agentgen/`, `tests/` or to
+  `init_agent.py`; docs-only edits run `check_templates` alone. Agents read
+  Part I and append to Part III without reading it.
+
+Not measured yet. Layer 2 check: a trivial change on a live repo should end
+in one turn, with no status-only message, no note, and the three headings.
+
+
+Layer 2, 2026-10-04: satty at `f578432`, harness claude, Framework 9.1
+(`c7a43a7`), model claude-opus-5-5 at the user's default effort `high`
+(`/task` carries `medium`), cargo not on PATH. Driven headless (`claude
+-p`, Q&A answered with `--resume`), so questions came as text, not the
+question UI. satty was an untrusted workspace, so the scaffold allowlist
+was passed with `--allowedTools`. The runner has RTK installed, whose
+global hook rewrites commands to `rtk ...`. Every permission denial in the
+run held a command off the allowlist (`gh`, `sed`, `cargo`, `mkdir`, a
+heredoc), so RTK caused none of them: its hook itself answers `allow` for a
+chain made only of allowlisted commands.
+
+- TC-C1 PASS. The first message asked the type (all four offered) as
+  question 1, with the done-when questions in the same message; no file
+  was written before the answer. The agent said it would guess `change`
+  but left the choice open. After `change`: `type: change`, one commit
+  `task: create config-errors-no-abort`, no `.ai/.current`, no host change.
+- TC-C1b PASS (Claude only). All four create sessions ran `tasks.py
+  resolve` and then read `.ai/agent/task/create.md` before acting. The
+  investigation read `do.md` only after its `task: create` commit. `/task
+  list` ran `tasks.py` and read neither part file. Copilot and Hermes are
+  not yet run.
+- TC-C2 PASS. bug, investigation and test: no type question; full
+  frontmatter and six sections; done-when fits the type (bug: root cause,
+  repro failing before and passing after, full suite; investigation:
+  answer with evidence or inconclusive; test: one result per scenario,
+  full suite). Bug and investigation steps are hypotheses with a check
+  each. Bug and test asked their Q&A and stopped at `planned`. The
+  investigation committed its plan alone (`status: planned`) and then
+  continued into Do in the same session, as `create.md` says since 9.0;
+  it ended `done` with 2/2 criteria and no host change. The runbook's "work
+  not started" for TC-C2 predated that rule and now exempts investigation.
+- Observed: every final message ended with Blocked on me, Changed and
+  Found. Two runs still wrote to `.ai/notes.md`, one a rendering gotcha
+  (investigation, fits) and one "this Mac has no Rust toolchain" from a
+  test create, a machine fact rather than project knowledge.
+
+RTK and the git guard (2026-10-04, same version). The guard matched `gh`
+only as the first word and saw a `rtk run "<line>"` string as one word, so
+`rtk gh pr merge`, `rtk proxy gh pr merge` and `rtk run "git merge main"`
+passed while on the default branch. RTK's hook rewrites commands to that
+form and its docs teach agents to type it. The guard now unwraps a leading
+`rtk` (with `proxy`, or `run` and its string) before judging each segment.
+`tests/test_git_guard.py` pins both the bare and the proxied forms; it
+fails five cases on the old hook. Not covered, as before: a line inside
+`sh -c`, and `gh` after `env` assignments (`git` after `env` is caught).
