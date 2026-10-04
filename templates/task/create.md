@@ -78,7 +78,8 @@ task; do not work it here.
    confirm or rule it out (`- [ ] H1: <hypothesis> - check: <how>`),
    cheapest check first; the plan is expected to change as they
    resolve. For a `test`, one step per scenario.
-5. Commit `.ai` (`task: create <id>`).
+5. Commit `.ai` from the project root, relative path:
+   `git -C .ai add -A && git -C .ai commit -m "task: create <id>"`.
 
 Then, by type:
 - `investigation`: do not stop. The planning has done most of the

@@ -7,7 +7,9 @@ so everything both promise is checked here without an agent. Table: live
 tasks only, archive counted, sort order, emoji columns and legend, the flags,
 the resume pointer, a typo kept visible, no ANSI codes through a pipe, the two
 empty states. Resolver: every verdict, case-insensitive ids, near-duplicate
-ids, the resume pointer. Builds fixture task files in a temp dir; stdlib
+ids, the resume pointer. Bookkeeping: start and finish set status, the
+blocked reason and the resume pointer, and finish done refuses an unmet
+gate. Builds fixture task files in a temp dir; stdlib
 only.
 
 Usage: python3 tests/test_tasks_table.py
@@ -53,6 +55,16 @@ def run(root, *args, env_extra=None):
     return subprocess.run(
         [sys.executable, str(root / ".ai/agent/tools/tasks.py"), *args],
         capture_output=True, text=True, env=env, check=True).stdout
+
+
+def attempt(root, *args):
+    """Run tasks.py without failing on a non-zero exit."""
+    return subprocess.run(
+        [sys.executable, str(root / ".ai/agent/tools/tasks.py"), *args],
+        capture_output=True, text=True)
+
+
+FLAG_CHAR = "\u2757"
 
 
 def verdict(root, *args):
@@ -208,6 +220,64 @@ def main():
               "resolve without id follows the resume pointer")
         (root / ".ai/.current").unlink()
         check(verdict(root) == "NONE", "resolve without id or pointer")
+        (root / ".ai/.current").write_text("task: fresh\n", encoding="utf-8")
+
+        # start / finish: the bookkeeping do.md routes through the script.
+        task(root, "keep", "keep", "Keep", "change", "planned", OLD,
+             done_when="- [ ] c1", steps="- [ ] s")
+        tf = root / ".ai/tasks/keep/task.md"
+        body = tf.read_text(encoding="utf-8").split("\n---\n", 1)[1]
+        out = run(root, "start", "KEEP")
+        fm = tf.read_text(encoding="utf-8")
+        check(out.startswith("STARTED keep"), f"start verdict: {out!r}")
+        check("status: in-progress" in fm and f"updated: {NEW}" in fm,
+              "start sets status and updated")
+        check(fm.split("\n---\n", 1)[1] == body,
+              "start leaves the body byte for byte")
+        cur = (root / ".ai/.current").read_text(encoding="utf-8")
+        check(cur.startswith("task: keep\n") and "replaced the pointer to "
+              "fresh" in out, "start replaces another task's pointer")
+        (root / ".ai/.current").write_text(cur + "modified: a.py\n",
+                                           encoding="utf-8")
+        run(root, "start", "keep")
+        check("a.py" in (root / ".ai/.current").read_text(encoding="utf-8"),
+              "start keeps a pointer that already names the task")
+
+        r = attempt(root, "finish", "keep", "done")
+        check(r.returncode == 1 and "1 of 1 done-when criteria unticked" in
+              r.stdout and "no `Review:` line" in r.stdout,
+              f"finish done refuses an unmet gate: {r.stdout!r}")
+        check("status: in-progress" in tf.read_text(encoding="utf-8"),
+              "a refused finish changes nothing")
+        check(attempt(root, "finish", "keep", "blocked").returncode == 1,
+              "finish blocked needs a reason")
+        run(root, "finish", "keep", "blocked", "no", "toolchain:", "here")
+        fm = tf.read_text(encoding="utf-8")
+        check("status: blocked\nblocked: no toolchain: here\n" in fm,
+              "finish blocked writes status and reason")
+        check((root / ".ai/.current").exists(), "blocked keeps the pointer")
+        check(f"{FLAG_CHAR} keep: blocked: no toolchain: here." in run(root),
+              "the table flags the blocked reason")
+        run(root, "start", "keep")
+        check("blocked:" not in tf.read_text(encoding="utf-8"),
+              "start clears the block")
+        tf.write_text(tf.read_text(encoding="utf-8")
+                      .replace("- [ ] c1", "- [x] c1")
+                      .replace("## Findings\n",
+                               "## Findings\n- x Review: inline: ok\n"),
+                      encoding="utf-8")
+        out = run(root, "finish", "keep", "done")
+        check(out.startswith("DONE keep") and "git -C .ai" in out,
+              f"finish done: {out!r}")
+        check("status: done" in tf.read_text(encoding="utf-8")
+              and not (root / ".ai/.current").exists(),
+              "finish done sets status and deletes the pointer")
+        check(attempt(root, "start", "keep").returncode == 1,
+              "start refuses a done task")
+        check(attempt(root, "finish", "nope", "done").returncode == 1,
+              "finish refuses an unknown task")
+        check(attempt(root, "finish", "keep", "maybe").returncode == 2,
+              "finish rejects an unknown state")
         (root / ".ai/.current").write_text("task: fresh\n", encoding="utf-8")
 
         # Empty state 2: tasks directory with only archived tasks.

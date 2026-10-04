@@ -158,6 +158,12 @@ Pass when, for each:
 
 Run each in a fresh session (`/clear`, then `/task do <id>`).
 
+In every do case (10.1): the transcript shows `tasks.py start <id>` at the
+start and `tasks.py finish <id> done|blocked` at the end, no shell write to
+`.ai/.current` or to a task's frontmatter (`printf >`, `sed -i`, `rm`, a
+heredoc), and every `.ai` commit as `git -C .ai`, never an absolute path. A
+headless run with the scaffold allowlist ends with `.ai` committed.
+
 **TC-D1: investigation runs in one go** (8.5, 8.6, 9.0)
 
 Prompt: `/task input-scale-window Why does --input-scale have the inverse
@@ -228,6 +234,44 @@ review with its size, and the task ends `done` with every criterion ticked.
 If the diff comes out over 30 lines, the case turns into TC-D2 and must pass
 as that.
 
+**TC-D5: mechanical diff over ~30 lines, inline review** (9.1)
+
+`/task create readme-bullet-style Reformat README.md: change every list
+bullet from "- " to "* " outside the generated --help and config.toml
+blocks, nothing else. Pure reformat, no wording change. Docs only, no Rust
+toolchain here; I waive all cargo-based criteria. Type: change`
+
+Pass when the diff is over 30 lines and changes only bullet markers, the
+Findings line reads `Review: inline (mechanical: ...)` naming why, no
+sub-agent runs, no suite runs, and the task ends `done` with every
+criterion ticked. Fail: a fresh-context review of a purely mechanical
+diff, or an inline review whose line does not say it is mechanical.
+
+### Direct path (9.1)
+
+No `/task`: the plain prompt, as a user would type it.
+
+**TC-E1: a trivial change ends in one turn**
+
+Prompt: `README.md line 139: the pixelate tag says NEXTRELASE, a typo for
+NEXTRELEASE, so release.nu never replaces it. Fix it.`
+
+Pass when all hold:
+- One user turn: no message that only reports status and waits.
+- The diff is the one-word fix; no suite runs (docs only).
+- `.ai` is untouched: no note, no commit (`git -C .ai log` unchanged).
+- The final message ends with the headings Blocked on me, Changed, Found.
+
+**TC-E2: an answered question stays settled**
+
+Turn 1: `What does the --input-scale option do? Answer in two or three
+sentences, no changes.` Turn 2, same session: `Add one sentence about it
+to README.md where --input-scale is documented.`
+
+Pass when turn 2 reopens none of the source files turn 1 cited and the
+sentence states turn 1's answer; reading the README to place it is
+expected. Fail: turn 2 re-investigates the option in the source.
+
 ### /task list
 
 **TC-L1: the table is the reply** (8.4, 8.7, 8.9)
@@ -290,6 +334,9 @@ TC-D1 ...
 TC-D2 ...
 TC-D3 ...
 TC-D4 ...
+TC-D5 ...
+TC-E1 ...
+TC-E2 ...
 TC-L1 ...
 ```
 

@@ -28,7 +28,20 @@ no agent has to search for one: it prints one verdict line, then a sentence.
 Ids match case-insensitively; the verdict carries the id as it is on disk.
 Without an id, the task `.ai/.current` points at is resolved.
 
-Read-only; stdlib only.
+`tasks.py start <id>` and `tasks.py finish <id> done|blocked [<reason>]` are
+the task's bookkeeping, so no agent improvises it with shell redirects or
+in-place edits the permission allowlist cannot match (CONCEPT.md section
+44). start sets `status: in-progress` and `updated:`, drops a `blocked:`
+line, and writes `.ai/.current` (kept as is when it already names this
+task, so a resumed task keeps its modified-files list). finish blocked sets
+the status and a one-line `blocked:` reason and keeps `.ai/.current`.
+finish done refuses while a done-when criterion is unticked or Findings has
+no review line, the two conditions `/task list` would flag; otherwise it
+sets the status, drops a `blocked:` line, and deletes `.ai/.current` when it
+names this task. Neither commits: the agent commits `.ai` itself.
+
+list and resolve are read-only; start and finish write only the task's
+frontmatter and `.ai/.current`. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -247,13 +260,126 @@ def resolve(arg):
     return 0
 
 
+def set_fields(path, updates, drop=()):
+    """Rewrite frontmatter keys in place: replace each key in `updates`
+    (adding a missing one after `status:`), remove each key in `drop`.
+    Everything outside the leading `---` block is left byte for byte."""
+    text = path.read_text(encoding="utf-8")
+    end = text.find("\n---", 3)
+    if not text.startswith("---\n") or end == -1:
+        raise ValueError(f"{path} has no frontmatter block")
+    lines, seen = [], set()
+    for line in text[4:end].splitlines():
+        key = line.partition(":")[0].strip()
+        if key in drop:
+            continue
+        if key in updates:
+            line = f"{key}: {updates[key]}"
+            seen.add(key)
+        lines.append(line)
+    for key, value in updates.items():
+        if key not in seen:
+            at = next((i + 1 for i, ln in enumerate(lines)
+                       if ln.startswith("status:")), len(lines))
+            lines.insert(at, f"{key}: {value}")
+    path.write_text("---\n" + "\n".join(lines) + text[end:],
+                    encoding="utf-8")
+
+
+def live_task(arg):
+    """(id as on disk, task.md path) of a live task, or None."""
+    live = task_dirs()
+    match = next((i for i in live if i.lower() == arg.lower()), None)
+    return (match, live[match]) if match else None
+
+
+USAGE = ("Usage: tasks.py [list] | tasks.py resolve [<id>] | "
+         "tasks.py start <id> | tasks.py finish <id> done|blocked [<reason>]")
+COMMIT = "Commit `.ai` now: git -C .ai add -A && git -C .ai commit -m"
+
+
+def start(arg):
+    """Mark a task in progress and point `.ai/.current` at it."""
+    found = live_task(arg) if arg else None
+    if not found:
+        print(f"No live task {arg!r}. Run `tasks.py resolve {arg}` first.")
+        return 1
+    tid, path = found
+    if load(path)["status"] == "done":
+        print(f"Task {tid} is done; there is nothing to start.")
+        return 1
+    today = datetime.date.today().isoformat()
+    set_fields(path, {"status": "in-progress", "updated": today},
+               drop=("blocked",))
+    cur, note = AI / ".current", "kept (it already names this task)"
+    if current_id() != tid:
+        replaced = current_id()
+        cur.write_text(f"task: {tid}\npath: .ai/tasks/{tid}/task.md\n"
+                       f"started: {today}\nmodified:\n", encoding="utf-8")
+        note = (f"written (replaced the pointer to {replaced})" if replaced
+                else "written")
+    print(f"STARTED {tid}: status in-progress, updated {today}; "
+          f"`.ai/.current` {note}.")
+    print("Keep its `modified:` list current as you change files.")
+    return 0
+
+
+def finish(arg, state, reason):
+    """Close a task as done (only when the gate is met) or blocked."""
+    found = live_task(arg) if arg else None
+    if not found or state not in ("done", "blocked"):
+        print(f"No live task {arg!r}." if not found else USAGE)
+        return 1 if not found else 2
+    tid, path = found
+    today = datetime.date.today().isoformat()
+    if state == "blocked":
+        reason = " ".join(reason.split())
+        if not reason:
+            print("A blocked task needs a reason: "
+                  f"tasks.py finish {tid} blocked <reason in one line>")
+            return 1
+        set_fields(path, {"status": "blocked", "blocked": reason,
+                          "updated": today})
+        print(f"BLOCKED {tid}: {reason}. `.ai/.current` kept for the "
+              "resume; `tasks.py start` clears the block.")
+        print(f'{COMMIT} "task: blocked {tid}"')
+        return 0
+    r = load(path)
+    missing = []
+    got, total = r["done_when"]
+    if got < total:
+        missing.append(f"{total - got} of {total} done-when criteria "
+                       "unticked")
+    if not r["reviewed"]:
+        missing.append("no `Review:` line in Findings")
+    if missing:
+        print(f"NOT DONE {tid}: " + "; ".join(missing) + ". Meet them, get "
+              "the user's agreement to drop a criterion, or finish it as "
+              "blocked.")
+        return 1
+    set_fields(path, {"status": "done", "updated": today}, drop=("blocked",))
+    cleared = current_id() == tid
+    if cleared:
+        (AI / ".current").unlink()
+    print(f"DONE {tid}: status done, updated {today}"
+          + ("; `.ai/.current` deleted." if cleared else "."))
+    print(f'{COMMIT} "task: done {tid}"')
+    return 0
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "resolve":
         return resolve(args[1] if len(args) > 1 else "")
+    if args and args[0] == "start":
+        return start(args[1] if len(args) > 1 else "")
+    if args and args[0] == "finish":
+        if len(args) < 3:
+            print(USAGE)
+            return 2
+        return finish(args[1], args[2], " ".join(args[3:]))
     if args and args[0] != "list":
-        print(f"Unknown argument {args[0]!r}. Usage: tasks.py [list] | "
-              "tasks.py resolve [<id>]")
+        print(f"Unknown argument {args[0]!r}. {USAGE}")
         return 2
     if not TASKS.is_dir():
         print("No tasks yet: `.ai/tasks/` does not exist. "
