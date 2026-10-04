@@ -3026,3 +3026,36 @@ a bookkeeping criterion for every do case, and the three cases round 2 ran
 outside the runbook, TC-D5 (mechanical diff, inline review), TC-E1 (trivial
 direct change in one turn) and TC-E2 (an answered question stays settled).
 Layer 2 for this change: rerun TC-D2, TC-D3 and TC-D4.
+
+Layer 2 (2026-10-04): satty at `f578432`, scaffold from this branch
+(`25548f3`, v10.1), harness claude, claude-opus-5-5, cargo not on PATH,
+RTK 0.51.0, headless (`claude -p`, allowlist via `--allowedTools`), the
+mode that produced round 2's failures. Bookkeeping denials count only
+commands that set status, write or delete `.ai/.current`, or commit `.ai`.
+
+| Case | Round 2 (10.0) | This run (10.1) |
+|---|---|---|
+| TC-D4 do | 63 turns, 7 denials, 4 bookkeeping | 60 turns, 11 denials, 0 bookkeeping |
+| TC-D2 do | 65 turns, 16 denials, 7 bookkeeping, `.ai` left dirty | 47 turns, 9 denials, 1 bookkeeping, `.ai` clean |
+| TC-D3 do | ran interactively | 22 turns, 4 denials, 0 bookkeeping |
+
+- TC-D2 PASS, and round 2's defect is gone. 103-line diff, `reviewer`
+  sub-agent, `done`, waiver marked, `.ai` committed. Transcript: `tasks.py
+  start`, relative `git -C .ai` commits, `tasks.py finish ... done`. The
+  one bookkeeping denial was a `sed -i` to tick boxes; the agent fell back
+  to the edit tool.
+- TC-D3 PASS. After the neutral runbook answer the agent ran `tasks.py
+  finish ... blocked "<reason>"`: `status: blocked` with the reason,
+  `.ai/.current` kept, ⛔ ❗ 👉 in the table, `.ai` clean.
+- TC-D4 PASS on bookkeeping (`start`, `finish done`, relative commits,
+  `.ai` clean), FAIL on its review criterion: a 27-line diff with a
+  one-line Outcome went to the `reviewer` sub-agent instead of inline.
+  The reviewer found four wrong claims in the prose, all fixed. Not caused
+  by this change; recorded for the review-sizing rule.
+
+What 10.1 did not fix: the turn count of D4 barely moved, because the
+remaining denials are exploration, not bookkeeping: `sed -n` ranges,
+`$(...)` command substitution, `git -C <absolute path> diff` on the host
+repo, and heredocs. The allowlist matches none of them. In a headless run a
+denied `cargo` also hides that cargo is missing: TC-D3's agent concluded
+cargo "needs approval" and wrote that to `.ai/notes.md`.
