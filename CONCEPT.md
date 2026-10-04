@@ -3035,8 +3035,8 @@ commands that set status, write or delete `.ai/.current`, or commit `.ai`.
 
 | Case | Round 2 (10.0) | This run (10.1) |
 |---|---|---|
-| TC-D4 do | 63 turns, 7 denials, 4 bookkeeping | 60 turns, 11 denials, 0 bookkeeping |
-| TC-D2 do | 65 turns, 16 denials, 7 bookkeeping, `.ai` left dirty | 47 turns, 9 denials, 1 bookkeeping, `.ai` clean |
+| TC-D4 do | 63 turns, 7 denials, 6 bookkeeping | 60 turns, 11 denials, 0 bookkeeping |
+| TC-D2 do | 65 turns, 16 denials, 5 bookkeeping, `.ai` left dirty | 47 turns, 9 denials, 1 bookkeeping, `.ai` clean |
 | TC-D3 do | ran interactively | 22 turns, 4 denials, 0 bookkeeping |
 
 - TC-D2 PASS, and round 2's defect is gone. 103-line diff, `reviewer`
@@ -3053,8 +3053,9 @@ commands that set status, write or delete `.ai/.current`, or commit `.ai`.
   The reviewer found four wrong claims in the prose, all fixed. Not caused
   by this change; recorded for the review-sizing rule.
 
-What 10.1 did not fix: the turn count of D4 barely moved, because the
-remaining denials are exploration, not bookkeeping: `sed -n` ranges,
+What 10.1 did not fix: the turn count of D4 barely moved. Its bookkeeping
+denials went from 6 to 0, but exploration denials went from 1 to 11 (runs
+vary in how they explore), and those the allowlist cannot match: `sed -n` ranges,
 `$(...)` command substitution, `git -C <absolute path> diff` on the host
 repo, and heredocs. The allowlist matches none of them. In a headless run a
 denied `cargo` also hides that cargo is missing: TC-D3's agent concluded
