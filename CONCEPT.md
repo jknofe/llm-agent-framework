@@ -2917,6 +2917,66 @@ form and its docs teach agents to type it. The guard now unwraps a leading
 fails five cases on the old hook. Not covered, as before: a line inside
 `sh -c`, and `gh` after `env` assignments (`git` after `env` is caught).
 
+Layer 2, round 2 (2026-10-04, recorded here because it checks section 42's
+rules): satty at `f578432`, scaffold from framework 10.0 (`ccef32c`, which
+carries the 9.1 rules unchanged), harness claude, claude-opus-5-5, cargo
+not on PATH. E1, E2, TC-D1, TC-D2, TC-D4 ran headless (`claude -p`,
+allowlist via `--allowedTools`); D5 and TC-D3 ran interactively in a
+trusted session (auto mode) driven through herdr, after the headless runs
+hit the plan's usage limit mid-D5.
+
+- E1 PASS (the check this section asked for). Direct prompt, no `/task`:
+  fix the `NEXTRELASE` typo. One turn, 5 tool calls, no status-only
+  message, no suite run (docs only), no `.ai` change, final message with
+  Blocked on me / Changed / Found.
+- E2 PASS (answered question stays settled). Turn 1 answered what
+  `--input-scale` does with citations; turn 2 ("add one sentence about it
+  to README") read only the README and workflow files to place it and
+  reopened none of the cited source.
+- TC-D1 PASS. `task: create`, then `task: done`, no user turn between;
+  5/5 steps and 2/2 criteria, no flag; `.ai/.current` written at the
+  start of Do and removed at the end; no host change. Every citation the
+  Outcome rests on was opened by the runner and holds. Review line:
+  `inline (Outcome < 30 lines, no diff)`. Observed: the create step read
+  through to the answer before writing the plan, so the committed
+  hypotheses were already confirmed and Do was mostly the write-up; the
+  record still keeps the phases apart.
+- TC-D4 PASS. 22-line README diff, `Review: inline: diff 22 lines`,
+  `done`, every criterion ticked, no suite run. 63 turns, most of them
+  spent on denied commands (below).
+- TC-D2 PASS with a defect. 136-line diff, `reviewer` sub-agent in the
+  transcript (2 gaps found and fixed), waived cargo criterion marked as
+  waived. Defect: the run ended with `.ai` uncommitted; every commit
+  attempt used `git -C <absolute path>/.ai`, which the allowlist does not
+  match, so headless mode denied it, and the turn-end hook lets the second
+  pass through by design.
+- D5 PASS (new case: mechanical diff over ~30 lines). Reformat README
+  bullets, 86 lines; `Review: inline (mechanical: reformat, bullet-marker
+  swap only)`, `done`, all ticked, `.ai` committed. The session's status
+  line showed `medium` effort under `/task`, the skill's `effort`
+  frontmatter at work.
+- TC-D3 PASS. With no toolchain and the runbook's neutral answer:
+  `status: blocked` with a `blocked:` line, the suite criterion unticked,
+  ⛔ plus the ❗ flag and 👉 in the table, `.ai/.current` kept, Findings
+  record what was done and what is missing. It ran the `reviewer` before
+  blocking, which caught a real bug (a missing XDG config counted as an
+  error).
+
+Seen across the round, not fixed here:
+
+- Permission friction: agents write `git -C <absolute path>/.ai`,
+  `rm .ai/.current`, `printf ... > .ai/.current` and Python heredocs for
+  task-file edits, none of which the allowlist matches. Interactive
+  sessions prompt; headless runs deny, which cost D4 most of its turns and
+  left D2 uncommitted.
+- Machine facts in notes, now in every round: "no Rust toolchain on this
+  Mac", an RTK `git diff -U0` quirk, "checkout is behind main". The last
+  one steered the next task: TC-D3's create asked which base to build on
+  because the note said to check `main`.
+- Stops to ask were all real decisions (base commit, verification route),
+  never status-only.
+
+
 ## 43. Hermes support dropped (2026-10-04, v10.0)
 
 Owner's decision: drop the Hermes harness completely. A change that removes
