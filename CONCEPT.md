@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-09-30, v9.0.** The framework rests on four premises, stated in
+**State: 2026-10-04, v9.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 41, unchanged and
+- **Part III** is the revision history, sections 1 to 42, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -227,28 +227,37 @@ the spec chain costs two to three times.
 
 ## The protocol
 
-Every session, regardless of path:
+Every session, regardless of path. `/task` runs only when the user invokes
+it; the Right-sizing paragraph of AGENTS.md says so, so the protocol does not
+repeat it.
+
+Execution (section 42): keep going while a step needs no input, with status
+notes in the same message as the next action; stop only when blocked on the
+user, when a workflow says so, or before anything destructive. An answered
+question stays settled unless the user reopens it. Every run ends with the
+headings Blocked on me, Changed, Found. Most direct tasks add nothing to
+`.ai/notes.md`.
+
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
 2. When code changed, tests and lint must pass, the whole suite, not only the
    test a task names. Done = checks green. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
-3. `/task` only when the user invokes it.
-4. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
+3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
-5. `.ai/.current` is the resume pointer; read it at session start.
+4. `.ai/.current` is the resume pointer; read it at session start.
    `/task do` (except an investigation, run in one go by `/task create`)
    and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
    that makes a fresh session cheap.
-6. Never merge into the default branch unasked. Work on a branch and stop at
+5. Never merge into the default branch unasked. Work on a branch and stop at
    the pull request; merging is the user's action.
-7. Never add a co-author trailer to a commit message. Harnesses inject one by
+6. Never add a co-author trailer to a commit message. Harnesses inject one by
    default; the scaffold overrides it.
 
 Enforced mechanically where possible: a turn-end hook blocks ending a turn
-while `.ai` is dirty, and a pre-tool hook blocks rules 6 and 7 at the shell
+while `.ai` is dirty, and a pre-tool hook blocks rules 5 and 6 at the shell
 (`git merge` on the default branch, `git push` targeting it, `gh pr merge`, a
 commit whose message carries a co-author line). A rule that can be checked
 deterministically gets a hook and stays in the protocol text as the backstop,
@@ -361,6 +370,13 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
+v9.1 (2026-10-04, execution rules from the Opus 5.5 prompting guide: keep
+going without status stops, status in the same message as the next action,
+answered questions stay settled, a fixed three-heading run summary, and the
+direct path says most tasks add no note. Protocol rule 3 (`/task` only when
+invoked) folded into Right-sizing, which already said it; rules renumber,
+hook notes follow. AGENTS.md stays under the 650-word budget by trimming
+duplicate wording. §42.)
 v9.0 (2026-09-30, one `/task` command replaces `/task-create`, `/task-do`
 and `/task-list-all`, with `create`, `do` and `list`. A script decides
 whether a task exists (`tasks.py resolve`), so `/task <id>` alone goes to
@@ -2787,3 +2803,32 @@ fixed in the skill before the acceptance runs that count:
 
 Remaining, not a rule failure: Copilot once named a done commit after the
 change rather than `task: done <id>`.
+
+## 42. Execution rules for models that think on their own (2026-10-04, v9.1)
+
+Source: Anthropic, "Getting the most out of Opus 5.5"
+(https://claude.dev/blog/getting-the-most-out-of-opus-5-5/). Owner's report
+before the change: easy tasks feel slow, the agent overthinks or inflates
+them.
+
+The guide's points, checked against 9.0:
+
+- No "think step by step" or "think carefully" lines: none in any template.
+  Nothing to do; effort is a harness setting, not prompt text.
+- Name the finish line: `/task` has Done-when; the direct path has rule 2.
+- A checklist that survives compaction: `.ai/.current` and Findings.
+- Check sub-agent evidence: the review gate and the `reviewer` brief.
+- Keep going, status in the same message as the next action, stop only when
+  blocked or before destructive actions: missing. Added as `## Execution`.
+- A fixed run summary (Blocked on me, Changed, Found): missing. Added.
+- "Treat an answered question as done": missing for the direct path, where a
+  long session is most likely. Added.
+
+One addition of our own: the direct path said to append to `.ai/notes.md`
+"if a decision, gotcha, or finding emerged", which together with the turn-end
+hook nudges the agent to find something to write on every task. It now says
+most direct tasks add nothing.
+
+Not measured yet. Layer 2 check: a trivial change on a live repo should end
+in one turn, with no status-only message, no note, and the three headings.
+
