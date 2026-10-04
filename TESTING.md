@@ -27,16 +27,18 @@ themselves.
    run after changing it.
    The third scaffolds one harness, switches to another, and checks that the
    old command set is gone, that a user-added skill next to it is not, that
-   retired files land in the backup, and that a switch is never silent.
+   retired files land in the backup, and that a switch is never silent. It
+   also builds a hermes scaffold with the 9.0 generator from git history
+   and checks that init refuses hermes, prints the way off it, and that the
+   switch retires every hermes file (skipped on a shallow clone).
    The second builds real v5.12/v5.13 scaffolds from this repo's git history
    and checks that `--bootstrap-update` delivers `/framework-update`, stamps
    `framework_version: null`, and modifies nothing else. It skips cleanly on a
    shallow clone.
    Asserts no orphaned template, every declared slot filled, no `${...}` left
    in any rendered artifact, rendered tools parse as Python, rendered settings
-   parse as JSON, no em dash in a template (CONCEPT.md section 8), and the
-   hermes skill descriptions inside that harness's 60-character cap with no
-   command name colliding with a hermes built-in, and AGENTS.md under 650
+   parse as JSON, no em dash in a template (CONCEPT.md section 8), the same
+   command names on every harness, and AGENTS.md under 650
    words before its generated section on every harness (CONCEPT.md
    section 36) with no leftover text describing the retired overview digest.
    `safe_substitute` leaves a mistyped slot in place silently, so the slot
@@ -46,11 +48,11 @@ themselves.
    python3 -c "import ast; ast.parse(open('init_agent.py').read())"
    for f in agentgen/*.py; do python3 -c "import ast; ast.parse(open('$f').read())"; done
    ```
-2. **Scaffold all three harnesses** into a throwaway dir (init writes to CWD;
+2. **Scaffold both harnesses** into a throwaway dir (init writes to CWD;
    never scaffold into this repo root):
    ```bash
    d=$(mktemp -d)
-   for h in claude copilot hermes; do
+   for h in claude copilot; do
      mkdir -p "$d/$h"
      ( cd "$d/$h" && python3 /path/to/init_agent.py \
          --name t --description d --harness $h -y >/dev/null )

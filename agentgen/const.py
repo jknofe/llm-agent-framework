@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "9.1"
+FRAMEWORK_VERSION = "10.0"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -37,16 +37,16 @@ SKILLS = ["explore", "task", "framework-update"]
 # Claude Code `effort` frontmatter per skill (CONCEPT.md section 42). It
 # overrides the session level only for the turn that invokes the skill, so
 # the direct path keeps the user's own /effort default. Claude only: no
-# equivalent is documented for copilot or hermes.
+# equivalent is documented for copilot.
 SKILL_EFFORT = {"explore": "medium", "task": "medium",
                 "framework-update": "high"}
 
-# Where the hermes harness looks for project skills. Hermes reads both
-# `.hermes/skills/` and `.agents/skills/` under the nearest git root; the
-# scaffold uses the second because it is the cross-tool location, so a project
-# that later adds another SKILL.md reader does not need a second copy.
-HERMES_SKILLS_DIR = ".agents/skills"
-HERMES_HOOKS_DIR = ".agents/hooks"
+# The harnesses this generator renders. Hermes was the third until 10.0
+# (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized
+# only so init can switch it to one of these.
+HARNESSES = ["claude", "copilot"]
+RETIRED_HARNESSES = {"hermes": ".agents/skills"}
+
 COPILOT_HOOKS_DIR = ".github/hooks"
 
 # Where a harness switch parks the entry files of the harness it replaces.
@@ -60,31 +60,17 @@ HARNESS_BACKUP_DIR = ".ai/agent/.harness-backup"
 HARNESS_ENTRY_PATHS = {
     "claude": [".claude", "CLAUDE.md"],
     "copilot": [".github/prompts", COPILOT_HOOKS_DIR],
-    "hermes": [HERMES_SKILLS_DIR, HERMES_HOOKS_DIR],
+    # Retired in 10.0, kept so a switch away from it reports leftovers.
+    "hermes": [".agents/skills", ".agents/hooks"],
 }
 
 # A command name that collides with a harness built-in is renamed on every
 # harness, not just the one that reserves it (CONCEPT.md sections 34 and 35).
-# Hermes reserves /update, so this framework ships /framework-update
-# everywhere. There is deliberately no per-harness name table any more: one
+# Hermes reserved /update, so this framework ships /framework-update
+# everywhere; the name stayed when hermes support was dropped (10.0), since
+# renaming it would break every existing project. There is deliberately no per-harness name table any more: one
 # command, one name, so every document can name a command without asking
 # where it is being read.
-
-# Hermes caps a skill description at 60 characters, which the descriptions in
-# the skill templates (written for the claude and copilot frontmatter) exceed.
-# One short, self-contained, period-terminated line per command.
-HERMES_DESCRIPTIONS = {
-    "explore": "Record the commands and rules this project runs on.",
-    "task": "Opt-in: create, work or list typed tasks.",
-    "framework-update": "Move this scaffold to the current framework.",
-}
-
-# What `$ARGUMENTS` (claude) and `${input:...}` (copilot) stand in for on
-# hermes: nothing is substituted there, the text after the command name simply
-# reaches the agent as the user instruction, so the skill has to say so.
-HERMES_ARG_FOCUS = ("Focus: the text after the command name, if there was "
-                    "any.\nWith none, cover the whole project.")
-HERMES_ARG_TICKET = "the text after the command name, verbatim"
 
 # Bodies composed in Python because they vary on harness beyond slot filling.
 # Their descriptions live here because they have no template frontmatter.

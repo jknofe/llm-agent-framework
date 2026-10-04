@@ -5,11 +5,10 @@ Enforces the AGENTS.md protocol rule "commit .ai after changing it"
 deterministically. One script for every harness; they share the Claude Code
 wire shape, so the differences are only in the names below:
 
-- Claude Code `Stop`, Copilot `agentStop` / VS Code `Stop`: `stop_hook_active`
-  is true on the pass after a block
-- Hermes `pre_verify`: `extra.attempt` counts the nudges already given
+Claude Code `Stop`, Copilot `agentStop` and VS Code `Stop` all set
+`stop_hook_active` (Copilot: `stopHookActive`) on the pass after a block.
 
-The block is the stdout JSON, which all four read; the message is what the
+The block is the stdout JSON, which all three read; the message is what the
 agent sees. A second pass lets the turn end even if still dirty, so a repo
 the hook cannot commit never traps the loop.
 """
@@ -28,9 +27,7 @@ cwd = data.get("cwd")
 if cwd and os.path.isdir(cwd):
     os.chdir(cwd)
 
-attempt = (data.get("stop_hook_active")
-           or data.get("stopHookActive")
-           or (data.get("extra") or {}).get("attempt"))
+attempt = data.get("stop_hook_active") or data.get("stopHookActive")
 if attempt:
     print("{}")
     sys.exit(0)

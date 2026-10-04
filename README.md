@@ -1,7 +1,7 @@
 # llm-agent-framework
 
-Two pillars, one command set on any supported harness (Claude Code,
-Copilot, Hermes):
+Two pillars, one command set on either supported harness (Claude Code,
+Copilot):
 
 1. **Durable project knowledge that the repository cannot state itself.**
    `.ai/notes.md` (decisions and why, gotchas, unwritten rules, runbooks) as
@@ -57,7 +57,7 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, claude/copilot/hermes); Enter accepts the defaults. If a
+description, claude/copilot); Enter accepts the defaults. If a
 scaffold already exists it asks before regenerating framework files
 (instructions, skills, hooks, settings); hand-filled notes and tasks are
 always preserved, never reverted to stubs. `init-agent -h` shows help.
@@ -96,9 +96,9 @@ A plain re-run of `init-agent` regenerates framework files if you confirm the
 overwrite prompt (or pass `-y`), but it cannot merge or retire, which is why
 `/framework-update` exists.
 
-**Switching harness** (say claude to hermes) is not an update either: the
+**Switching harness** (say claude to copilot) is not an update either: the
 entry files are pure framework output with nothing to merge, so the CLI does
-it. Run `init-agent --harness hermes` in the project. It writes the new
+it. Run `init-agent --harness copilot` in the project. It writes the new
 command set, then retires the old one: every file the version stamp recorded
 for the previous harness is **moved** to
 `.ai/agent/.harness-backup/<old-harness>/`, never deleted, and directories it
@@ -198,13 +198,12 @@ used to script this; with the scaffold at six files it is a plain request.
 
 `init` scaffolds the workflow as Agent Skills, the open SKILL.md standard
 read by Claude Code and a growing set of other harnesses
-(`.claude/skills/<name>/SKILL.md`); the hermes harness gets the same
-bodies as project skills (`.agents/skills/<name>/SKILL.md`) and the copilot
-harness as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
+(`.claude/skills/<name>/SKILL.md`); the copilot harness gets the same
+bodies as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
 the skills carry `disable-model-invocation: true`: they are pipeline steps
 with side effects (notes writes, code changes, `.ai` commits), so only an
 explicit `/name` from you triggers them, never the model mid-conversation.
-All three harnesses invoke them the same way, under the same names:
+Both harnesses invoke them the same way, under the same names:
 
 | Command | What it does |
 |---|---|
@@ -241,7 +240,7 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). All three harnesses read it natively; no `CLAUDE.md` is written.
+section). Both harnesses read it natively; no `CLAUDE.md` is written.
 Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
 or `CLAUDE.local.md` exists in the project directory or any directory
 above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
@@ -275,8 +274,8 @@ obedience:
   carrying a shell command are inspected; a command the hook cannot parse as
   one of those cases passes.
 
-Both scripts are identical on every harness. Claude Code, Copilot and
-Hermes pipe the same JSON shape (`cwd`, `tool_name`, `tool_input.command`)
+Both scripts are identical on every harness. Claude Code and Copilot
+pipe the same JSON shape (`cwd`, `tool_name`, `tool_input.command`)
 to stdin and accept the same `{"decision": "block", "reason": ...}` on
 stdout; only where they live and how they are registered differs:
 
@@ -284,25 +283,13 @@ stdout; only where they live and how they are registered differs:
 |---|---|---|
 | claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
 | copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch. Loaded only from a trusted folder: the CLI asks on first interactive start in the repo, and a non-interactive run needs `COPILOT_ALLOW_ALL=true` (exactly `true`) to trust its working directory |
-| hermes | `.agents/hooks/` | `~/.hermes/config.yaml`, see below |
 
-Hermes registers shell hooks only in the profile config, never per
-repository. The scaffold therefore ships `.agents/hooks/hermes_dispatch.py`
-and `.agents/hooks/hermes-hooks.yaml`; once, install the dispatcher as
-`~/.hermes/agent-hooks/llm-agent-hook.py` (`install -m 755`, it must be
-executable because Hermes runs the command without a shell and expands `~`
-only at its start) and merge the snippet into `~/.hermes/config.yaml`. The dispatcher runs `<session cwd>/.agents/hooks/
-<name>.py` and is a no-op in a directory without a scaffold, so the one
-profile entry serves every project and `pre_tool_call` can stay
-`fail_closed`. Hermes asks for consent the first time each hook command
-runs. Its turn-end event, `pre_verify`, fires only on turns that edited
-files.
 - `.claude/agents/reviewer.md` defines the fresh-context adversarial
   reviewer used by `/task do`'s review gate.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
-gate. The reviewer subagent is claude-only; on Copilot and Hermes
+gate. The reviewer subagent is claude-only; on Copilot
 `/task do` hands a large result to a fresh general-purpose sub-agent where
 the harness can spawn one, and only otherwise reviews it itself, saying why.
 
@@ -332,33 +319,22 @@ therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
 `Run task do FEAT-42: read .github/prompts/task.prompt.md and follow it.`
 
-## Hermes support
+## Hermes (dropped in 10.0)
 
-Choosing `hermes` at the harness prompt targets the Hermes agent:
+Framework 10.0 no longer renders the Hermes harness. A scaffold built for
+it keeps working as it is, but init and `/framework-update` will not
+regenerate it. Move it to a supported harness with
+`init-agent --harness claude` (or `copilot`): the switch retires every
+`.agents/` file the version stamp recorded into
+`.ai/agent/.harness-backup/hermes/` and keeps notes, tasks and the project
+context. Init cannot reach outside the repository, so once no project uses
+Hermes, remove the `llm-agent-hook` entries from `~/.hermes/config.yaml`
+and `~/.hermes/agent-hooks/llm-agent-hook.py` yourself.
 
-- instructions file: `AGENTS.md` (read natively, no pointer file)
-- project skills: `.agents/skills/<name>/SKILL.md`, the same SKILL.md
-  standard and the same bodies as the claude harness, with hermes
-  frontmatter (`version`, `platforms`, `metadata.hermes.tags`, and a
-  description trimmed to the 60-character cap)
-- hooks: scripts under `.agents/hooks/`, registered once in
-  `~/.hermes/config.yaml` through the shipped dispatcher (see
-  [Deterministic tools and hooks](#deterministic-tools-and-hooks))
-- no `.claude/settings.json` or reviewer subagent (no equivalent)
-
-Hermes loads project skills only from a repository you have trusted, so run
-`hermes skills trust` once in the project root; in a running session
-`/reload-skills` picks up edited skills.
-
-Every command carries the same name here as on the other harnesses. One of
-them is spelled out rather than shortened, `/framework-update`, because
-Hermes reserves `/update` for a built-in command of its own. A name that
-collides with a harness built-in is renamed
-on **every** harness: a command whose name depends on where you type it is
-worse than a longer name that is always right.
-
-Hermes substitutes nothing into a skill: whatever you type after the command
-name reaches the agent as your instruction, and the skill says so.
+The command name `/framework-update` dates from Hermes, which reserves
+`/update`. It stays, because renaming a command breaks every existing
+project, and a name that collides with a harness built-in is still renamed
+on every harness, not only the one that reserves it.
 
 `AGENTS.md` and everything under `.ai/` are identical for all harnesses;
 only the entry files differ.
@@ -379,7 +355,7 @@ prompt when every part of the chain is allowed, so common chain members like
 auto permission mode (a classifier reviews commands and blocks only risky
 ones) is a lower-maintenance alternative; the allowlist is what keeps
 headless and CI runs deterministic. `AGENTS.md` and `.claude/` /
-`.agents/` / `.github/` belong to the host repo.
+`.github/` belong to the host repo.
 
 The name and description prompted at init are recorded in
 `.ai/agent/framework.json`, and the description is also seeded into the

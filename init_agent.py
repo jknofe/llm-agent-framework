@@ -21,7 +21,7 @@ the agent through skills and folder conventions:
   archive                no command: ask the agent to archive a finished
                          task; the rules live in AGENTS.md
 
-Prompts: project name, one-line description, harness (claude/copilot/hermes).
+Prompts: project name, one-line description, harness (claude/copilot).
 Enter accepts the default; on an existing scaffold the defaults are what the
 version stamp recorded, so Enter keeps the project as it is. The name and
 description are recorded there because nothing else keeps them: /explore
@@ -48,7 +48,7 @@ Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral):
                                conventions, right-sizing rules, commands, and
                                the generated project-context section. Read
-                               natively by Claude Code, Copilot and Hermes
+                               natively by Claude Code and Copilot
   .ai/notes.md                 running memory: gotchas, runbooks, unwritten
                                rules
   .ai/tasks/<id>/task.md       per-task plan: type, goal, done-when, steps,
@@ -58,21 +58,17 @@ Context layout:
   .ai/agent/tools/probe.py     deterministic repo inventory, used by /explore
   .ai/agent/tools/tasks.py     task table and create-or-do resolver, /task
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
-  .agents/skills/*/SKILL.md    hermes harness: same content as project skills,
-                               loaded once `hermes skills trust` has run in the
-                               repo. Same command names as the other
-                               harnesses: /framework-update is spelled out
-                               everywhere because hermes reserves /update
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
   .claude/settings.json        permission allow list + hook registration
                                (claude only)
-  .claude/hooks/*.py           hook scripts, the same two on every harness:
+  .claude/hooks/*.py           hook scripts, the same two on both harnesses:
   .github/hooks/*              block ending a turn with uncommitted .ai
-  .agents/hooks/*              changes, block merging into the default
+                               changes, block merging into the default
                                branch and co-author commit lines. copilot
-                               registers them in .github/hooks/llm-agent.json;
-                               hermes in ~/.hermes/config.yaml via the
-                               shipped dispatcher
+                               registers them in .github/hooks/llm-agent.json
+
+Framework 10.0 dropped the hermes harness. A scaffold built for it is
+switched with --harness claude or --harness copilot, like any other switch.
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
 
 Versioning:
@@ -88,7 +84,7 @@ telegraphic. Identifiers verbatim.
 Usage:
   python init_agent.py        (or: init-agent)            interactive
   python init_agent.py --name foo --desc "..." --harness claude
-  Flags: --name, --description/--desc, --harness {claude,copilot,hermes},
+  Flags: --name, --description/--desc, --harness {claude,copilot},
   -y/--yes (overwrite framework files without prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 
@@ -209,6 +205,9 @@ def cmd_emit_reference(target: str, args) -> int:
               file=sys.stderr)
         return 1
     harness = args.harness or "claude"
+    if harness in RETIRED_HARNESSES:
+        print(retired_harness_message(harness), file=sys.stderr)
+        return 1
     name = args.name if args.name is not None else "reference"
     desc = args.description if args.description is not None else ""
     dest.mkdir(parents=True, exist_ok=True)
@@ -247,9 +246,16 @@ def cmd_init(args=None) -> int:
     desc = (args.description if args and args.description is not None
             else ask("Project description, one line",
                      prev.get("description") or ""))
+    if prev.get("harness") in RETIRED_HARNESSES and not (args and args.harness):
+        print(retired_harness_message(prev["harness"]))
+    if args and args.harness in RETIRED_HARNESSES:
+        print(retired_harness_message(args.harness), file=sys.stderr)
+        return 1
+    default_harness = prev.get("harness")
+    if default_harness not in HARNESSES:
+        default_harness = "claude"
     harness = (args.harness if args and args.harness
-               else ask_choice("Harness", ["claude", "copilot", "hermes"],
-                               prev.get("harness") or "claude"))
+               else ask_choice("Harness", HARNESSES, default_harness))
 
     force = bool(args and args.yes)
 
@@ -305,8 +311,12 @@ def main() -> int:
                                               # bodies written before 5.22
                                               # keep working; there is only
                                               # one profile now
-    ap.add_argument("--harness", choices=["claude", "copilot", "hermes"],
+    # Retired harnesses stay valid choices so their users get the switch
+    # instructions instead of an argparse error.
+    ap.add_argument("--harness", choices=HARNESSES + list(RETIRED_HARNESSES),
                     help="target harness (skip the prompt); default claude. "
+                         "hermes was dropped in 10.0 and only prints how to "
+                         "switch off it. "
                          "On an existing scaffold built for a different "
                          "harness this switches it: the new entry files are "
                          "written and the old ones the version stamp recorded "
