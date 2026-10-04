@@ -150,7 +150,9 @@ Pass when, for each:
   criterion.
 - Steps for `bug` and `investigation` are hypotheses with a check each.
 - One `.ai` commit `task: create <id>` per task. No host repo change, no
-  `.ai/.current`, work not started.
+  `.ai/.current`, work not started. Exception: `investigation` continues into Do
+  after its `task: create` commit (9.0); judge its create half from that
+  commit, its Do half by TC-D1.
 
 ### /task do
 

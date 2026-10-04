@@ -2868,3 +2868,37 @@ Decided with the owner, point by point, after the first cut:
 Not measured yet. Layer 2 check: a trivial change on a live repo should end
 in one turn, with no status-only message, no note, and the three headings.
 
+
+Layer 2, 2026-10-04: satty at `f578432`, harness claude, Framework 9.1
+(`c7a43a7`), model claude-opus-5-5 at the user's default effort `high`
+(`/task` carries `medium`), cargo not on PATH. Driven headless (`claude
+-p`, Q&A answered with `--resume`), so questions came as text, not the
+question UI. satty was an untrusted workspace, so the scaffold allowlist
+was passed with `--allowedTools`. The runner's global RTK hook rewrote some
+`grep`/`gh` calls to `rtk ...`, which the allowlist does not cover; those
+denials are the test machine's, not the framework's.
+
+- TC-C1 PASS. The first message asked the type (all four offered) as
+  question 1, with the done-when questions in the same message; no file
+  was written before the answer. The agent said it would guess `change`
+  but left the choice open. After `change`: `type: change`, one commit
+  `task: create config-errors-no-abort`, no `.ai/.current`, no host change.
+- TC-C1b PASS (Claude only). All four create sessions ran `tasks.py
+  resolve` and then read `.ai/agent/task/create.md` before acting. The
+  investigation read `do.md` only after its `task: create` commit. `/task
+  list` ran `tasks.py` and read neither part file. Copilot and Hermes are
+  not yet run.
+- TC-C2 PASS. bug, investigation and test: no type question; full
+  frontmatter and six sections; done-when fits the type (bug: root cause,
+  repro failing before and passing after, full suite; investigation:
+  answer with evidence or inconclusive; test: one result per scenario,
+  full suite). Bug and investigation steps are hypotheses with a check
+  each. Bug and test asked their Q&A and stopped at `planned`. The
+  investigation committed its plan alone (`status: planned`) and then
+  continued into Do in the same session, as `create.md` says since 9.0;
+  it ended `done` with 2/2 criteria and no host change. The runbook's "work
+  not started" for TC-C2 predated that rule and now exempts investigation.
+- Observed: every final message ended with Blocked on me, Changed and
+  Found. Two runs still wrote to `.ai/notes.md`, one a rendering gotcha
+  (investigation, fits) and one "this Mac has no Rust toolchain" from a
+  test create, a machine fact rather than project knowledge.
