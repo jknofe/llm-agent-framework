@@ -2874,9 +2874,11 @@ Layer 2, 2026-10-04: satty at `f578432`, harness claude, Framework 9.1
 (`/task` carries `medium`), cargo not on PATH. Driven headless (`claude
 -p`, Q&A answered with `--resume`), so questions came as text, not the
 question UI. satty was an untrusted workspace, so the scaffold allowlist
-was passed with `--allowedTools`. The runner's global RTK hook rewrote some
-`grep`/`gh` calls to `rtk ...`, which the allowlist does not cover; those
-denials are the test machine's, not the framework's.
+was passed with `--allowedTools`. The runner has RTK installed, whose
+global hook rewrites commands to `rtk ...`. Every permission denial in the
+run held a command off the allowlist (`gh`, `sed`, `cargo`, `mkdir`, a
+heredoc), so RTK caused none of them: its hook itself answers `allow` for a
+chain made only of allowlisted commands.
 
 - TC-C1 PASS. The first message asked the type (all four offered) as
   question 1, with the done-when questions in the same message; no file
@@ -2902,3 +2904,13 @@ denials are the test machine's, not the framework's.
   Found. Two runs still wrote to `.ai/notes.md`, one a rendering gotcha
   (investigation, fits) and one "this Mac has no Rust toolchain" from a
   test create, a machine fact rather than project knowledge.
+
+RTK and the git guard (2026-10-04, same version). The guard matched `gh`
+only as the first word and saw a `rtk run "<line>"` string as one word, so
+`rtk gh pr merge`, `rtk proxy gh pr merge` and `rtk run "git merge main"`
+passed while on the default branch. RTK's hook rewrites commands to that
+form and its docs teach agents to type it. The guard now unwraps a leading
+`rtk` (with `proxy`, or `run` and its string) before judging each segment.
+`tests/test_git_guard.py` pins both the bare and the proxied forms; it
+fails five cases on the old hook. Not covered, as before: a line inside
+`sh -c`, and `gh` after `env` assignments (`git` after `env` is caught).

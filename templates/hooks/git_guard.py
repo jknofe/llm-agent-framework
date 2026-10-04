@@ -68,7 +68,24 @@ def segments(command):
             cur.append(w)
     if cur:
         out.append(cur)
-    return out
+    return [s for seg in out for s in unwrap(seg)]
+
+
+def unwrap(seg):
+    """Strip a command proxy so the wrapped call is judged on its own:
+    `rtk gh ...`, `rtk proxy git ...`, and `rtk run "<line>"` (or
+    `rtk run -c "<line>"`), whose string is a shell line of its own. RTK's
+    hook rewrites commands to this form and its docs teach agents to type
+    it, so an unwrapped `rtk gh pr merge` would pass unseen."""
+    if not seg or seg[0] != "rtk":
+        return [seg]
+    rest = [w for w in seg[1:] if w not in ("--ultra-compact", "--skip-env")]
+    if rest[:1] == ["proxy"]:
+        return [rest[1:]]
+    if rest[:1] == ["run"]:
+        rest = [w for w in rest[1:] if w not in ("-c", "--command")]
+        return segments(" ".join(rest))
+    return [rest]
 
 
 def block(reason):

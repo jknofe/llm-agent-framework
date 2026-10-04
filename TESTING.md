@@ -14,7 +14,11 @@ themselves.
    python3 tests/test_bootstrap_update.py
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
+   python3 tests/test_git_guard.py
    ```
+   The fourth runs the git guard hook on the commands it must block, bare
+   and behind a proxy (`rtk gh ...`, `rtk run "<line>"`), and on read-only
+   ones it must let through.
    The last one checks everything `tasks.py` promises, without an agent: the
    `/task list` table (live tasks only, sort order, emoji and legend, the
    flags, the resume pointer, no ANSI through a pipe) and the `/task`
