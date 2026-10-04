@@ -19,7 +19,10 @@ generated file (those live in target projects).
   disagree, the template is the bug. Part II is the measurement record. Part
   III is the numbered revision history, kept for its evidence; the sections it
   lists as retired describe a framework that no longer exists. Read Part I
-  before changing behavior, not the history.
+  (the `# Part I` heading up to `# Part II`, about 280 lines) before
+  changing behavior; do not read Part III. A revision appends a numbered
+  section at the end of the file and a line at the top of the Version log;
+  open an older section only when one is cited.
 - `README.md` user-facing docs
 - `install.sh` shell-function installer
 - `tests/check_templates.py` the property gate (orphans, slots, register,
@@ -33,6 +36,8 @@ Where things live:
 
 - Instructions file: `templates/instructions/agents.md` plus per-harness
   fragments under `instructions/fragments/<harness>/`
+- `/task`'s Create and Do bodies: `templates/task/{create,do}.md`, written to
+  `.ai/agent/task/` and read on demand by the `/task` dispatcher
 - Skill bodies: `templates/skills/<name>.md`, one per rostered command; the
   two that vary on harness beyond slot filling are composed in
   `content.COMPOSED_BODIES` from `templates/skills/bodies/`
@@ -89,7 +94,10 @@ encoding it into a template; a wrong fact here ships into every scaffold.
 
 Full procedure: **[TESTING.md](TESTING.md)**. The short version:
 
-- Layer 1 (every change): `python3 tests/check_templates.py`, syntax check,
+- Docs only (`README.md`, `CONCEPT.md`, `CLAUDE.md`, `TESTING.md`):
+  `python3 tests/check_templates.py` and nothing else.
+- Layer 1 (any change under `templates/`, `agentgen/`, `tests/`, or to
+  `init_agent.py`): `python3 tests/check_templates.py`, syntax check,
   scaffold all three harness variants into a temp dir, grep the render,
   verify referenced tool paths run, check re-init preservation, sweep for
   test-target term leakage.

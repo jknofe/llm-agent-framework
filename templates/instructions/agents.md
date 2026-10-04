@@ -6,11 +6,10 @@ source for structure. Normative text plain imperative, notes telegraphic;
 identifiers, paths, and commands verbatim.
 
 ## Right-sizing
-Do the task directly: read what you need, do it, run the project's full test
-and lint commands if code changed. Most direct tasks add nothing to
-`.ai/notes.md`; append only what the repository cannot state, then commit
-`.ai`. `/task` is opt-in, for work the user wants planned in writing and
-reviewed; never start one yourself.
+Do the task directly: read what you need, do it, check it per rule 2. Most
+direct tasks add nothing to `.ai/notes.md`; append only what the repository
+cannot state, then commit `.ai`. `/task` is opt-in: never start one
+yourself.
 
 ## Execution
 - When a step needs no input, keep going; put status notes in the same
@@ -27,8 +26,9 @@ reviewed; never start one yourself.
    `.ai/notes/` that a task needs. When the user corrects you, or a check
    fails for a reason the code does not explain, record it there before
    moving on.
-2. Code changed: the whole test and lint suite passes, not only the test a
-   task names. A question: done = an answer citing its evidence, or
+2. Code changed: iterate on the covering tests; before done, the whole test
+   and lint suite passes, not only the test a task names. Docs or comments
+   only: no suite run. A question: done = an answer citing its evidence, or
    "inconclusive" with what was ruled out.
 3. After changing `.ai/`, commit it in its own repo: `git -C .ai add -A &&
    git -C .ai commit -m "<summary>"`. Never commit `.ai` content to the host

@@ -63,6 +63,8 @@ def rendered_artifacts():
             out.append((f"{harness} skill:{name} desc", desc))
         out.append((f"{harness} AGENTS.md",
                     content.render_agents_md("p", "d", harness)))
+    for part in ("create", "do"):
+        out.append((f"task part:{part}", content.render_task_part(part)))
     out.append(("reviewer", content.render_reviewer_agent()))
     out.append(("settings.json", content.render_settings_json()))
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))

@@ -2,6 +2,7 @@
 name: reviewer
 description: ${desc}
 tools: Read, Grep, Glob, Bash
+effort: high
 ---
 You review work you did not produce. You see only the artifact and the
 acceptance criteria, never the reasoning that produced it. Evaluate the

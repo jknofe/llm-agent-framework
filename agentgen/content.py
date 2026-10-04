@@ -221,7 +221,7 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
         else:
             raw = render.load(f"skills/{name}.md")
             desc, body = _split_frontmatter(raw)
-            body = render.render(body, tools_dir=TOOLS_DIR,
+            body = render.render(body, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                                  arg_focus=arg_focus, arg_ticket=arg_ticket,
                                  hook_offer=hook_offer)
         specs.append((name, desc, body))
@@ -260,6 +260,7 @@ def render_skills(specs) -> dict:
             f'description: "{desc}"\n'
             f"{hint_line}"
             "disable-model-invocation: true\n"
+            f"effort: {SKILL_EFFORT[name]}\n"
             "---\n"
             f"{body}"
         )
@@ -325,9 +326,10 @@ def render_reviewer_agent() -> str:
                   "evidence was\n  produced in this task rather than "
                   "inferred, and the answer fits the\n  question in Goal. "
                   "An unsupported claim is a gap even if it sounds right.\n"
-                  "- Every file-and-line citation in Findings and Outcome "
+                  "- Every file-and-line citation the Outcome rests on "
                   "holds: open it and\n  confirm the source says what the "
-                  "claim says."),
+                  "claim says. Spot-check up to three\n  citations in "
+                  "Findings that the Outcome does not use."),
         desc=("Adversarial fresh-context review of a task's result (diff, "
               "Outcome, or both) against its Done-when criteria. Use for "
               "the review gate in /task do."),
@@ -380,6 +382,13 @@ def render_tool_probe() -> str:
     at the start of /explore. Static: the template is a real .py file under
     templates/tools/."""
     return render.load("tools/probe.py")
+
+def render_task_part(part: str) -> str:
+    """`/task`'s Create or Do body (`create`, `do`), written to TASK_DIR and
+    read by the dispatching skill only when `tasks.py resolve` sends it
+    there."""
+    rel = {"create": "task/create.md", "do": "task/do.md"}[part]
+    return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR)
 
 def render_tool_tasks() -> str:
     """The task table and create-or-do resolver behind /task. Static, like

@@ -193,7 +193,7 @@ project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 501 words on claude, 618 and 632
+- `AGENTS.md` before the generated section: 509 words on claude, 644 and 647
   on copilot and hermes where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
@@ -202,9 +202,10 @@ project's version and cannot know what the new version changed.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: 222 lines, the task table only.
 - A claude scaffold records 13 framework files, a copilot one 12, a hermes
-  one 13; five of each are skills, two are hooks (hermes: plus dispatcher
-  and config snippet).
-- Everything else, skill bodies included, is read on demand.
+  one 13, counting the two `/task` parts under `.ai/agent/task/`.
+- Everything else, skill bodies included, is read on demand. `/task` loads
+  only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
+  verdict sends the agent there (section 42).
 
 ## What the framework does not claim
 
@@ -241,7 +242,8 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
 2. When code changed, tests and lint must pass, the whole suite, not only the
-   test a task names. Done = checks green. When the task is a question,
+   test a task names. Done = checks green. While iterating, the covering
+   tests suffice; docs or comments only need no suite run. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
@@ -370,13 +372,15 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
-v9.1 (2026-10-04, execution rules from the Opus 5.5 prompting guide: keep
-going without status stops, status in the same message as the next action,
-answered questions stay settled, a fixed three-heading run summary, and the
-direct path says most tasks add no note. Protocol rule 3 (`/task` only when
-invoked) folded into Right-sizing, which already said it; rules renumber,
-hook notes follow. AGENTS.md stays under the 650-word budget by trimming
-duplicate wording. §42.)
+v9.1 (2026-10-04, execution rules from the Opus 5.5 prompting guide plus
+the owner's point-by-point decisions. AGENTS.md: keep going without status
+stops, answered questions stay settled, a three-heading run summary, most
+direct tasks add no note, covering tests while iterating and the full suite
+once before done, no suite for docs or comments; protocol rule 3 folded into
+Right-sizing, rules renumber. `/task`: type asked with the done-when Q&A in
+one message, mechanical diffs reviewed inline, only load-bearing citations
+all opened, Create and Do split into `.ai/agent/task/` and read on demand.
+Claude: `effort` frontmatter on skills and `reviewer`. §42.)
 v9.0 (2026-09-30, one `/task` command replaces `/task-create`, `/task-do`
 and `/task-list-all`, with `create`, `do` and `list`. A script decides
 whether a task exists (`tasks.py resolve`), so `/task <id>` alone goes to
@@ -2828,6 +2832,38 @@ One addition of our own: the direct path said to append to `.ai/notes.md`
 "if a decision, gotcha, or finding emerged", which together with the turn-end
 hook nudges the agent to find something to write on every task. It now says
 most direct tasks add nothing.
+
+Decided with the owner, point by point, after the first cut:
+
+- Type question (v8.3): still asked, never inferred, but in one message
+  with the done-when Q&A instead of a separate round trip first. TC-C1
+  updated.
+- Review gate (v8.6): size alone sent a 40-line rename to a sub-agent.
+  Inline now also covers a mechanical diff (rename, move, reformat,
+  regenerated file, no logic changed); the Review line names why, so the
+  choice stays checkable.
+- Suite runs (rule 2): iterate on the tests covering the change, the whole
+  test and lint suite once before done. Docs or comments only: no suite
+  run. The guarantee at done is unchanged; only the runs in between drop.
+- Citations (v8.10): every citation the Outcome rests on is opened, as
+  before; citations in Findings the Outcome does not use (ruled-out
+  hypotheses, side notes) are spot-checked, up to three. The v8.10 failure
+  was in the Outcome and stays covered.
+- Skill size: `/task` was 13 KB and loaded whole for every call, `list`
+  included. Split: the skill keeps Dispatch and List; Create and Do move to
+  `.ai/agent/task/create.md` and `do.md`, one harness-neutral copy beside
+  the tools, read only after `tasks.py resolve` names the branch. Risk, from
+  v9.0: Copilot drifted in a long combined file; whether every harness
+  reads the part file before acting needs a Layer 2 run on all three.
+- Effort (Claude only, verified against code.claude.com docs, skills and
+  sub-agents pages, 2026-10-04): `effort` frontmatter on each skill,
+  `medium` for `/task` and `/explore`, `high` for `/framework-update`, and
+  `high` on the `reviewer`. No project `effortLevel`: the direct path keeps
+  each user's own default. Copilot and Hermes document no equivalent.
+- Working on the framework (repo `CLAUDE.md`, `TESTING.md`): Layer 1 only
+  for changes under `templates/`, `agentgen/`, `tests/` or to
+  `init_agent.py`; docs-only edits run `check_templates` alone. Agents read
+  Part I and append to Part III without reading it.
 
 Not measured yet. Layer 2 check: a trivial change on a live repo should end
 in one turn, with no status-only message, no note, and the three headings.

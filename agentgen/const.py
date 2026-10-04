@@ -14,6 +14,11 @@ FRAMEWORK_JSON = ".ai/agent/framework.json"
 
 TOOLS_DIR = ".ai/agent/tools"
 
+# /task's Create and Do bodies, read on demand by the dispatching skill
+# (CONCEPT.md section 42): one harness-neutral copy beside the tools, so
+# `/task list` loads only the dispatcher.
+TASK_DIR = ".ai/agent/task"
+
 GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
              "(source: /explore, requirements only, max 300 tokens) -->")
 
@@ -28,6 +33,13 @@ GEN_END = "<!-- END GENERATED:project-context -->"
 # folded /task-create, /task-do and /task-list-all into one /task whose
 # create-or-do decision is made by `tasks.py resolve`, not by the agent.
 SKILLS = ["explore", "task", "framework-update"]
+
+# Claude Code `effort` frontmatter per skill (CONCEPT.md section 42). It
+# overrides the session level only for the turn that invokes the skill, so
+# the direct path keeps the user's own /effort default. Claude only: no
+# equivalent is documented for copilot or hermes.
+SKILL_EFFORT = {"explore": "medium", "task": "medium",
+                "framework-update": "high"}
 
 # Where the hermes harness looks for project skills. Hermes reads both
 # `.hermes/skills/` and `.agents/skills/` under the nearest git root; the

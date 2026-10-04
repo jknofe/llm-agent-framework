@@ -1,12 +1,12 @@
 # Testing
 
 How to validate a change to this framework. Two layers: fast mechanical checks
-(run on every change) and live agent-behavior cases (run for behavior changes
+(run on every code change) and live agent-behavior cases (run for behavior changes
 worth shipping). The generator renders templates, so the tests are "does it render,
 does it run, does an agent behave" plus a property check over the templates
 themselves.
 
-## Layer 1: Mechanical checks (every change, <1 min)
+## Layer 1: Mechanical checks (code changes, <1 min; docs only: check_templates alone)
 
 0. **Template properties and bootstrap**
    ```bash
