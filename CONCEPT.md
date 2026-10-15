@@ -211,7 +211,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 609 lines: the task table, the dependency tree, the
+  `tasks.py`: 616 lines: the task table, the dependency tree, the
   resolver, and `start`/`finish`.
 - A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
@@ -3095,7 +3095,8 @@ Change:
   id that names no live task (unknown or archived) is flagged below the
   tree and ignored; a task whose whole chain is unresolvable stands on
   the first level; a dependency cycle is flagged once and shown from
-  its first task in sort order, so the output stays deterministic. The
+  its first task in sort order, with the tasks waiting on it nested
+  below, so the output stays deterministic. The
   view is read-only; `/task list` is unchanged.
 - The `task` skill dispatches `tree` like `list` (the script's output,
   verbatim, as the whole reply; no file reads) and `ARG_HINTS` names

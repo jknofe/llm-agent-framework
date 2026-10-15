@@ -328,6 +328,10 @@ def main():
              extra="depends: cyc-b\n")
         task(root, "cyc-b", "cyc-b", "Cycle B", "change", "planned", OLD,
              extra="depends: cyc-a\n")
+        task(root, "cyc-tail", "cyc-tail", "Waits on cycle", "change",
+             "planned", NEW, extra="depends: cyc-a\n")
+        task(root, "self-dep", "self-dep", "Self dep", "change",
+             "planned", NEW, extra="depends: self-dep\n")
         task(root, "ghost", "ghost", "Ghost dep", "change", "planned",
              NEW, extra="depends: no-such-task\n")
         task(root, "done-root", "done-root", "Done root", "change",
@@ -358,7 +362,7 @@ def main():
         # Exactly one line per task id (appear-once, both diamonds).
         for tid in ("root-task", "mid-task", "leaf-task", "root-a",
                     "root-b", "diamond", "deep-a", "cyc-a", "cyc-b",
-                    "ghost", "done-root", "waits-done"):
+                    "cyc-tail", "self-dep", "ghost", "done-root", "waits-done"):
             n = sum(1 for ln in lines
                     if f" {tid}" in ln and not ln.startswith("- ❗"))
             check(n == 1, f"{tid} appears once ({n})")
@@ -385,12 +389,17 @@ def main():
         check("- ❗ ghost: depends on no-such-task, which is not a live "
               "task (unknown or archived)." in out, "unknown dep flagged")
         cyc = [ln for ln in lines if "dependency cycle" in ln]
-        check(len(cyc) == 1 and "cyc-a -> cyc-b" in cyc[0],
-              f"cycle flagged once: {cyc!r}")
+        check(len(cyc) == 2
+              and "cyc-b -> cyc-a -> cyc-b; shown from cyc-b." in cyc[0]
+              and "self-dep -> self-dep; shown from self-dep." in cyc[1],
+              f"each cycle flagged once, in edge order: {cyc!r}")
+        tail = next(ln for ln in lines if " cyc-tail" in ln)
+        check(tail.startswith(("│   ", "    ")),
+              f"task downstream of a cycle nests under it: {tail!r}")
         # Legend and summary reused from the table.
         check(any(ln.startswith("Legend:") for ln in lines),
               "legend under tree")
-        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 11 planned, ✅ 1 done; "
+        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 13 planned, ✅ 1 done; "
               "1 archived (not listed)." in out, "tree footer summary")
         check("👉 marks the resume pointer in `.ai/.current` (leaf-task)"
               in out, "tree pointer footer")

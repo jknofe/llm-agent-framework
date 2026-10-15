@@ -30,7 +30,8 @@ it is the blocker that cleared. Tasks with no dependency ties end on one
 archived) is flagged below the tree and ignored; a task whose whole
 chain is unresolvable stands on the first level, not under
 `independent:`. A dependency cycle is flagged once and shown from its
-first task in sort order, so the output stays deterministic. Archived
+first task in sort order, tasks waiting on it nested below, so the
+output stays deterministic. Archived
 tasks are not shown, only counted in the footer.
 Below the tree stand the same legend, summary and resume-pointer line the
 table prints. Tree is read-only.
@@ -375,14 +376,14 @@ def tree():
 
     cur, placed, lines = current_id(), set(), []
 
-    def cycle_members(tid):
-        """The cycle `tid` sits on, or None when its chain reaches a
-        placed or dependency-free task."""
-        seen = {}
-        while tid not in placed and deps.get(tid):
-            if tid in seen:
-                return sorted(seen)
-            seen[tid] = True
+    def cycle_of(tid):
+        """The cycle upstream of `tid`, in edge order, or None when its
+        chain ends at a task with no live deps."""
+        path = []
+        while deps[tid]:
+            if tid in path:
+                return path[path.index(tid):]
+            path.append(tid)
             tid = deps[tid][0]
         return None
 
@@ -423,31 +424,37 @@ def tree():
     # Reachable from a top via children links: those tasks nest, so the
     # sweep below must not also put them on the first level. Walk the
     # children map without touching `placed` (emission order does that).
-    reachable = set(tops)
-    queue = list(tops)
-    while queue:
-        node = queue.pop()
-        for k in children[node]:
-            if k not in reachable:
-                reachable.add(k)
-                queue.append(k)
+    reachable = set()
 
-    # Cycles and dangling chains: every tied task no top reaches. A
-    # cycle is flagged once (later members skipped via `in_cycle`) and
-    # shown from its first task in sort order; a task whose whole chain
-    # is unresolvable (cycle_members returns None) becomes a first-level
-    # line of its own, its warning above saying why.
-    in_cycle = set()
-    for tid in sorted((t for t in rows if t not in lone
-                       and t not in reachable), key=rank):
-        if tid in in_cycle:
+    def cover(head):
+        queue = [head]
+        reachable.add(head)
+        while queue:
+            for k in children[queue.pop()]:
+                if k not in reachable:
+                    reachable.add(k)
+                    queue.append(k)
+
+    for t in tops:
+        cover(t)
+
+    # What no top reaches: cycles, tasks downstream of a cycle, and
+    # tasks whose every dep is unresolvable. A cycle is flagged once in
+    # edge order and shown from its first member in sort order, so its
+    # downstream tasks nest under it; a dangling task stands alone, its
+    # warning above saying why.
+    for tid in sorted((t for t in rows if t not in lone), key=rank):
+        if tid in reachable:
             continue
-        members = cycle_members(tid)
-        if members:
-            in_cycle.update(members)
+        ring = cycle_of(tid)
+        head = min(ring, key=rank) if ring else tid
+        if ring:
+            i = ring.index(head)
+            ring = ring[i:] + ring[:i] + [head]
             warns.append(f"- {FLAG} dependency cycle: "
-                         f"{' -> '.join(members)}; shown from {tid}.")
-        tops.append(tid)
+                         f"{' -> '.join(ring)}; shown from {head}.")
+        tops.append(head)
+        cover(head)
 
     for i, tid in enumerate(tops):
         placed.add(tid)
