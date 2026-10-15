@@ -17,6 +17,8 @@ Read the first word of the arguments:
   and reply with its complete output, verbatim, and nothing else. Do
   not read the script, the task files or the files below first; see
   List for why.
+- `tree`: run `python3 ${tools_dir}/tasks.py tree` and reply with its
+  complete output, verbatim, and nothing else; see Tree.
 - `create <id> <title...>`: resolve `<id>`, then Create.
 - `do [<id>]`: resolve `<id>` (none: the resume pointer), then Do.
 - anything else is an id, maybe followed by a title: resolve it, and
@@ -55,3 +57,12 @@ them nothing. Add nothing, summarize nothing, and open no file: the
 script reads the task files and its output is the whole answer. List is
 read-only: change no file and commit nothing, and do not start or resume
 a task from it.
+
+## Tree
+
+Run `python3 ${tools_dir}/tasks.py tree`, then copy its complete output
+into your reply, verbatim, as the whole reply. The tree shows which live
+tasks wait on which, built from the `depends:` line of each task file.
+The same rules as List apply: add nothing, summarize nothing, open no
+file, and change nothing. Tree is read-only: do not start or resume a
+task from it.

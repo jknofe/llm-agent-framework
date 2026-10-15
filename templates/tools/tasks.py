@@ -17,6 +17,24 @@ type show as emoji only, explained by a legend line under the table. The id
 is colored by status, but only when a person runs the script in a terminal
 (not piped, NO_COLOR unset).
 
+`tasks.py tree`, the `/task tree` answer: the same live tasks as an ASCII
+dependency tree, built from the optional `depends:` frontmatter line
+(comma-separated ids of live tasks this task waits on). The tree hangs
+under the project name; on the first level stand the tasks that block
+others, and what waits on a task nests below it with the branch
+characters bash `tree` uses. Every task appears exactly once, at its
+shallowest position: a task with two dependencies sits under the first
+of them in sort order, not twice. A done task stays on the first level:
+it is the blocker that cleared. Tasks with no dependency ties end on one
+`independent:` line. A `depends:` id that names no live task (unknown or
+archived) is flagged below the tree and ignored; a task whose whole
+chain is unresolvable stands on the first level, not under
+`independent:`. A dependency cycle is flagged once and shown from its
+first task in sort order, so the output stays deterministic. Archived
+tasks are not shown, only counted in the footer.
+Below the tree stand the same legend, summary and resume-pointer line the
+table prints. Tree is read-only.
+
 `tasks.py resolve [<id>]` decides whether `/task` creates or works a task, so
 no agent has to search for one: it prints one verdict line, then a sentence.
   CREATE <id>     no task with that id; SIMILAR lines name close existing ids
@@ -40,13 +58,14 @@ no review line, the two conditions `/task list` would flag; otherwise it
 sets the status, drops a `blocked:` line, and deletes `.ai/.current` when it
 names this task. Neither commits: the agent commits `.ai` itself.
 
-list and resolve are read-only; start and finish write only the task's
-frontmatter and `.ai/.current`. Stdlib only.
+list, tree and resolve are read-only; start and finish write only the
+task's frontmatter and `.ai/.current`. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
 import datetime
 import difflib
+import json
 import os
 import re
 import sys
@@ -144,6 +163,9 @@ def load(path):
         "done_when": done_when,
         "updated": fm.get("updated") or fm.get("created") or "",
         "blocked": fm.get("blocked") or "",
+        # Optional: comma-separated ids of tasks this one waits on.
+        "depends": [d.strip() for d in (fm.get("depends") or "").split(",")
+                    if d.strip()],
         # /task do ends its review gate with a Findings line naming the
         # review; a done task without one skipped the gate.
         "reviewed": bool(re.search(r"^\s*[-*].*\breview",
@@ -181,6 +203,18 @@ def flags(rows):
                 out.append(f"- {FLAG} {r['id']}: done without a review line "
                            "in Findings.")
     return out
+
+
+def summary(rows, archived):
+    """The footer line both views end with: counts by status, then how
+    many tasks sit in the archive."""
+    counts = {}
+    for r in rows:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    tallies = ", ".join(f"{STATUS_ICON.get(s, '')} {n} {s}".strip()
+                        for s, n in sorted(counts.items(),
+                        key=lambda kv: STATUS_ORDER.get(kv[0], 9)))
+    return f"{tallies}; {archived} archived (not listed)."
 
 
 def cell(value):
@@ -293,8 +327,151 @@ def live_task(arg):
     return (match, live[match]) if match else None
 
 
-USAGE = ("Usage: tasks.py [list] | tasks.py resolve [<id>] | "
-         "tasks.py start <id> | tasks.py finish <id> done|blocked [<reason>]")
+def project():
+    """The project name for the tree's top line: the `project` key of
+    `.ai/agent/framework.json`, falling back to the directory name."""
+    stamp = AI / "agent" / "framework.json"
+    try:
+        name = json.loads(stamp.read_text(encoding="utf-8")).get("project")
+        if name:
+            return str(name)
+    except (OSError, ValueError):
+        pass
+    return AI.parent.name or "."
+
+
+def tree():
+    """Print live tasks as a dependency tree; see the module docstring."""
+    if not TASKS.is_dir():
+        print("No tasks yet: `.ai/tasks/` does not exist. "
+              "Create one with /task create <id> <title>.")
+        return 0
+    rows = {tid: load(path) for tid, path in task_dirs().items()}
+    archived = len(list(TASKS.glob("_archive/*/task.md")))
+    if not rows:
+        print(f"No live tasks in `.ai/tasks/` ({archived} archived). "
+              "Create one with /task create <id> <title>.")
+        return 0
+
+    # A dep that names no live task (unknown or archived) is flagged and
+    # ignored; nesting uses only edges between live tasks.
+    warns, deps = [], {}
+    for tid, r in sorted(rows.items()):
+        deps[tid] = []
+        for d in r["depends"]:
+            if d in rows:
+                deps[tid].append(d)
+            else:
+                warns.append(f"- {FLAG} {tid}: depends on {d}, which is not "
+                             "a live task (unknown or archived).")
+    children = {tid: [] for tid in rows}
+    for tid, ds in deps.items():
+        for d in ds:
+            children[d].append(tid)
+
+    def rank(tid):
+        r = rows[tid]
+        return (STATUS_ORDER.get(r["status"], 9), r["updated"], tid)
+
+    cur, placed, lines = current_id(), set(), []
+
+    def cycle_members(tid):
+        """The cycle `tid` sits on, or None when its chain reaches a
+        placed or dependency-free task."""
+        seen = {}
+        while tid not in placed and deps.get(tid):
+            if tid in seen:
+                return sorted(seen)
+            seen[tid] = True
+            tid = deps[tid][0]
+        return None
+
+    def emit(tid, prefix, branch):
+        r = rows[tid]
+        mark = f"{POINTER} " if tid == cur else ""
+        note = (f"   blocked: {r['blocked'] or 'no reason recorded'}"
+                if r["status"] == "blocked" else "")
+        ident = paint(tid, STATUS_COLOR.get(r["status"]))
+        lines.append(f"{prefix}{branch}{mark}"
+                     f"{STATUS_ICON.get(r['status'], r['status'])} "
+                     f"{ident}{note}")
+        wider = prefix + ("" if not branch
+                          else "    " if branch == "└── " else "│   ")
+        # Re-filter on every pass: a recursion can place a task that this
+        # node's child list also names (a diamond into the same subtree),
+        # and a stale snapshot would emit it a second time.
+        while True:
+            kids = sorted((k for k in children[tid] if k not in placed),
+                          key=rank)
+            if not kids:
+                break
+            k = kids[0]
+            placed.add(k)
+            emit(k, wider, "└── " if len(kids) == 1 else "├── ")
+
+    # The tree hangs under the project name. First level, in two passes:
+    # tasks that block others and wait on nothing, then the cycles (what
+    # is still unplaced but tied to another task), each flagged once and
+    # shown from its first task in sort order. A task with no ties at
+    # all is not emitted; it belongs on the independent line.
+    lone = sorted((t for t in rows
+                   if not deps[t] and not children[t]
+                   and not rows[t]["depends"]), key=rank)
+
+    tops = [t for t in sorted((t for t in rows
+                               if children[t] and not deps[t]), key=rank)]
+    # Reachable from a top via children links: those tasks nest, so the
+    # sweep below must not also put them on the first level. Walk the
+    # children map without touching `placed` (emission order does that).
+    reachable = set(tops)
+    queue = list(tops)
+    while queue:
+        node = queue.pop()
+        for k in children[node]:
+            if k not in reachable:
+                reachable.add(k)
+                queue.append(k)
+
+    # Cycles and dangling chains: every tied task no top reaches. A
+    # cycle is flagged once (later members skipped via `in_cycle`) and
+    # shown from its first task in sort order; a task whose whole chain
+    # is unresolvable (cycle_members returns None) becomes a first-level
+    # line of its own, its warning above saying why.
+    in_cycle = set()
+    for tid in sorted((t for t in rows if t not in lone
+                       and t not in reachable), key=rank):
+        if tid in in_cycle:
+            continue
+        members = cycle_members(tid)
+        if members:
+            in_cycle.update(members)
+            warns.append(f"- {FLAG} dependency cycle: "
+                         f"{' -> '.join(members)}; shown from {tid}.")
+        tops.append(tid)
+
+    for i, tid in enumerate(tops):
+        placed.add(tid)
+        emit(tid, "", "└── " if i == len(tops) - 1 else "├── ")
+
+    print(project())
+    print("\n".join(lines))
+    # Independent means no dependency ties at all: nothing it waits on
+    # (after pruning) and nothing waiting on it. A task in a cycle is
+    # shown as a synthetic root above and does not land here.
+    if lone:
+        print(f"\nindependent: {', '.join(lone)}")
+    print(f"\n{LEGEND}")
+    if warns:
+        print("\n" + "\n".join(warns))
+    print(f"\n{summary(list(rows.values()), archived)}")
+    if cur:
+        print(f"{POINTER} marks the resume pointer in `.ai/.current` ({cur}).")
+    return 0
+
+
+USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
+         "| tasks.py start <id> | "
+         "tasks.py finish <id> done|blocked [<reason>]")
 COMMIT = "Commit `.ai` now: git -C .ai add -A && git -C .ai commit -m"
 
 
@@ -378,6 +555,8 @@ def main():
             print(USAGE)
             return 2
         return finish(args[1], args[2], " ".join(args[3:]))
+    if args and args[0] == "tree":
+        return tree()
     if args and args[0] != "list":
         print(f"Unknown argument {args[0]!r}. {USAGE}")
         return 2
@@ -415,19 +594,12 @@ def main():
     print()
     print(LEGEND)
 
-    counts = {}
-    for r in rows:
-        counts[r["status"]] = counts.get(r["status"], 0) + 1
-    summary = ", ".join(f"{STATUS_ICON.get(s, '')} {n} {s}".strip()
-                        for s, n in
-                        sorted(counts.items(),
-                               key=lambda kv: STATUS_ORDER.get(kv[0], 9)))
     notes = flags(rows)
     if notes:
         print()
         print("\n".join(notes))
     print()
-    print(f"{summary}; {archived} archived (not listed).")
+    print(summary(rows, archived))
     if cur:
         print(f"{POINTER} marks the resume pointer in `.ai/.current` ({cur}).")
     return 0

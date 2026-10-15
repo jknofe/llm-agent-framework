@@ -287,6 +287,28 @@ Pass when, both times:
   file reads.
 - `git -C .ai status --short` is empty afterwards (read-only).
 
+**TC-L2: the tree is the reply** (10.2)
+
+Seed the target with three tasks in a chain (`tree-root` blocks
+`tree-mid` via `depends: tree-root`, `tree-mid` blocks `tree-leaf`),
+one independent task, one task whose `depends:` names no live task, and
+`.ai/.current` pointing at `tree-mid`. Run `/task tree` in a fresh
+session.
+
+Pass when:
+- The reply is the complete tree output, verbatim: the project name on
+  the first line, `tree-root` on the first level under it, `├──`/`└──`
+  nesting below, the status emoji per line, `👉` before `tree-mid`,
+  the `independent:` line, the unknown-id warning, legend and footer,
+  with nothing added or summarized.
+- Each seeded task appears exactly once.
+- The transcript shows exactly one tool call, the `tasks.py tree` run,
+  and no file reads.
+- `git -C .ai status --short` is empty afterwards (read-only).
+
+Fail: the agent prints the table instead, opens task files, or appends
+its own summary.
+
 ### Acceptance: one task per type (9.0)
 
 The goal set for 9.0: a Claude and a Copilot session each pass one task of
@@ -338,6 +360,7 @@ TC-D5 ...
 TC-E1 ...
 TC-E2 ...
 TC-L1 ...
+TC-L2 ...
 ```
 
 A FAIL that comes from the skill text gets a fix in the template, a

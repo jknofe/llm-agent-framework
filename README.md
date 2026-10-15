@@ -137,8 +137,11 @@ file list retires nothing and prints what to remove by hand.
    starts a task plan on its own.
 4. **See where things stand**: `/task list` prints every live task as
    one table (type, status, steps and criteria checked, last update),
-   read-only, and flags stale, blocked and half-done tasks below it. A
-   script produces all of it; to skip the model entirely, run
+   read-only, and flags stale, blocked and half-done tasks below it.
+   `/task tree` prints the same tasks as a dependency tree, built from
+   the optional `depends:` frontmatter line: a task that blocks others
+   is the root and what waits on it nests below. A script produces all
+   of it; to skip the model entirely, run
    `python3 .ai/agent/tools/tasks.py` in a shell (in Claude Code:
    `! python3 .ai/agent/tools/tasks.py`). Archived tasks are only counted.
 5. **Archive**: just ask the agent ("archive BUG-7"). It verifies
@@ -213,6 +216,7 @@ Both harnesses invoke them the same way, under the same names:
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. A change, bug or test stops there; an investigation runs straight on into `do`. |
 | `/task do [<id>]` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
+| `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties end on an `independent:` line. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
