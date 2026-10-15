@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-10-15, v10.2.** The framework rests on four premises, stated in
+**State: 2026-10-15, v10.3.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -376,6 +376,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.3 (2026-10-15, /task tree cycle handling, section 46. A cycle is
+found from any task no first-level task reaches, flagged once in edge
+order, and tasks waiting on it nest below it.)
 
 v10.2 (2026-10-15, /task tree: the dependency view, section 45.
 Task frontmatter gains an optional `depends:` line; `tasks.py tree`
@@ -3108,3 +3112,15 @@ constraint, nothing runs or plans tasks in parallel. Tests:
 (the diamond), the independent line, the cycle and unknown-id warnings,
 the blocked annotation, the resume pointer on a nested task, a done
 task as root, and both empty states. Runbook: TC-L2.
+
+## 46. /task tree: cycle handling (2026-10-15, v10.3)
+
+Review of section 45 found three defects in the cycle sweep: a task
+waiting on a cycle appeared twice (nested and again on the first
+level), one cycle was reported a second time under a path that was no
+cycle, and a self-dependency read as a one-element cycle. The sweep now
+walks each unreached task's first dependency upstream; a cycle it finds
+is flagged once in edge order (`b -> a -> b`, a self-dependency as
+`s -> s`), shown from its first member in sort order, and everything
+downstream of it nests below. Tests: `test_tasks_table.py` adds a task
+waiting on a cycle and a self-dependency.
