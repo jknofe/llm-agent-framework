@@ -25,11 +25,11 @@ others, and what waits on a task nests below it with the branch
 characters bash `tree` uses. Every task appears exactly once, at its
 shallowest position: a task with two dependencies sits under the first
 of them in sort order, not twice. A done task stays on the first level:
-it is the blocker that cleared. Tasks with no dependency ties end on one
-`independent:` line. A `depends:` id that names no live task (unknown or
-archived) is flagged below the tree and ignored; a task whose whole
-chain is unresolvable stands on the first level, not under
-`independent:`. A dependency cycle is flagged once and shown from its
+it is the blocker that cleared. Tasks with no dependency ties stand on
+the first level too, as leaves after the tasks that block others. A
+`depends:` id that names no live task (unknown or archived) is flagged
+below the tree and ignored; a task whose whole chain is unresolvable
+stands on the first level. A dependency cycle is flagged once and shown from its
 first task in sort order, tasks waiting on it nested below, so the
 output stays deterministic. Archived
 tasks are not shown, only counted in the footer.
@@ -410,11 +410,13 @@ def tree():
             placed.add(k)
             emit(k, wider, "└── " if len(kids) == 1 else "├── ")
 
-    # The tree hangs under the project name. First level, in two passes:
-    # tasks that block others and wait on nothing, then the cycles (what
-    # is still unplaced but tied to another task), each flagged once and
-    # shown from its first task in sort order. A task with no ties at
-    # all is not emitted; it belongs on the independent line.
+    # The tree hangs under the project name. First level, in three
+    # passes: tasks that block others and wait on nothing, then the
+    # cycles (what is still unplaced but tied to another task), each
+    # flagged once and shown from its first task in sort order, then the
+    # tasks with no ties at all, as leaves. Independent means nothing it
+    # waits on (after pruning) and nothing waiting on it; a task whose
+    # every dep is unresolvable is not independent, its warning says why.
     lone = sorted((t for t in rows
                    if not deps[t] and not children[t]
                    and not rows[t]["depends"]), key=rank)
@@ -455,6 +457,7 @@ def tree():
                          f"{' -> '.join(ring)}; shown from {head}.")
         tops.append(head)
         cover(head)
+    tops += lone
 
     for i, tid in enumerate(tops):
         placed.add(tid)
@@ -462,11 +465,6 @@ def tree():
 
     print(project())
     print("\n".join(lines))
-    # Independent means no dependency ties at all: nothing it waits on
-    # (after pruning) and nothing waiting on it. A task in a cycle is
-    # shown as a synthetic root above and does not land here.
-    if lone:
-        print(f"\nindependent: {', '.join(lone)}")
     print(f"\n{LEGEND}")
     if warns:
         print("\n" + "\n".join(warns))

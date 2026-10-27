@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-10-15, v10.3.** The framework rests on four premises, stated in
+**State: 2026-10-27, v10.4.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -211,7 +211,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 616 lines: the task table, the dependency tree, the
+  `tasks.py`: 614 lines: the task table, the dependency tree, the
   resolver, and `start`/`finish`.
 - A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
@@ -376,6 +376,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.4 (2026-10-27, /task tree independents on the first level, section
+47. Tasks with no dependency ties stand on the first level as leaves,
+after the tasks that block others; the trailing `independent:` line is
+gone.)
 
 v10.3 (2026-10-15, /task tree cycle handling, section 46. A cycle is
 found from any task no first-level task reaches, flagged once in edge
@@ -3124,3 +3129,20 @@ is flagged once in edge order (`b -> a -> b`, a self-dependency as
 `s -> s`), shown from its first member in sort order, and everything
 downstream of it nests below. Tests: `test_tasks_table.py` adds a task
 waiting on a cycle and a self-dependency.
+
+## 47. /task tree: independents on the first level (2026-10-27, v10.4)
+
+Source: a user with eleven independent tasks read the trailing
+`independent:` line as an afterthought: one comma-separated run of ids
+with no status emoji, no blocked reason and no resume pointer, detached
+from the tree the other tasks stand in. The tree now puts a task with
+no dependency ties on the first level under the project name, as a
+leaf, after the tasks that block others and the cycles, in the same
+sort order (status, then updated, then id). Its line carries the
+status emoji, the blocked reason and the pointer like any other task.
+The `independent:` line is gone. What counts as independent is
+unchanged: nothing it waits on after pruning and nothing waiting on
+it; a task whose every dependency is unresolvable still stands on the
+first level with its warning. Tests: `test_tasks_table.py` checks the
+independents close the first level in sort order and that no
+`independent:` line is printed. Runbook: TC-L2 amended.

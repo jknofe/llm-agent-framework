@@ -296,8 +296,8 @@ def main():
         (root / ".ai/tasks").rmdir()
         check(run(root, "tree") == run(root), "tree missing-dir message")
 
-    # Tree view (10.2), in a fresh temp dir: a 3-level chain, a diamond,
-    # independents, a cycle, an unknown dep, a blocked task, and the
+    # Tree view (10.2, independents on the first level since 10.4), in a
+    # fresh temp dir: a 3-level chain, a diamond, independents, a cycle, an unknown dep, a blocked task, and the
     # resume pointer on a nested task.
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -362,7 +362,8 @@ def main():
         # Exactly one line per task id (appear-once, both diamonds).
         for tid in ("root-task", "mid-task", "leaf-task", "root-a",
                     "root-b", "diamond", "deep-a", "cyc-a", "cyc-b",
-                    "cyc-tail", "self-dep", "ghost", "done-root", "waits-done"):
+                    "cyc-tail", "self-dep", "ghost", "done-root", "waits-done",
+                    "solo-1", "solo-2"):
             n = sum(1 for ln in lines
                     if f" {tid}" in ln and not ln.startswith("- ❗"))
             check(n == 1, f"{tid} appears once ({n})")
@@ -379,9 +380,12 @@ def main():
         check(any(ln.startswith(("├── ✅ done-root", "└── ✅ done-root"))
                   for ln in lines), "done task as first-level blocker")
         check("waits-done" in out, "dependent of done task shown")
-        # Independents on one trailing line, archived excluded.
-        check("independent: solo-2, solo-1" in out,
-              "independent line in sort order")
+        # Independents stand on the first level as leaves, after the
+        # tasks that block others, in sort order; archived excluded.
+        tops = [ln for ln in lines if ln.startswith(("├── ", "└── "))]
+        check(tops[-2:] == ["├── 📋 solo-2", "└── 📋 solo-1"],
+              f"independents last on the first level: {tops[-2:]!r}")
+        check("independent" not in out, "no trailing independent line")
         check("old" not in out.replace("no-such-task", ""),
               "archived task not in tree")
         check("1 archived (not listed)." in out, "tree footer counts archive")

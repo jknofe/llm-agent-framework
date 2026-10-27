@@ -299,7 +299,8 @@ Pass when:
 - The reply is the complete tree output, verbatim: the project name on
   the first line, `tree-root` on the first level under it, `├──`/`└──`
   nesting below, the status emoji per line, `👉` before `tree-mid`,
-  the `independent:` line, the unknown-id warning, legend and footer,
+  the independent task on the first level after `tree-root` (no
+  trailing `independent:` line), the unknown-id warning, legend and footer,
   with nothing added or summarized.
 - Each seeded task appears exactly once.
 - The transcript shows exactly one tool call, the `tasks.py tree` run,
