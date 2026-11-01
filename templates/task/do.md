@@ -50,7 +50,9 @@ Decide:
   step 6.
 - Correct otherwise: append `- <today> Supervisor round <n>: <each
   correction: file, what is wrong, what done looks like>` to Findings,
-  commit `.ai`, and run the next round (`plan`, then launch or spawn).
+  commit `.ai`, and run the next round (`plan`, then launch or spawn):
+  every round is a fresh worker, so the correction must stand on its own
+  in the file.
 - `needs-user`: ask the user, write the answer into Notes, next round.
 - `stuck`, or a fourth round would be needed: stop delegating. Work the
   rest yourself, ask the user, or finish the task as `blocked`.

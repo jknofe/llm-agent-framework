@@ -325,7 +325,9 @@ worker starts in a fresh context on a cheaper model and knows only
 `notes.md`, the task file and `.ai/agent/task/work.md`. It works the steps,
 records findings, runs the tests, reports with a `Worker round <n>` line in
 Findings, and commits `.ai`. It never ticks a done-when box and never
-commits your code.
+commits your code. Each round starts a fresh worker, in Herdr too, so a
+correction reaches the next round only through the `Supervisor round` line
+in the task file.
 
 `python3 .ai/agent/tools/delegate.py plan <id>` shows the choice:
 

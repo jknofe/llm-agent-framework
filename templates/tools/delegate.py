@@ -42,9 +42,11 @@ pin here.
 
 `delegate.py launch <id>` (herdr only) opens a tab labelled `task:<id>` in
 the project root without taking focus, starts the worker agent there with
-MODEL, and submits PROMPT. When a worker for the task is still alive it
-prompts that one with the next round instead. Prints the agent name and the
-command that waits for it. `delegate.py close <id>` closes the worker's tab.
+MODEL, and submits PROMPT. Every round gets a fresh worker: a worker still
+alive from the previous round is closed with its tab first, so no round
+carries the last one's context and corrections reach it only through the
+task file, as with a sub-agent. Prints the agent name and the command that
+waits for it. `delegate.py close <id>` closes the worker's tab.
 
 The round count is read from the `Worker round <n>` lines in Findings.
 `plan` reads only the task file and the environment; `launch` and `close`
@@ -195,14 +197,6 @@ def agent_name(tid):
     return name[:32]
 
 
-def worker_alive(name):
-    try:
-        herdr("agent", "get", name)
-        return True
-    except RuntimeError:
-        return False
-
-
 def decision(tid):
     import contextlib
     import io
@@ -226,23 +220,24 @@ def launch(tid):
     name = agent_name(tid)
     tab_id = None
     try:
-        if worker_alive(name):
-            submit(name, d["PROMPT"])
-            print(f"PROMPTED {name} round {d['ROUND']}")
-        else:
-            where = (["--workspace", os.environ["HERDR_WORKSPACE_ID"]]
-                     if os.environ.get("HERDR_WORKSPACE_ID") else [])
-            tab = herdr("tab", "create", *where, "--cwd", str(ROOT),
-                        "--label", f"task:{tid}", "--no-focus",
-                        "--env", "LLM_AGENT_ROLE=worker")["result"]
-            tab_id = find_key(tab, "tab_id")
-            pane = find_key(tab.get("root_pane"), "pane_id")
-            herdr("agent", "start", name, "--kind", d["KIND"], "--pane",
-                  pane, "--timeout", "60000", "--",
-                  *ARGS.get(d["KIND"], lambda m: [])(d["MODEL"]))
-            submit(name, d["PROMPT"])
-            print(f"LAUNCHED {name} in tab {tab_id} "
-                  f"({d['KIND']}, {d['MODEL']}, round {d['ROUND']})")
+        # A fresh worker per round: retire the previous round's worker so the
+        # name is free and nothing it remembers leaks into this round.
+        old = close_worker(name)
+        if old:
+            print(f"CLOSED previous worker {name} ({old})")
+        where = (["--workspace", os.environ["HERDR_WORKSPACE_ID"]]
+                 if os.environ.get("HERDR_WORKSPACE_ID") else [])
+        tab = herdr("tab", "create", *where, "--cwd", str(ROOT),
+                    "--label", f"task:{tid}", "--no-focus",
+                    "--env", "LLM_AGENT_ROLE=worker")["result"]
+        tab_id = find_key(tab, "tab_id")
+        pane = find_key(tab.get("root_pane"), "pane_id")
+        herdr("agent", "start", name, "--kind", d["KIND"], "--pane",
+              pane, "--timeout", "60000", "--",
+              *ARGS.get(d["KIND"], lambda m: [])(d["MODEL"]))
+        submit(name, d["PROMPT"])
+        print(f"LAUNCHED {name} in tab {tab_id} "
+              f"({d['KIND']}, {d['MODEL']}, round {d['ROUND']})")
     except (RuntimeError, KeyError, TypeError) as e:
         # A worker that never got its prompt is useless and its tab would be
         # left behind: show what it was stuck on (a folder-trust or login
@@ -297,16 +292,24 @@ def find_key(obj, key):
     return None
 
 
-def close(tid):
-    name = agent_name(tid)
+def close_worker(name):
+    """Close the live worker's tab; return its tab id, or None if no worker
+    by that name is alive."""
     try:
         tab = find_key(herdr("agent", "get", name), "tab_id")
     except RuntimeError:
-        tab = None
+        return None
+    if tab:
+        herdr("tab", "close", tab)
+    return tab
+
+
+def close(tid):
+    name = agent_name(tid)
+    tab = close_worker(name)
     if not tab:
         print(f"No live worker {name}: nothing to close.")
         return 0
-    herdr("tab", "close", tab)
     print(f"CLOSED {name} ({tab})")
     return 0
 

@@ -311,6 +311,9 @@ Pass when all hold:
 - The transcript shows the supervisor rerunning the full test command
   after the round, not only reading the report.
 - No host repo commit by the worker.
+- If a second round ran: `launch` printed `CLOSED previous worker` before
+  `LAUNCHED`, the round-2 worker sits in a new tab, and its transcript
+  starts by reading the task file's `Supervisor round 1` line.
 
 **TC-D7: Herdr fallback and sub-agent worker** (11.0)
 
