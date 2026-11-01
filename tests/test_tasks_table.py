@@ -288,6 +288,166 @@ def main():
         out = run(root)
         check("No live tasks in `.ai/tasks/` (1 archived)" in out,
               "only-archived message")
+        check(run(root, "tree") == out.replace("No live tasks",
+              "No live tasks"), "tree only-archived message")
+        (root / ".ai/tasks/_archive/old/task.md").unlink()
+        (root / ".ai/tasks/_archive/old").rmdir()
+        (root / ".ai/tasks/_archive").rmdir()
+        (root / ".ai/tasks").rmdir()
+        check(run(root, "tree") == run(root), "tree missing-dir message")
+
+    # Tree view (10.2, independents on the first level since 10.4), in a
+    # fresh temp dir: a 3-level chain, a diamond, independents, a cycle, an unknown dep, a blocked task, and the
+    # resume pointer on a nested task.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+
+        task(root, "root-task", "root-task", "Root", "change",
+             "in-progress", NEW)
+        task(root, "mid-task", "mid-task", "Mid", "bug", "blocked", NEW,
+             extra="depends: root-task\nblocked: waits for root\n")
+        task(root, "leaf-task", "leaf-task", "Leaf", "test", "planned",
+             OLD, extra="depends: mid-task\n")
+        # Diamond: depends on two roots, nests under the first in sort
+        # order (both planned, same updated: id decides, root-a first).
+        task(root, "root-a", "root-a", "Root A", "change", "planned", NEW)
+        task(root, "root-b", "root-b", "Root B", "change", "planned", NEW)
+        task(root, "diamond", "diamond", "Diamond", "change", "planned",
+             NEW, extra="depends: root-a, root-b\n")
+        # Diamond into the same subtree: extra deps on the subtree's own
+        # root must not emit the task a second time at the top level.
+        task(root, "deep-a", "deep-a", "Deep A", "change", "planned",
+             NEW, extra="depends: root-task, mid-task\n")
+        task(root, "solo-1", "solo-1", "Solo 1", "test", "planned", NEW)
+        task(root, "solo-2", "solo-2", "Solo 2", "investigation",
+             "planned", OLD)
+        task(root, "cyc-a", "cyc-a", "Cycle A", "change", "planned", NEW,
+             extra="depends: cyc-b\n")
+        task(root, "cyc-b", "cyc-b", "Cycle B", "change", "planned", OLD,
+             extra="depends: cyc-a\n")
+        task(root, "cyc-tail", "cyc-tail", "Waits on cycle", "change",
+             "planned", NEW, extra="depends: cyc-a\n")
+        task(root, "self-dep", "self-dep", "Self dep", "change",
+             "planned", NEW, extra="depends: self-dep\n")
+        task(root, "ghost", "ghost", "Ghost dep", "change", "planned",
+             NEW, extra="depends: no-such-task\n")
+        task(root, "done-root", "done-root", "Done root", "change",
+             "done", NEW, done_when="- [x] c", findings=reviewed)
+        task(root, "waits-done", "waits-done", "Waits on done", "change",
+             "planned", NEW, extra="depends: done-root\n")
+        task(root, "_archive/old", "old", "Archived", "change", "done",
+             OLD)
+        (root / ".ai/.current").write_text("task: leaf-task\n",
+                                           encoding="utf-8")
+        (root / ".ai/agent/framework.json").write_text(
+            '{"project": "fixture-proj", "framework_version": "10.2"}\n',
+            encoding="utf-8")
+
+        out = run(root, "tree")
+        lines = out.splitlines()
+
+        # The tree hangs under the project name from framework.json.
+        check(lines[0] == "fixture-proj", f"project root line: {lines[0]!r}")
+        # First-level tasks carry `├── ` / `└── `, nested levels
+        # accumulate `│   ` / `    `; the project line has no branch.
+        check("├── 🔄 root-task" in out, "first-level blocker line")
+        check("│   ├── ⛔ mid-task   blocked: waits for root" in out,
+              "mid nested under root with blocked annotation")
+        check("│   │   └── 👉 📋 leaf-task" in out,
+              "leaf nested three levels, pointer before the name")
+        check("│       │   └── 👉" not in out, "pointer stays on its task")
+        # Exactly one line per task id (appear-once, both diamonds).
+        for tid in ("root-task", "mid-task", "leaf-task", "root-a",
+                    "root-b", "diamond", "deep-a", "cyc-a", "cyc-b",
+                    "cyc-tail", "self-dep", "ghost", "done-root", "waits-done",
+                    "solo-1", "solo-2"):
+            n = sum(1 for ln in lines
+                    if f" {tid}" in ln and not ln.startswith("- ❗"))
+            check(n == 1, f"{tid} appears once ({n})")
+        # deep-a names a root and a task inside that root's subtree; it
+        # nests once, at its shallowest position: directly under the root,
+        # after mid-task, which therefore keeps `├── `.
+        deep = next(ln for ln in lines if " deep-a" in ln)
+        check(deep == "│   └── 📋 deep-a", f"deep-a nested: {deep!r}")
+        # Diamond under the first-sorting root only.
+        dia = next(ln for ln in lines if " diamond" in ln)
+        check(dia.startswith("├── ") or dia.startswith("└── ")
+              or dia.startswith(("│   ", "    ")),
+              f"diamond is not a project-level line: {dia!r}")
+        # Done task still shows as a first-level blocker.
+        check(any(ln.startswith(("├── ✅ done-root", "└── ✅ done-root"))
+                  for ln in lines), "done task as first-level blocker")
+        check("waits-done" in out, "dependent of done task shown")
+        # Independents stand on the first level as leaves, after the
+        # tasks that block others, in sort order; archived excluded.
+        tops = [ln for ln in lines if ln.startswith(("├── ", "└── "))]
+        check(tops[-2:] == ["├── 📋 solo-2", "└── 📋 solo-1"],
+              f"independents last on the first level: {tops[-2:]!r}")
+        check("independent" not in out, "no trailing independent line")
+        check("old" not in out.replace("no-such-task", ""),
+              "archived task not in tree")
+        check("1 archived (not listed)." in out, "tree footer counts archive")
+        # Warnings: unknown dep and the cycle, once each.
+        check("- ❗ ghost: depends on no-such-task, which is not a live "
+              "task (unknown or archived)." in out, "unknown dep flagged")
+        cyc = [ln for ln in lines if "dependency cycle" in ln]
+        check(len(cyc) == 2
+              and "cyc-b -> cyc-a -> cyc-b; shown from cyc-b." in cyc[0]
+              and "self-dep -> self-dep; shown from self-dep." in cyc[1],
+              f"each cycle flagged once, in edge order: {cyc!r}")
+        tail = next(ln for ln in lines if " cyc-tail" in ln)
+        check(tail.startswith(("│   ", "    ")),
+              f"task downstream of a cycle nests under it: {tail!r}")
+        # Legend and summary reused from the table.
+        check(any(ln.startswith("Legend:") for ln in lines),
+              "legend under tree")
+        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 13 planned, ✅ 1 done; "
+              "1 archived (not listed)." in out, "tree footer summary")
+        check("👉 marks the resume pointer in `.ai/.current` (leaf-task)"
+              in out, "tree pointer footer")
+        check("\x1b[" not in out, "ANSI codes in piped tree output")
+        # The table is unchanged by the tree additions.
+        check("depends" not in run(root), "list output mentions no deps")
+        # Without framework.json the directory name tops the tree.
+        (root / ".ai/agent/framework.json").unlink()
+        check(run(root, "tree").splitlines()[0] == Path(tmp).name
+              or run(root, "tree").splitlines()[0] == ".",
+              "tree falls back to the directory name")
+
+    # Tree placement (10.5): shallowest position across first-level
+    # tasks, branch characters from complete child lists, a cycle below a
+    # first-level task, and case-insensitive `depends:` ids.
+    def tree_of(spec):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tool = root / ".ai/agent/tools/tasks.py"
+            tool.parent.mkdir(parents=True)
+            tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+            for tid, dep in spec.items():
+                task(root, tid, tid, tid, "change", "planned", NEW,
+                     extra=f"depends: {dep}\n" if dep else "")
+            out = run(root, "tree")
+            return out.split("\nLegend")[0].splitlines()[1:], out
+
+    body, _ = tree_of({"t": "", "a": "t", "b": "t, a"})
+    check(body == ["└── 📋 t", "    ├── 📋 a", "    └── 📋 b"],
+          f"shallowest within one tree, last sibling closes: {body!r}")
+    body, _ = tree_of({"t1": "", "t2": "", "a": "t1", "x": "a, t2"})
+    check(body == ["├── 📋 t1", "│   └── 📋 a", "└── 📋 t2",
+                   "    └── 📋 x"],
+          f"shallowest across first-level tasks: {body!r}")
+    body, out = tree_of({"t": "", "a": "t, b", "b": "a"})
+    check(body == ["└── 📋 t", "    └── 📋 a", "        └── 📋 b"],
+          f"cycle below a first-level task nests: {body!r}")
+    check("- ❗ dependency cycle: a -> b -> a." in out,
+          "cycle below a first-level task flagged")
+    body, out = tree_of({"BUG-7": "", "other": "bug-7"})
+    check(body == ["└── 📋 BUG-7", "    └── 📋 other"],
+          f"depends ids match without case: {body!r}")
+    check("not a live task" not in out, "case-only dep not flagged")
 
     if FAILS:
         for f in FAILS:

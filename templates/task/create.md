@@ -23,11 +23,13 @@ task; do not work it here.
 3. For a `change`, `bug` or `test`: run a short, bounded Q&A with the
    user until the done-when criteria are unambiguous. For a bug, ask for
    the symptom, where it shows, and any reproduction or log. For an
-   `investigation`: ask nothing more. Resolve each open question (the
-   decision the answer feeds, when to stop looking) from the evidence
-   and record it as a numbered assumption in Notes; the user redirects
-   from the result. The same holds for any type when no human is
-   available (autonomous run).
+   `investigation`: ask nothing more. Ask also, for any type, which live
+   tasks this one must wait for: comma-separated ids from `/task list`,
+   or none; an empty answer is normal. Resolve each open question (the
+   decision the answer feeds, when to stop looking, any dependencies)
+   from the evidence and record it as a numbered assumption in Notes;
+   the user redirects from the result. The same holds for any type when
+   no human is available (autonomous run).
 4. Write `.ai/tasks/<id>/task.md`:
    ---
    id: <id>
@@ -36,6 +38,8 @@ task; do not work it here.
    status: planned
    created: <today>
    updated: <today>
+   depends: <id, id>   optional: live task ids this task waits on;
+                       omit the line when empty
    ---
    ## Goal        one paragraph: what and why. Investigation: the
                    question, verbatim, and the decision it feeds.
@@ -46,6 +50,9 @@ task; do not work it here.
    ## Findings    empty; Do appends here
    ## Outcome     empty; Do writes the result here
    ## Notes       Q&A answers, decisions, assumptions
+
+   Write `depends:` only when the user named real dependencies, with
+   live task ids; `/task tree` reports ids that do not resolve.
 
    Done-when criteria by type:
    - `change`: the user's criteria, plus one that the project's full

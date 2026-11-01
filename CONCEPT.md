@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-10-04, v10.1.** The framework rests on four premises, stated in
+**State: 2026-11-01, v10.5.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -170,11 +170,13 @@ Rules that came from failures, not from theory:
 `status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
 index across parallel task directories. `.ai/.current` is the resume
 pointer, one per working tree, starting `task: <id>`. Parallel work is an
-intent that was never built and the framework claims nothing about it.
+intent that was never built and the framework claims nothing about it. A
+`depends:` line records that one task waits on another; it schedules
+nothing.
 
 ## Property 3: one command set
 
-Three commands: `/explore`, `/task` (`create`, `do`, `list`),
+Three commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
 `/framework-update`. Same names,
 same bodies, on both harnesses; only the entry files differ (Agent Skills
 under `.claude/skills/`, prompt files under `.github/prompts/`). `AGENTS.md` is the one instructions file and every
@@ -209,7 +211,8 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 437 lines: the task table, the resolver, and `start`/`finish`.
+  `tasks.py`: 664 lines: the task table, the dependency tree, the
+  resolver, and `start`/`finish`.
 - A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
@@ -373,6 +376,25 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.5 (2026-11-01, /task tree placement fixes, section 48. Tasks sit at
+their shallowest position across the whole tree, branch characters
+follow the final child lists, every cycle is flagged, `depends:` ids
+match without case.)
+
+v10.4 (2026-10-27, /task tree independents on the first level, section
+47. Tasks with no dependency ties stand on the first level as leaves,
+after the tasks that block others; the trailing `independent:` line is
+gone.)
+
+v10.3 (2026-10-15, /task tree cycle handling, section 46. A cycle is
+found from any task no first-level task reaches, flagged once in edge
+order, and tasks waiting on it nest below it.)
+
+v10.2 (2026-10-15, /task tree: the dependency view, section 45.
+Task frontmatter gains an optional `depends:` line; `tasks.py tree`
+prints live tasks as an ASCII dependency tree; Create asks the
+dependency question. Runbook: TC-L2.)
 
 v10.1 (2026-10-04, task bookkeeping in the script, section 44. `tasks.py
 start` and `finish done|blocked` set status, the `blocked:` line and the
@@ -3060,3 +3082,102 @@ vary in how they explore), and those the allowlist cannot match: `sed -n` ranges
 repo, and heredocs. The allowlist matches none of them. In a headless run a
 denied `cargo` also hides that cargo is missing: TC-D3's agent concluded
 cargo "needs approval" and wrote that to `.ai/notes.md`.
+
+## 45. /task tree: the dependency view (2026-10-15, v10.2)
+
+Source: a user with several live tasks asked which one to unblock first;
+the flat table answers "what is open" but not "what waits on what".
+
+Change:
+
+- Task frontmatter gains an optional `depends:` line: comma-separated
+  ids of live tasks this task waits on. `/task create` asks for it in
+  its Q&A and writes the line only when non-empty. Old task files need
+  nothing: the frontmatter parser tolerates unknown keys and the
+  bookkeeping rewrites preserve them byte for byte.
+- `tasks.py tree` prints live tasks as an ASCII dependency tree with
+  the branch characters bash `tree` uses. The tree hangs under the
+  project name (the `project` key of `framework.json`, else the
+  directory name); on the first level stand the tasks that block
+  others, what waits on them nests below, and every task appears
+  exactly once at its shallowest position (a task with two dependencies
+  sits under the first of them in sort order, not twice). A done task
+  stays on the first level: it is the blocker that cleared. Tasks with
+  no dependency ties end on one `independent:` line. Status emoji, the
+  resume pointer (before the task's line), the blocked reason, the
+  legend and the summary footer are reused from the table. A `depends:`
+  id that names no live task (unknown or archived) is flagged below the
+  tree and ignored; a task whose whole chain is unresolvable stands on
+  the first level; a dependency cycle is flagged once and shown from
+  its first task in sort order, with the tasks waiting on it nested
+  below, so the output stays deterministic. The
+  view is read-only; `/task list` is unchanged.
+- The `task` skill dispatches `tree` like `list` (the script's output,
+  verbatim, as the whole reply; no file reads) and `ARG_HINTS` names
+  the new subcommand.
+
+The tree is a view, not a scheduler: `depends:` records an ordering
+constraint, nothing runs or plans tasks in parallel. Tests:
+`test_tasks_table.py` covers the nesting, appear-once-at-shallowest
+(the diamond), the independent line, the cycle and unknown-id warnings,
+the blocked annotation, the resume pointer on a nested task, a done
+task as root, and both empty states. Runbook: TC-L2.
+
+## 46. /task tree: cycle handling (2026-10-15, v10.3)
+
+Review of section 45 found three defects in the cycle sweep: a task
+waiting on a cycle appeared twice (nested and again on the first
+level), one cycle was reported a second time under a path that was no
+cycle, and a self-dependency read as a one-element cycle. The sweep now
+walks each unreached task's first dependency upstream; a cycle it finds
+is flagged once in edge order (`b -> a -> b`, a self-dependency as
+`s -> s`), shown from its first member in sort order, and everything
+downstream of it nests below. Tests: `test_tasks_table.py` adds a task
+waiting on a cycle and a self-dependency.
+
+## 47. /task tree: independents on the first level (2026-10-27, v10.4)
+
+Source: a user with eleven independent tasks read the trailing
+`independent:` line as an afterthought: one comma-separated run of ids
+with no status emoji, no blocked reason and no resume pointer, detached
+from the tree the other tasks stand in. The tree now puts a task with
+no dependency ties on the first level under the project name, as a
+leaf, after the tasks that block others and the cycles, in the same
+sort order (status, then updated, then id). Its line carries the
+status emoji, the blocked reason and the pointer like any other task.
+The `independent:` line is gone. What counts as independent is
+unchanged: nothing it waits on after pruning and nothing waiting on
+it; a task whose every dependency is unresolvable still stands on the
+first level with its warning. Tests: `test_tasks_table.py` checks the
+independents close the first level in sort order and that no
+`independent:` line is printed. Runbook: TC-L2 amended.
+
+## 48. /task tree: placement fixes (2026-11-01, v10.5)
+
+A code review of sections 45 to 47 found four defects in `tasks.py
+tree`, each reproduced on throwaway task directories:
+
+- Placement was depth-first: a task sat wherever the walk reached it
+  first, not at its shallowest position. `b` waiting on `t` and `a`
+  (with `a` under `t`) landed under `a`; `x` waiting on `a` and `t2`
+  landed three levels down under `t1`, and `t2` showed as a leaf.
+- Branch characters were chosen while the walk still moved siblings
+  into earlier subtrees, so a last child could keep `├── ` and its
+  descendants a stray `│`.
+- The cycle check ran only on tasks no first-level task reached; a
+  cycle below a task that blocks others nested without a warning.
+- `depends:` ids matched case-sensitively, unlike `resolve`; `depends:
+  bug-7` on a task directory `BUG-7` was flagged unknown and dropped.
+
+Change: the first level comes from the dependency graph's strongly
+connected components; a component that waits on nothing outside
+itself is a first-level entry (from its first task in sort order).
+A breadth-first pass from the first level gives each task its least
+depth, and the task nests under its first dependency in sort order one
+level up. Child lists are complete before drawing, so `└── ` marks the
+last sibling. Every cycle is flagged once, in edge order from its first
+task in sort order; `shown from` is added only when the cycle stands on
+the first level. Ids match without case. The 10.2 fixture had baked in
+the depth-first answer (`deep-a` under `mid-task` although it names
+`root-task`); its expectation now follows the spec. Tests:
+`test_tasks_table.py` adds the four review cases.
