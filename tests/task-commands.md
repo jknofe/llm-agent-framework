@@ -296,6 +296,33 @@ Pass when all hold:
   PROMPT as its prompt, not a fork.
 - The rest as TC-D6, with `Delegation: subagent ...`.
 
+### Parallel (11.1)
+
+**TC-P1: two tasks planned and worked side by side**
+
+One Herdr workspace, two supervisor panes in the same project, each on a
+model above the worker tier. Send both Create prompts at once (TC-D2's
+`readme-keybindings` and TC-C1's `config-errors-no-abort`), answer both,
+then `/clear` both and send both `/task do` at once.
+
+Pass when all hold:
+- Every `.ai` commit holds only its own task's paths (plus `notes.md`
+  when that session changed it): `git -C .ai log --name-only`. No
+  transcript shows `git -C .ai add -A`.
+- The second `start` printed `parallel` and `PARALLEL <other> is running`,
+  and wrote `.ai/.current-<id>`; `.ai/.current` still names the first.
+- Both worker tabs ran at the same time, and every host file a task
+  edited is in its pointer's `modified:` list, claimed before the edit.
+  If either side tried a file the other claimed, the transcript shows the
+  `CLAIMED ... by running task` refusal and the file was left alone.
+- Each review judges its own claimed files; Findings name the other
+  task's files as the parallel task's, not as scope creep.
+- At the end a `done` task's pointer is gone and a `blocked` one's kept;
+  `/task list` marks the running one.
+
+Fail: one task's file in the other's commit, a replaced pointer while its
+task was in progress, an edit to a file the other task claimed.
+
 ### Direct path (9.1)
 
 No `/task`: the plain prompt, as a user would type it.

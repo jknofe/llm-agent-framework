@@ -85,8 +85,10 @@ task; do not work it here.
    confirm or rule it out (`- [ ] H1: <hypothesis> - check: <how>`),
    cheapest check first; the plan is expected to change as they
    resolve. For a `test`, one step per scenario.
-5. Commit `.ai` from the project root, relative path:
-   `git -C .ai add -A && git -C .ai commit -m "task: create <id>"`.
+5. Commit `.ai` from the project root, relative path, only your own
+   paths (another task may be planned or worked in parallel):
+   `git -C .ai add tasks/<id> && git -C .ai commit -m "task: create
+   <id>"`, with `notes.md` added when you changed it. Never `add -A`.
 
 Then, by type:
 - `investigation`: do not stop. The planning has done most of the
@@ -94,8 +96,8 @@ Then, by type:
   `${task_dir}/do.md` and follow it, without waiting for the user and
   without a fresh session. Keep the two phases apart in the
   record: the plan is written and committed first (`task: create <id>`,
-  step 5), then Do runs from its step 1 (`status: in-progress`,
-  `.ai/.current`), and its findings go in as they happen. Never write
+  step 5), then Do runs from its step 1 (`status: in-progress`, the
+  pointer), and its findings go in as they happen. Never write
   plan and result in one go.
 - `change`, `bug`, `test`: stop here. Show the plan and wait: a plan
   the user can read and redirect before anything is done is what this
