@@ -159,7 +159,10 @@ Pass when, for each:
 Run each in a fresh session (`/clear`, then `/task do <id>`).
 
 In every do case (10.1): the transcript shows `tasks.py start <id>` at the
-start and `tasks.py finish <id> done|blocked` at the end, no shell write to
+start and `tasks.py finish <id> done|blocked` at the end, every ticked box
+ticked by `tasks.py tick <id> done|steps <n>...` naming its numbers (11.0;
+a script or `replace("- [ ] ", "- [x] ")` that ticks every box at once is a
+fail), no shell write to
 `.ai/.current` or to a task's frontmatter (`printf >`, `sed -i`, `rm`, a
 heredoc), and every `.ai` commit as `git -C .ai`, never an absolute path. A
 headless run with the scaffold allowlist ends with `.ai` committed.
@@ -246,6 +249,52 @@ Findings line reads `Review: inline (mechanical: ...)` naming why, no
 sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
+
+**TC-D6: supervised worker in a Herdr tab** (11.0)
+
+Run inside Herdr, from a project folder the harness already trusts, on a
+session model above the worker tier (claude: Opus or Fable). A task with
+three or more open steps; a `bug` gets `sonnet`, a short `change` `haiku`.
+`/task do <id>`.
+
+Pass when all hold:
+- The transcript shows `delegate.py plan <id>` with `MODE herdr`, then
+  `delegate.py launch <id>` printing `LAUNCHED`, then `herdr agent wait`
+  with a Bash timeout of at least the wait's 9 minutes.
+- `herdr tab list` showed a `task:<id>` tab during the run; it is gone at
+  the end (`delegate.py close`).
+- The supervisor changed no file while the worker ran.
+- Findings: a `Worker round 1` line with each check and its result, a
+  `Delegation: herdr claude/<model>` line, a `Review:` line. The `.ai` log
+  has `task: <id> worker round 1` before `task: done <id>`.
+- The worker ticked steps only: in the round commit (`git -C .ai show
+  <round commit>`), no done-when box, no Outcome, no `notes.md` change.
+- The transcript shows the supervisor rerunning the full test command
+  after the round, not only reading the report.
+- No host repo commit by the worker.
+- An accepted round leaves at most a `Supervisor check: round <n>
+  accepted` line, never a `Supervisor round <n>` line, which is reserved
+  for corrections.
+- If a second round ran: `launch` printed `CLOSED previous worker` before
+  `LAUNCHED`, the round-2 worker sits in a new tab, and its transcript
+  starts by reading the task file's `Supervisor round 1` line.
+
+**TC-D7: Herdr fallback and sub-agent worker** (11.0)
+
+Same as TC-D6 but from a folder the harness has not trusted (a fresh
+scratch repo), or outside Herdr.
+
+Pass when all hold:
+- Inside Herdr, untrusted folder: `plan` prints `MODE subagent` with a
+  REASON naming the trust, no `launch` runs, and no tab opens. The
+  supervisor says why in one line.
+- If a trust record was unreadable and a dialog appeared anyway: `launch`
+  prints `FAILED` with the worker's screen and closes its tab; no
+  `task:<id>` tab is left behind, and the supervisor does not answer the
+  dialog.
+- A fresh general-purpose sub-agent runs with `"model":"<MODEL>"` and
+  PROMPT as its prompt, not a fork.
+- The rest as TC-D6, with `Delegation: subagent ...`.
 
 ### Direct path (9.1)
 
@@ -406,6 +455,14 @@ Useful when one agent runs the cases on another. Load the herdr skill
   and the arrow keys to reach "Next"; `enter` alone toggles.
 - Never press `enter` on a folder-trust or permission prompt without reading
   which option is selected.
+- To give a free-text answer to a question form, do not press `enter` on its
+  "Type something" option: that closes the form with no answer, and text
+  sent afterwards lands in the main input box instead. Either select the
+  option and type the text before any `enter`, or let the form close and
+  submit the answer as an ordinary message (`herdr pane send-text`, then
+  `enter`); the agent reads it either way. Record which in the result.
+- `herdr agent wait` right after a form was answered can return the stale
+  `blocked` state at once; wait again before reading the screen.
 - `/model` inside a session also saves the model as the global default in
   `~/.claude/settings.json`; restore it afterwards.
 - Wait for completion with `herdr agent wait <name> --until idle` (one state

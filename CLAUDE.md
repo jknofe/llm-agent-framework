@@ -45,7 +45,10 @@ Where things live:
   `render_prompt_files` (copilot)
 - Embedded tool scripts: `render_tool_probe` (`templates/tools/probe.py`),
   `render_tool_tasks` (`templates/tools/tasks.py`, the `/task list` table
-  and the `/task` create-or-do resolver)
+  and the `/task` create-or-do resolver), `render_tool_delegate`
+  (`templates/tools/delegate.py`, where `/task do`'s worker runs and on
+  which model; the worker reads `templates/task/work.md`, CONCEPT.md
+  section 49)
 - Hooks: `templates/hooks/`; permissions: `render_settings_json` over
   `templates/config/permissions.txt`
 - Adding or removing a command: the roster in `const.SKILLS`, plus its
