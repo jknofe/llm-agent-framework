@@ -356,7 +356,7 @@ def main():
         check("├── 🔄 root-task" in out, "first-level blocker line")
         check("│   ├── ⛔ mid-task   blocked: waits for root" in out,
               "mid nested under root with blocked annotation")
-        check("│   │   ├── 👉 📋 leaf-task" in out,
+        check("│   │   └── 👉 📋 leaf-task" in out,
               "leaf nested three levels, pointer before the name")
         check("│       │   └── 👉" not in out, "pointer stays on its task")
         # Exactly one line per task id (appear-once, both diamonds).
@@ -368,9 +368,10 @@ def main():
                     if f" {tid}" in ln and not ln.startswith("- ❗"))
             check(n == 1, f"{tid} appears once ({n})")
         # deep-a names a root and a task inside that root's subtree; it
-        # nests once, under the root, never as a first-level line.
+        # nests once, at its shallowest position: directly under the root,
+        # after mid-task, which therefore keeps `├── `.
         deep = next(ln for ln in lines if " deep-a" in ln)
-        check(deep.startswith("│   │   └──"), f"deep-a nested: {deep!r}")
+        check(deep == "│   └── 📋 deep-a", f"deep-a nested: {deep!r}")
         # Diamond under the first-sorting root only.
         dia = next(ln for ln in lines if " diamond" in ln)
         check(dia.startswith("├── ") or dia.startswith("└── ")
@@ -415,6 +416,38 @@ def main():
         check(run(root, "tree").splitlines()[0] == Path(tmp).name
               or run(root, "tree").splitlines()[0] == ".",
               "tree falls back to the directory name")
+
+    # Tree placement (10.5): shallowest position across first-level
+    # tasks, branch characters from complete child lists, a cycle below a
+    # first-level task, and case-insensitive `depends:` ids.
+    def tree_of(spec):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tool = root / ".ai/agent/tools/tasks.py"
+            tool.parent.mkdir(parents=True)
+            tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+            for tid, dep in spec.items():
+                task(root, tid, tid, tid, "change", "planned", NEW,
+                     extra=f"depends: {dep}\n" if dep else "")
+            out = run(root, "tree")
+            return out.split("\nLegend")[0].splitlines()[1:], out
+
+    body, _ = tree_of({"t": "", "a": "t", "b": "t, a"})
+    check(body == ["└── 📋 t", "    ├── 📋 a", "    └── 📋 b"],
+          f"shallowest within one tree, last sibling closes: {body!r}")
+    body, _ = tree_of({"t1": "", "t2": "", "a": "t1", "x": "a, t2"})
+    check(body == ["├── 📋 t1", "│   └── 📋 a", "└── 📋 t2",
+                   "    └── 📋 x"],
+          f"shallowest across first-level tasks: {body!r}")
+    body, out = tree_of({"t": "", "a": "t, b", "b": "a"})
+    check(body == ["└── 📋 t", "    └── 📋 a", "        └── 📋 b"],
+          f"cycle below a first-level task nests: {body!r}")
+    check("- ❗ dependency cycle: a -> b -> a." in out,
+          "cycle below a first-level task flagged")
+    body, out = tree_of({"BUG-7": "", "other": "bug-7"})
+    check(body == ["└── 📋 BUG-7", "    └── 📋 other"],
+          f"depends ids match without case: {body!r}")
+    check("not a live task" not in out, "case-only dep not flagged")
 
     if FAILS:
         for f in FAILS:

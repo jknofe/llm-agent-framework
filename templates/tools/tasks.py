@@ -23,15 +23,19 @@ dependency tree, built from the optional `depends:` frontmatter line
 under the project name; on the first level stand the tasks that block
 others, and what waits on a task nests below it with the branch
 characters bash `tree` uses. Every task appears exactly once, at its
-shallowest position: a task with two dependencies sits under the first
-of them in sort order, not twice. A done task stays on the first level:
-it is the blocker that cleared. Tasks with no dependency ties stand on
-the first level too, as leaves after the tasks that block others. A
+shallowest position: a task with two dependencies sits under the one
+nearest the first level, the first in sort order on a tie, not twice.
+`depends:` ids match without regard to case. A done task stays on the
+first level: it is the blocker that cleared. Tasks with no dependency
+ties stand on the first level too, as leaves after the tasks that block
+others. A
 `depends:` id that names no live task (unknown or archived) is flagged
 below the tree and ignored; a task whose whole chain is unresolvable
-stands on the first level. A dependency cycle is flagged once and shown from its
-first task in sort order, tasks waiting on it nested below, so the
-output stays deterministic. Archived
+stands on the first level. Every dependency cycle is flagged once, in
+edge order from its first task in sort order. A cycle that waits on no
+task outside itself is shown on the first level from that task, tasks
+waiting on it nested below; one that waits on other tasks nests where
+its tasks fall. The output stays deterministic. Archived
 tasks are not shown, only counted in the footer.
 Below the tree stand the same legend, summary and resume-pointer line the
 table prints. Tree is read-only.
@@ -355,14 +359,17 @@ def tree():
         return 0
 
     # A dep that names no live task (unknown or archived) is flagged and
-    # ignored; nesting uses only edges between live tasks.
+    # ignored; nesting uses only edges between live tasks. Ids match
+    # without regard to case, as `resolve` matches them.
+    byname = {t.lower(): t for t in rows}
     warns, deps = [], {}
     for tid, r in sorted(rows.items()):
         deps[tid] = []
         for d in r["depends"]:
-            if d in rows:
-                deps[tid].append(d)
-            else:
+            live = byname.get(d.lower())
+            if live and live not in deps[tid]:
+                deps[tid].append(live)
+            elif not live:
                 warns.append(f"- {FLAG} {tid}: depends on {d}, which is not "
                              "a live task (unknown or archived).")
     children = {tid: [] for tid in rows}
@@ -374,18 +381,120 @@ def tree():
         r = rows[tid]
         return (STATUS_ORDER.get(r["status"], 9), r["updated"], tid)
 
-    cur, placed, lines = current_id(), set(), []
+    # Strongly connected components (iterative Tarjan over deps edges).
+    # A component of two or more tasks, or one task that names itself,
+    # is a cycle.
+    comp, index, low, stack, on, n = {}, {}, {}, [], set(), [0]
+    for start in sorted(rows):
+        if start in index:
+            continue
+        work = [(start, 0)]
+        while work:
+            v, i = work.pop()
+            if i == 0:
+                index[v] = low[v] = n[0]
+                n[0] += 1
+                stack.append(v)
+                on.add(v)
+            if i < len(deps[v]):
+                work.append((v, i + 1))
+                w = deps[v][i]
+                if w not in index:
+                    work.append((w, 0))
+                elif w in on:
+                    low[v] = min(low[v], index[w])
+                continue
+            if low[v] == index[v]:
+                members = []
+                while True:
+                    w = stack.pop()
+                    on.discard(w)
+                    comp[w] = v
+                    members.append(w)
+                    if w == v:
+                        break
+            if work:
+                u = work[-1][0]
+                low[u] = min(low[u], low[v])
+    groups = {}
+    for tid, c in comp.items():
+        groups.setdefault(c, []).append(tid)
 
-    def cycle_of(tid):
-        """The cycle upstream of `tid`, in edge order, or None when its
-        chain ends at a task with no live deps."""
-        path = []
-        while deps[tid]:
-            if tid in path:
-                return path[path.index(tid):]
-            path.append(tid)
-            tid = deps[tid][0]
-        return None
+    def cyclic(members):
+        return len(members) > 1 or members[0] in deps[members[0]]
+
+    def ring_from(head, members):
+        """The shortest dependency path from `head` back to itself inside
+        its cycle, in edge order (`head -> ... -> head`)."""
+        inside, back, queue = set(members), {head: None}, [head]
+        for v in queue:
+            for w in deps[v]:
+                if w == head:
+                    path = [v]
+                    while back[path[-1]] is not None:
+                        path.append(back[path[-1]])
+                    return path[::-1] + [head]
+                if w in inside and w not in back:
+                    back[w] = v
+                    queue.append(w)
+        return [head, head]
+
+    # Every cycle is flagged once, in edge order from its first member in
+    # sort order. A cycle that waits on nothing outside itself stands on
+    # the first level from that member; one that waits on other tasks
+    # nests where its tasks fall.
+    sources, cycles = [], []
+    for members in groups.values():
+        head = min(members, key=rank)
+        outside = any(comp[d] != comp[head] for m in members for d in deps[m])
+        if cyclic(members):
+            cycles.append((head, ring_from(head, members), not outside))
+        if not outside:
+            sources.append((head, members))
+    for head, ring, top in sorted(cycles, key=lambda c: rank(c[0])):
+        warns.append(f"- {FLAG} dependency cycle: {' -> '.join(ring)}"
+                     + (f"; shown from {head}." if top else "."))
+
+    # The tree hangs under the project name. First level, in three
+    # passes: tasks that block others and wait on nothing, then the
+    # cycles that wait on nothing outside themselves (from their first
+    # task in sort order) and tasks whose every dep is unresolvable,
+    # then the tasks with no ties at all, as leaves. Independent means
+    # nothing it waits on (after pruning) and nothing waiting on it; a
+    # task whose every dep is unresolvable is not independent, its
+    # warning says why. Every other task is reachable from one of these.
+    lone, blockers, rest = [], [], []
+    for head, members in sources:
+        if cyclic(members):
+            rest.append(head)
+        elif children[head]:
+            blockers.append(head)
+        elif rows[head]["depends"]:
+            rest.append(head)
+        else:
+            lone.append(head)
+    tops = (sorted(blockers, key=rank) + sorted(rest, key=rank)
+            + sorted(lone, key=rank))
+
+    # Shallowest position: a breadth-first pass from the first level
+    # gives each task its least depth; it nests under the first, in sort
+    # order, of its deps one level up. Child lists are complete before
+    # anything is drawn, so `└── ` always marks the last sibling.
+    depth = {t: 0 for t in tops}
+    queue = list(tops)
+    for v in queue:
+        for k in sorted(children[v], key=rank):
+            if k not in depth:
+                depth[k] = depth[v] + 1
+                queue.append(k)
+    kids = {tid: [] for tid in rows}
+    for tid in rows:
+        if depth[tid]:
+            up = min((d for d in deps[tid] if depth[d] == depth[tid] - 1),
+                     key=rank)
+            kids[up].append(tid)
+
+    cur, lines = current_id(), []
 
     def emit(tid, prefix, branch):
         r = rows[tid]
@@ -396,71 +505,12 @@ def tree():
         lines.append(f"{prefix}{branch}{mark}"
                      f"{STATUS_ICON.get(r['status'], r['status'])} "
                      f"{ident}{note}")
-        wider = prefix + ("" if not branch
-                          else "    " if branch == "└── " else "│   ")
-        # Re-filter on every pass: a recursion can place a task that this
-        # node's child list also names (a diamond into the same subtree),
-        # and a stale snapshot would emit it a second time.
-        while True:
-            kids = sorted((k for k in children[tid] if k not in placed),
-                          key=rank)
-            if not kids:
-                break
-            k = kids[0]
-            placed.add(k)
-            emit(k, wider, "└── " if len(kids) == 1 else "├── ")
-
-    # The tree hangs under the project name. First level, in three
-    # passes: tasks that block others and wait on nothing, then the
-    # cycles (what is still unplaced but tied to another task), each
-    # flagged once and shown from its first task in sort order, then the
-    # tasks with no ties at all, as leaves. Independent means nothing it
-    # waits on (after pruning) and nothing waiting on it; a task whose
-    # every dep is unresolvable is not independent, its warning says why.
-    lone = sorted((t for t in rows
-                   if not deps[t] and not children[t]
-                   and not rows[t]["depends"]), key=rank)
-
-    tops = [t for t in sorted((t for t in rows
-                               if children[t] and not deps[t]), key=rank)]
-    # Reachable from a top via children links: those tasks nest, so the
-    # sweep below must not also put them on the first level. Walk the
-    # children map without touching `placed` (emission order does that).
-    reachable = set()
-
-    def cover(head):
-        queue = [head]
-        reachable.add(head)
-        while queue:
-            for k in children[queue.pop()]:
-                if k not in reachable:
-                    reachable.add(k)
-                    queue.append(k)
-
-    for t in tops:
-        cover(t)
-
-    # What no top reaches: cycles, tasks downstream of a cycle, and
-    # tasks whose every dep is unresolvable. A cycle is flagged once in
-    # edge order and shown from its first member in sort order, so its
-    # downstream tasks nest under it; a dangling task stands alone, its
-    # warning above saying why.
-    for tid in sorted((t for t in rows if t not in lone), key=rank):
-        if tid in reachable:
-            continue
-        ring = cycle_of(tid)
-        head = min(ring, key=rank) if ring else tid
-        if ring:
-            i = ring.index(head)
-            ring = ring[i:] + ring[:i] + [head]
-            warns.append(f"- {FLAG} dependency cycle: "
-                         f"{' -> '.join(ring)}; shown from {head}.")
-        tops.append(head)
-        cover(head)
-    tops += lone
+        wider = prefix + ("    " if branch == "└── " else "│   ")
+        below = sorted(kids[tid], key=rank)
+        for i, k in enumerate(below):
+            emit(k, wider, "└── " if i == len(below) - 1 else "├── ")
 
     for i, tid in enumerate(tops):
-        placed.add(tid)
         emit(tid, "", "└── " if i == len(tops) - 1 else "├── ")
 
     print(project())

@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-10-27, v10.4.** The framework rests on four premises, stated in
+**State: 2026-11-01, v10.5.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -211,7 +211,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 614 lines: the task table, the dependency tree, the
+  `tasks.py`: 664 lines: the task table, the dependency tree, the
   resolver, and `start`/`finish`.
 - A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
@@ -376,6 +376,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.5 (2026-11-01, /task tree placement fixes, section 48. Tasks sit at
+their shallowest position across the whole tree, branch characters
+follow the final child lists, every cycle is flagged, `depends:` ids
+match without case.)
 
 v10.4 (2026-10-27, /task tree independents on the first level, section
 47. Tasks with no dependency ties stand on the first level as leaves,
@@ -3146,3 +3151,33 @@ it; a task whose every dependency is unresolvable still stands on the
 first level with its warning. Tests: `test_tasks_table.py` checks the
 independents close the first level in sort order and that no
 `independent:` line is printed. Runbook: TC-L2 amended.
+
+## 48. /task tree: placement fixes (2026-11-01, v10.5)
+
+A code review of sections 45 to 47 found four defects in `tasks.py
+tree`, each reproduced on throwaway task directories:
+
+- Placement was depth-first: a task sat wherever the walk reached it
+  first, not at its shallowest position. `b` waiting on `t` and `a`
+  (with `a` under `t`) landed under `a`; `x` waiting on `a` and `t2`
+  landed three levels down under `t1`, and `t2` showed as a leaf.
+- Branch characters were chosen while the walk still moved siblings
+  into earlier subtrees, so a last child could keep `├── ` and its
+  descendants a stray `│`.
+- The cycle check ran only on tasks no first-level task reached; a
+  cycle below a task that blocks others nested without a warning.
+- `depends:` ids matched case-sensitively, unlike `resolve`; `depends:
+  bug-7` on a task directory `BUG-7` was flagged unknown and dropped.
+
+Change: the first level comes from the dependency graph's strongly
+connected components; a component that waits on nothing outside
+itself is a first-level entry (from its first task in sort order).
+A breadth-first pass from the first level gives each task its least
+depth, and the task nests under its first dependency in sort order one
+level up. Child lists are complete before drawing, so `└── ` marks the
+last sibling. Every cycle is flagged once, in edge order from its first
+task in sort order; `shown from` is added only when the cycle stands on
+the first level. Ids match without case. The 10.2 fixture had baked in
+the depth-first answer (`deep-a` under `mid-task` although it names
+`root-task`); its expectation now follows the spec. Tests:
+`test_tasks_table.py` adds the four review cases.
