@@ -350,6 +350,26 @@ change the Herdr worker's Claude Code permission mode (default `auto`).
 Delegation is not claimed to be cheaper: supervision and review stay on your
 model.
 
+## Parallel tasks
+
+Two `/task create` or `/task do` sessions can run side by side in the same
+project, for example in two Herdr panes, each with its own worker tab
+(CONCEPT.md section 51). Nothing to switch on:
+
+- The first running task holds `.ai/.current`; a task started while it
+  runs gets `.ai/.current-<id>`, and `tasks.py start` names every task
+  already running and the files it has claimed. `/task list` marks all
+  running tasks.
+- Before editing a file, a task claims it: `python3
+  .ai/agent/tools/tasks.py claim <id> <path>...`. A file another running
+  task claimed is refused, so two tasks never edit the same file.
+- `.ai` commits name their own paths (`git -C .ai add tasks/<id>`), never
+  `add -A`, so one session never commits the other's half-written files.
+
+Both tasks still share one working tree: a test run sees the other task's
+unfinished edits. Give parallel tasks disjoint files, and expect a
+failure in a file the other task claimed to be its business, not yours.
+
 ## GitHub Copilot support
 
 Choosing `copilot` at the harness prompt targets Copilot instead of Claude

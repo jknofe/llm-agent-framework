@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-01, v11.0.** The framework rests on four premises, stated in
+**State: 2026-11-01, v11.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 50, unchanged and
+- **Part III** is the revision history, sections 1 to 51, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -211,10 +211,30 @@ Rules that came from failures, not from theory:
 
 `status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
 index across parallel task directories. `.ai/.current` is the resume
-pointer, one per working tree, starting `task: <id>`. Parallel work is an
-intent that was never built and the framework claims nothing about it. A
-`depends:` line records that one task waits on another; it schedules
-nothing.
+pointer, starting `task: <id>`.
+
+Since 11.1 tasks run in parallel in one working tree (section 51): two
+`/task create` or `/task do` sessions side by side, each with its own
+Herdr worker. Isolation is cooperative, not physical:
+- `tasks.py start` takes `.ai/.current` only while the task it names is
+  not running; otherwise it writes the task's own pointer
+  `.ai/.current-<id>` and prints every running task with its files
+  (`PARALLEL`).
+- A host file is claimed before it is edited, `tasks.py claim <id>
+  <path>...`, which refuses (`CLAIMED`) a file another running task
+  listed. Two tasks never edit the same file; the one that needs it asks
+  the user or waits.
+- Every `.ai` commit names its own paths (`git -C .ai add tasks/<id>`,
+  plus `notes.md` when changed), never `add -A`, which would sweep a
+  parallel session's half-written files; the turn-end hook names the
+  dirty paths instead of suggesting `add -A`.
+- A review judges the task's diff as `git diff --` its claimed files; a
+  file another running task claimed is not scope creep.
+What stays shared: one working tree and so one test run, which sees the
+other task's unfinished edits (a failure in a file another task claimed is
+recorded, not fixed), and `notes.md`. Git worktrees, the physical
+alternative, were rejected for now (section 51). A `depends:` line records
+that one task waits on another; it schedules nothing.
 
 ## Property 3: one command set
 
@@ -254,8 +274,8 @@ project's version and cannot know what the new version changed.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `delegate.py`: ~330 lines, the worker dispatch of `/task do`.
-  `tasks.py`: 805 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, and `start`/`tick`/`finish`.
+  `tasks.py`: 919 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 15 framework files, a copilot one 14, counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
@@ -307,7 +327,8 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
-4. `.ai/.current` is the resume pointer; read it at session start.
+4. `.ai/.current` is the resume pointer (`.ai/.current-<id>` for a task
+   running in parallel); read it at session start.
    `/task do` (except an investigation, run in one go by `/task create`)
    and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
@@ -388,6 +409,7 @@ to that commit.
 | `v7-vs-6.1-sonnet5-medium-2026-09-14` | 7.0 against 6.1, framework arm and context-only arm | All four PASS, identical packages. 7.0 was 7% cheaper on one arm and 11% dearer on the other: noise. The useful number: the spec chain costs 2.1x to 2.5x the direct path. |
 | `constraint-sonnet5-medium-2026-09-14` | Does a stated non-derivable rule survive three sessions? 21 sessions, hidden constraint test | 18 of 18 gates passed. Constraint held F 6/6, B 5/6: no support under the pre-stated rule. The round cannot decide, because task N's output became task N+1's local precedent. `/explore` with a human answering landed the rule verbatim 3 of 3. |
 | `egm-live-opus5.5-2026-11-01` | `/task do` with a supervised cheaper worker (section 50), two tasks, n=1 each | Both done. Herdr worker (sonnet) ran in its own tab; a trust dialog forced the sub-agent fallback (haiku) once. Supervisor caught one wrong citation. No cost claim: no inline twin. |
+| `parallel-satty-opus5.5-2026-11-01` | Two `/task` sessions side by side in one tree, create then do (section 51) | Both pairs ran at once. Commits path-scoped, a `CLAIMED` refusal stopped a real collision, first live second round. One done, one blocked. |
 
 **Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
 navigation2) was withdrawn with the amortization thesis. `constraint-runbook.md`
@@ -427,6 +449,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.1 (2026-11-01, parallel tasks in one working tree, section 51.
+`/task create` and `/task do` run side by side: a running task keeps
+`.ai/.current`, the next gets `.ai/.current-<id>`; `tasks.py claim`
+gives each host file one owner; every `.ai` commit is path-scoped, never
+`add -A`; the review judges the claimed files. Live test: both satty
+tasks planned and worked in parallel. Runbook: TC-P1.)
 
 v11.0 (2026-11-01, `/task do` on a supervised cheaper-tier worker, section
 50, after Google's Elephant-Goldfish Model. The `/task do` session
@@ -3434,3 +3463,80 @@ showed three faults, fixed here:
 dispatcher, permissions for `delegate.py plan` and the read-only
 `herdr agent wait|get|read`. Tests: `tests/test_delegate.py`; runbook
 TC-D6 and TC-D7.
+
+## 51. Parallel tasks in one working tree (2026-11-01, v11.1)
+
+**What blocked it.** Until 11.0, Part I said parallel work "is an intent
+that was never built". Four things made two `/task` sessions in one
+project unsafe:
+1. One resume pointer: a second `tasks.py start` replaced the first
+   task's `.ai/.current`, and with it the `modified:` list.
+2. `git -C .ai add -A`, in AGENTS.md, Create, Do, the worker body, the
+   turn-end hook and the commit `tasks.py` prints. It sweeps a parallel
+   session's half-written task file into the other session's commit.
+3. One host working tree: both tasks' edits land in one diff, which the
+   review gate reads as scope creep, and nothing stops both from editing
+   the same file.
+4. The turn-end hook blocked on any dirty `.ai` and suggested `add -A`.
+
+**Why not git worktrees.** A worktree per task is the physical answer and
+was considered first. It fails three ways today. A new worktree path is
+a folder the harness has never trusted, so a Herdr worker started there
+stops at the trust dialog (section 50), and parallel work would lose the
+worker tab. The scaffold's entry files (`.claude/`, `AGENTS.md`) are often
+untracked in the host repo, so a fresh worktree has no skills, hooks or
+instructions. And `.ai` is its own repository, so a worktree needs a
+second worktree of `.ai` and a merge back that `/task list` cannot see
+until it happens. Cooperative isolation in one tree needs none of that.
+
+**The design.**
+- Pointers: `tasks.py start` writes `.ai/.current` when it is free or
+  names a task that is not `in-progress` (a blocked or finished task's
+  pointer is replaced, as before), and `.ai/.current-<id>` otherwise
+  (gitignored with `.current-*`). It prints each other running task with
+  its claims (`PARALLEL`). `finish done` deletes the task's own pointer;
+  `finish blocked` keeps it. `/task list` and `/task tree` mark every
+  running task. `/task do` without an id resumes `.ai/.current`, or the
+  only running pointer, and asks when there are several.
+- Claims: `tasks.py claim <id> <path>...` appends to the task's
+  `modified:` list and refuses, exit 1, a file another running task
+  listed. A refused claim writes nothing. Do and the worker body claim a
+  file before editing it; a worker that needs a claimed file reports
+  `needs-user`.
+- Commits: every documented and printed `.ai` commit names its paths.
+  The turn-end hook lists the dirty paths and tells the session to
+  commit only its own.
+- Review scope: the task's diff is `git diff --` its claims.
+
+**What is not isolated.** The test suite runs in the shared tree and sees
+the other task's unfinished edits: a failure in a file another running
+task claimed is recorded in Findings and rerun later, not fixed.
+`notes.md` is shared and appended by both. Claims are cooperative: an
+agent that edits without claiming is not stopped by a hook.
+
+**Live test, 2026-11-01** (satty `f578432`, one Herdr workspace, two
+Opus 5.5 supervisors side by side, sonnet workers):
+- Both Creates ran at once: two `.ai` commits, each holding only its own
+  task file (plus `notes.md` for the one that changed it).
+- Both Dos ran at once: `readme-keybindings` held `.ai/.current`,
+  `config-errors-no-abort` got `.ai/.current-config-errors-no-abort` and
+  saw `PARALLEL readme-keybindings is running`. Two worker tabs ran
+  together.
+- The claim refusal fired for real: the second worker tried to claim
+  `README.md`, got `CLAIMED README.md by running task
+  readme-keybindings`, dropped it and went on.
+- Supervisor A wrote a correction, the first live second round:
+  `CLOSED previous worker` then `LAUNCHED ... round 2` in a new tab;
+  round 2 was accepted. Its Findings name the other task's files as the
+  parallel task's, not scope creep.
+- End state: one task `done` (its pointer deleted), one `blocked` on the
+  missing toolchain (its parallel pointer kept, marked in `/task list`).
+  Ten `.ai` commits, none holding another task's files.
+
+**Files.** `templates/tools/tasks.py` (`pointers`, `claim`,
+path-scoped commit lines), `templates/hooks/ai_repo_clean.py`, the
+commit rule in `templates/instructions/agents.md`, `task/create.md`,
+`task/do.md` (pointer, claims, suite and review scope), `task/work.md`,
+the `.current-*` gitignore entry in `agentgen/scaffold.py`. Tests:
+`test_tasks_table.py` (pointers, claims, resume, list marks: 144 checks).
+Runbook: TC-P1.
