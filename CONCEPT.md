@@ -166,7 +166,8 @@ when that model is a cheaper tier than its own, and judges every round
 from the files: the report line, the evidence behind each ticked step,
 the diff, and the full suite run again by itself. A worker's `done` is a
 claim, not a gate result. A correction goes into Findings as a
-`Supervisor round <n>` line for the next round, which always starts a fresh
+`Supervisor round <n>` line for the next round (an accepted round leaves at
+most a `Supervisor check` note, never that form), which always starts a fresh
 worker (in Herdr too: `launch` closes the last round's tab first), so the
 file is the only memory between rounds; at most three rounds, then
 the supervisor takes over, asks, or blocks. The worker never ticks a
@@ -187,8 +188,10 @@ agent only shows the output; it opens no file. Outside any agent,
 involved.
 
 The task's bookkeeping is the same script: `tasks.py start <id>` sets
-`in-progress` and writes the resume pointer `.ai/.current`, and `tasks.py
-finish <id> done|blocked [reason]` closes it. `finish done` refuses while a
+`in-progress` and writes the resume pointer `.ai/.current`, `tasks.py tick
+<id> done|steps <n>...` ticks the named criteria or steps, and `tasks.py
+finish <id> done|blocked [reason]` closes it. `tick` has no "all": every
+box is named on purpose (section 50). `finish done` refuses while a
 criterion is unticked or the review line is missing, so the gate the
 table flags afterwards is also enforced before. Neither commits; the agent
 commits `.ai` with the relative `git -C .ai` (section 44).
@@ -251,8 +254,8 @@ project's version and cannot know what the new version changed.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `delegate.py`: ~330 lines, the worker dispatch of `/task do`.
-  `tasks.py`: 748 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, and `start`/`finish`.
+  `tasks.py`: 805 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, and `start`/`tick`/`finish`.
 - A claude scaffold records 15 framework files, a copilot one 14, counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
@@ -430,7 +433,8 @@ v11.0 (2026-11-01, `/task do` on a supervised cheaper-tier worker, section
 supervises; a fresh worker on a cheaper model works steps 2 to 5 from
 `.ai/agent/task/work.md`, in a Herdr tab when the session runs inside
 Herdr, as a harness sub-agent otherwise. `delegate.py plan|launch|close`
-decides the mode and model; `inline` keeps the old path. New framework
+decides the mode and model; `inline` keeps the old path. `tasks.py tick`
+ticks named criteria and steps, no "all". New framework
 files: `delegate.py`, `task/work.md`. Test: `tests/test_delegate.py`;
 runbook: TC-D6, TC-D7.)
 
@@ -3406,6 +3410,23 @@ inline Opus was not run as a twin. One pre-existing slip recurred in both
 runs: the supervisor ticked done-when boxes with an in-place Python edit
 rather than its edit tool, against `do.md`'s rule. That is not new to
 11.0 and is left for a separate change.
+
+**Fixes from the satty run, same day.** A runbook run on satty
+(`f578432`, Opus 5.5 supervisor, sonnet workers in Herdr tabs) passed
+TC-D2, TC-D6 and TC-D3: one change done with the `reviewer` sub-agent
+finding four defects the supervisor's round check had missed, one change
+`blocked` on the missing toolchain after the worker reported `stuck`. It
+showed three faults, fixed here:
+- The supervisor wrote a `Supervisor round 1` line on a round it
+  accepted. That form is the correction a later worker acts on, so an
+  accepted round now writes `Supervisor check: round <n> accepted` instead.
+- Done-when boxes were ticked by a script replacing every `- [ ]` at once,
+  in all three live runs (it predates 11.0). `tasks.py tick <id>
+  done|steps <n>...` now ticks named items only, prints each with its text,
+  and has no "all"; `do.md` and `work.md` route every tick through it, the
+  worker only `steps`.
+- In the runbook's Herdr driving, `enter` on a question form's "Type
+  something" closes the form unanswered; the appendix says how to answer.
 
 **Files.** `templates/tools/delegate.py` (`plan`, `launch`, `close`),
 `templates/task/work.md` (the worker's body), the supervision block in

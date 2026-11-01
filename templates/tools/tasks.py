@@ -73,8 +73,16 @@ no review line, the two conditions `/task list` would flag; otherwise it
 sets the status, drops a `blocked:` line, and deletes `.ai/.current` when it
 names this task. Neither commits: the agent commits `.ai` itself.
 
-list, tree, resolve and trackers are read-only; start and finish write only
-the task's frontmatter and `.ai/.current`. Stdlib only.
+`tasks.py tick <id> done|steps <n> [<n>...]` ticks the named checkboxes of
+Done when (`done`) or Steps (`steps`), counted from 1 in file order, and
+sets `updated:`. There is no "all": each item is named on purpose, so a box
+is ticked because it was checked, not swept by a blanket replace. It prints
+each item it ticked with its text, refuses a number the section does not
+have, and leaves every other byte of the file alone. Striking a dead step
+(`- [x] ~~H1~~ ruled out: ...`) is an edit, not a tick.
+
+list, tree, resolve and trackers are read-only; start, finish and tick
+write only the task file and `.ai/.current`. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -608,7 +616,9 @@ def trackers():
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
          "| tasks.py trackers | tasks.py start <id> | "
-         "tasks.py finish <id> done|blocked [<reason>]")
+         "tasks.py finish <id> done|blocked [<reason>] | "
+         "tasks.py tick <id> done|steps <n> [<n>...]")
+TICK_SECTIONS = {"done": "Done when", "steps": "Steps"}
 COMMIT = "Commit `.ai` now: git -C .ai add -A && git -C .ai commit -m"
 
 
@@ -681,6 +691,48 @@ def finish(arg, state, reason):
     return 0
 
 
+def tick(arg, which, nums):
+    """Tick numbered checkboxes in Done when or Steps, each named."""
+    found = live_task(arg) if arg else None
+    if not found:
+        print(f"No live task {arg!r}.")
+        return 1
+    try:
+        wanted = sorted({int(n) for n in nums})
+    except ValueError:
+        wanted = []
+    if which not in TICK_SECTIONS or not wanted:
+        print(USAGE)
+        return 2
+    tid, path = found
+    heading = TICK_SECTIONS[which]
+    text = path.read_text(encoding="utf-8")
+    m = re.search(rf"^## {re.escape(heading)}\b.*?$(.*?)(?=^## |\Z)", text,
+                  re.M | re.S)
+    boxes = (list(re.finditer(r"^\s*[-*] \[([ xX~-])\]\s*(.*)$",
+                              m.group(1), re.M)) if m else [])
+    bad = [n for n in wanted if not 1 <= n <= len(boxes)]
+    if bad:
+        print(f"{tid}: `## {heading}` has {len(boxes)} item(s); no item "
+              + ", ".join(map(str, bad)) + ". Nothing ticked.")
+        return 1
+    body = m.group(1)
+    for n in reversed(wanted):
+        b = boxes[n - 1]
+        if b.group(1) == " ":
+            body = body[:b.start(1)] + "x" + body[b.end(1):]
+    path.write_text(text[:m.start(1)] + body + text[m.end(1):],
+                    encoding="utf-8")
+    set_fields(path, {"updated": datetime.date.today().isoformat()})
+    for n in wanted:
+        b = boxes[n - 1]
+        state = "TICKED" if b.group(1) == " " else "already ticked"
+        print(f"{state} {heading} {n}: {b.group(2)[:90]}")
+    got, total = checked(path.read_text(encoding="utf-8"), heading)
+    print(f"{tid}: {heading} {got}/{total} ticked.")
+    return 0
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "resolve":
@@ -692,6 +744,11 @@ def main():
             print(USAGE)
             return 2
         return finish(args[1], args[2], " ".join(args[3:]))
+    if args and args[0] == "tick":
+        if len(args) < 4:
+            print(USAGE)
+            return 2
+        return tick(args[1], args[2], args[3:])
     if args and args[0] == "tree":
         return tree()
     if args and args[0] == "trackers":

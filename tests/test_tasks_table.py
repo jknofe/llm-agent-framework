@@ -499,6 +499,43 @@ def main():
           f"depends ids match without case: {body!r}")
     check("not a live task" not in out, "case-only dep not flagged")
 
+    # tick (11.0): named boxes only, refuses unknown numbers, no "all".
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        task(root, "tk", "tk", "Tick", "change", "in-progress", OLD,
+             done_when="- [ ] first\n      continued\n- [ ] second\n- [ ] third",
+             steps="- [x] ~~H1~~ ruled out: x\n- [ ] s2\n- [ ] s3")
+        path = root / ".ai/tasks/tk/task.md"
+        before = path.read_text(encoding="utf-8")
+        out = run(root, "tick", "tk", "done", "1", "3")
+        after = path.read_text(encoding="utf-8")
+        check("TICKED Done when 1: first" in out and
+              "TICKED Done when 3: third" in out, f"tick prints items: {out!r}")
+        check("- [x] first\n      continued\n- [ ] second\n- [x] third"
+              in after, "tick ticks only the named boxes")
+        check("Done when 2/3 ticked" in out, "tick prints progress")
+        check(after.replace(f"updated: {TODAY}", f"updated: {OLD}")
+              .replace("[x] first", "[ ] first")
+              .replace("[x] third", "[ ] third") == before,
+              "tick changes nothing else but updated:")
+        out = run(root, "tick", "tk", "steps", "1", "2")
+        check("already ticked Steps 1" in out and "TICKED Steps 2: s2" in out,
+              f"tick reports an already-ticked step: {out!r}")
+        r = attempt(root, "tick", "tk", "done", "4")
+        check(r.returncode == 1 and "no item 4" in r.stdout,
+              f"tick refuses a missing item: {r.stdout!r}")
+        check(path.read_text(encoding="utf-8").count("- [ ] second") == 1,
+              "a refused tick changes nothing")
+        for bad in (["tk", "done", "all"], ["tk", "outcome", "1"],
+                    ["tk", "done"]):
+            check(attempt(root, "tick", *bad).returncode == 2,
+                  f"tick usage error for {bad}")
+        check(attempt(root, "tick", "nope", "done", "1").returncode == 1,
+              "tick on an unknown task")
+
     if FAILS:
         for f in FAILS:
             print(f"FAIL {f}")

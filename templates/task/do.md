@@ -4,9 +4,11 @@ Read by `/task` after `tasks.py resolve` printed `DO <id>`, or by Create
 for an investigation. Work the task from its file.
 
 Change the task's status and `.ai/.current` only through
-`python3 ${tools_dir}/tasks.py start` and `finish`, never with shell
-redirects or in-place edits; edit the task file's sections with your file
-editing tool. Commit `.ai` from the project root with the relative form,
+`python3 ${tools_dir}/tasks.py start` and `finish`, and tick a Done-when
+criterion or a step only through `python3 ${tools_dir}/tasks.py tick <id>
+done|steps <n> [<n>...]`, naming each item you checked; never with shell
+redirects, in-place edits or a script that ticks every box at once. Edit
+the task file's sections with your file editing tool. Commit `.ai` from the project root with the relative form,
 `git -C .ai add -A && git -C .ai commit -m "<message>"`, never an absolute
 path. Those are the forms the permission allowlist matches.
 
@@ -47,7 +49,9 @@ ticked without evidence is not done), read `git status` and the diff,
 and if code changed, run the full test and lint commands yourself.
 Decide:
 - Accept when the report says `done` and your checks hold: go on at
-  step 6.
+  step 6. To record what you checked, write `- <today> Supervisor
+  check: round <n> accepted: <checks>`, never a `Supervisor round` line:
+  that form is a correction, and a later worker acts on it.
 - Correct otherwise: append `- <today> Supervisor round <n>: <each
   correction: file, what is wrong, what done looks like>` to Findings,
   commit `.ai`, and run the next round (`plan`, then launch or spawn):
@@ -70,7 +74,7 @@ review gate, Outcome, notes and `finish` stay yours.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
-   when it is done.
+   when it is done (`tasks.py tick <id> steps <n>`).
 3. Record findings as they happen, not at the end: append each to
    `## Findings`, dated, telegraphic, with its evidence (file and line,
    command and its output, log excerpt, doc URL). A finding the file
@@ -152,7 +156,9 @@ review gate, Outcome, notes and `finish` stay yours.
      the section under ~300 tokens. Last, confirm every leaf under
      `.ai/notes/` is linked from `notes.md` and every pointer resolves.
 8. Tick each Done-when criterion the result meets, and each finished
-   step. If a criterion stays open, the task is not done: meet it, get
+   step, with `python3 ${tools_dir}/tasks.py tick <id> done <n>...`
+   (`steps` for steps): name only the numbers you confirmed, criterion by
+   criterion against the review and your checks. If a criterion stays open, the task is not done: meet it, get
    the user's agreement to drop it (record that in Notes), or finish the
    task as `blocked`. Then run `python3 ${tools_dir}/tasks.py finish <id>
    done`. It refuses while a criterion is unticked or the `Review:` line
