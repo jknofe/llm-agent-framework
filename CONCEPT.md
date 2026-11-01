@@ -156,7 +156,9 @@ when that model is a cheaper tier than its own, and judges every round
 from the files: the report line, the evidence behind each ticked step,
 the diff, and the full suite run again by itself. A worker's `done` is a
 claim, not a gate result. A correction goes into Findings as a
-`Supervisor round <n>` line for the next round; at most three rounds, then
+`Supervisor round <n>` line for the next round, which always starts a fresh
+worker (in Herdr too: `launch` closes the last round's tab first), so the
+file is the only memory between rounds; at most three rounds, then
 the supervisor takes over, asks, or blocks. The worker never ticks a
 done-when box, never writes Outcome, notes or the review line, and never
 commits to the host repository. A Herdr dialog in the worker's tab (folder
@@ -3288,7 +3290,10 @@ not poll. `delegate.py launch` confirms the prompt started a turn
 (`agent prompt --wait` with a short timeout: a stall or a dialog fails),
 because the runbook had recorded a prompt that was never submitted. On
 any failure it captures the worker's screen, closes the tab it opened,
-and the supervisor falls back to a sub-agent.
+and the supervisor falls back to a sub-agent. Each round starts a fresh
+worker in a new tab: the first cut re-prompted a worker still alive from
+the round before, which kept its context and made Herdr rounds differ from
+sub-agent rounds. A correction must then stand on its own in the file.
 
 **Folder trust.** The worker runs in the project folder, so it needs the
 harness's trust for that folder, which an interactive session there has

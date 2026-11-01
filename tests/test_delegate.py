@@ -5,9 +5,11 @@ Scaffolds both harnesses into a temp dir, writes task files, and checks every
 MODE branch (inline asked, worker recursion guard, small plan, herdr,
 subagent, and subagent for a folder the harness has not trusted), the model
 choice per type and size and harness, the env override, and the round count
-from `Worker round` lines. Trust records live in a fake HOME. Herdr and the harness CLIs are
-faked with stub executables on PATH; `launch` and `close` talk to a live
-Herdr and are covered by tests/task-commands.md, not here.
+from `Worker round` lines. Trust records live in a fake HOME. Herdr and the
+harness CLIs are faked with stub executables on PATH. `launch` runs against a
+stub `herdr` that logs its calls: every round must retire the previous
+worker's tab before it opens a fresh one. `launch` against a live Herdr is
+covered by tests/task-commands.md.
 
 Usage: python3 tests/test_delegate.py
 """
@@ -73,6 +75,47 @@ def plan(root, tid, *extra, env=None, path=""):
                 if " " in line)
 
 
+# Stub herdr: logs each call; `agent start` makes a worker live, `tab close`
+# ends it, `agent get` fails when none is live, as the real CLI does.
+STUB = r'''#!{py}
+import json, os, sys
+d = os.environ["STUB_DIR"]
+a = sys.argv[1:]
+open(os.path.join(d, "log"), "a").write(" ".join(a[:2]) + "\n")
+live = os.path.join(d, "live")
+if a[:2] == ["agent", "get"]:
+    if not os.path.exists(live):
+        print('{{"error":{{"code":"not_found"}}}}'); sys.exit(1)
+    print(json.dumps({{"result": {{"agent": {{"tab_id": open(live).read()}}}}}}))
+elif a[:2] == ["tab", "create"]:
+    n = len(open(os.path.join(d, "log")).read().splitlines())
+    print(json.dumps({{"result": {{"tab": {{"tab_id": f"w1:t{{n}}"}},
+                       "root_pane": {{"pane_id": f"w1:p{{n}}"}}}}}}))
+    open(os.path.join(d, "pending"), "w").write(f"w1:t{{n}}")
+elif a[:2] == ["agent", "start"]:
+    os.replace(os.path.join(d, "pending"), live)
+    print("{{}}")
+elif a[:2] == ["tab", "close"]:
+    if os.path.exists(live): os.remove(live)
+    print("{{}}")
+else:
+    print("{{}}")
+'''
+
+
+def launch(root, stub_dir, path):
+    e = {k: v for k, v in os.environ.items()
+         if k not in ("LLM_AGENT_ROLE", "CLAUDE_CONFIG_DIR",
+                      "LLM_AGENT_WORKER_MODEL")}
+    e.update(PATH=path, HOME=HOME["dir"], HERDR_ENV="1",
+             STUB_DIR=str(stub_dir))
+    (stub_dir / "log").write_text("")
+    out = subprocess.run(
+        [sys.executable, str(root / ".ai/agent/tools/delegate.py"), "launch",
+         "big-bug"], capture_output=True, text=True, env=e)
+    return out.stdout, (stub_dir / "log").read_text().splitlines()
+
+
 def expect(label, got, **want):
     for k, v in want.items():
         if got.get(k) != v:
@@ -116,6 +159,25 @@ def main():
         # A trusted parent does not cover a claude project folder.
         untrusted = plan(u, "big-bug", env=herdr_env, path=fake)
         expect("herdr untrusted", untrusted, MODE="subagent")
+
+        # launch: round 1 opens a worker; round 2 closes it, then a fresh one.
+        sbin, sdir = tmp / "sbin", tmp / "stub"
+        sbin.mkdir()
+        sdir.mkdir()
+        (sbin / "herdr").write_text(STUB.format(py=sys.executable))
+        (sbin / "herdr").chmod(0o755)
+        (sbin / "claude").write_text("#!/bin/sh\nexit 0\n")
+        (sbin / "claude").chmod(0o755)
+        spath = f"{sbin}:/usr/bin:/bin"
+        out1, log1 = launch(c, sdir, spath)
+        want1 = ["agent get", "tab create", "agent start", "agent prompt"]
+        if log1 != want1 or "LAUNCHED" not in out1:
+            FAILS.append(f"launch round 1: {log1} / {out1!r}")
+        out2, log2 = launch(c, sdir, spath)
+        want2 = ["agent get", "tab close"] + want1[1:]
+        if log2 != want2 or "CLOSED previous worker" not in out2 \
+                or "LAUNCHED" not in out2:
+            FAILS.append(f"launch round 2 not fresh: {log2} / {out2!r}")
         if "trust" not in untrusted.get("REASON", ""):
             FAILS.append(f"untrusted reason: {untrusted.get('REASON')!r}")
         expect("herdr untrusted, no herdr env", plan(u, "big-bug"),
