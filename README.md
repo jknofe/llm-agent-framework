@@ -133,6 +133,12 @@ file list retires nothing and prints what to remove by hand.
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
+   The steps themselves go to a cheaper-model worker that starts fresh
+   from the task file, in its own Herdr tab when you
+   run inside Herdr, as a sub-agent otherwise; the session you talk to
+   supervises it and checks every round from the files (see
+   [Supervised workers](#supervised-workers)). `/task do BUG-7 inline`
+   keeps the work in your session.
    Findings the repository cannot state go into `notes.md`. The agent never
    starts a task plan on its own.
 4. **See where things stand**: `/task list` prints every live task as
@@ -179,9 +185,10 @@ small one, and it is now the only shape the generator emits:
 - **Five skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
-  (command and documentation detection), and `tasks.py` (the task table,
+  (command and documentation detection), `tasks.py` (the task table,
   the create-or-do resolver, and `start`/`finish`, the status bookkeeping of
-  `/task do`).
+  `/task do`), and `delegate.py` (where `/task do`'s worker runs, on which
+  model).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
@@ -214,7 +221,7 @@ Both harnesses invoke them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>]` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline]` | Opt-in. A cheaper-model worker works the steps under the session's supervision (`inline`: the session works them itself). Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
@@ -304,6 +311,39 @@ Hooks only fire when the scaffolded repo is the session's working directory
 the agent from a parent directory, a monorepo subdir, or a sub-agent means
 the hooks do not run; in that case the protocol rules in `AGENTS.md` are the
 only guarantee, so commit `.ai` by hand and do not assume a hook ran.
+
+## Supervised workers
+
+`/task do` runs as two roles, after Google's Elephant-Goldfish Model
+(CONCEPT.md section 49). The session you talk to is the supervisor: it
+starts the task, hands the steps to a worker, checks every round from the
+files, and keeps the review gate, the Outcome, `notes.md` and `finish`. The
+worker starts in a fresh context on a cheaper model and knows only
+`notes.md`, the task file and `.ai/agent/task/work.md`. It works the steps,
+records findings, runs the tests, reports with a `Worker round <n>` line in
+Findings, and commits `.ai`. It never ticks a done-when box and never
+commits your code.
+
+`python3 .ai/agent/tools/delegate.py plan <id>` shows the choice:
+
+- **herdr**: inside Herdr (`HERDR_ENV=1`) with the harness CLI installed.
+  The worker gets its own tab labelled `task:<id>`, so you can watch it and
+  step in. The worker runs in the project folder, so it needs the harness
+  to trust that folder, as your own session usually already does. The
+  script reads the harness's trust record first and picks `subagent` for a
+  folder it has not trusted (a fresh clone, a new worktree, a folder only
+  ever run headless). If a dialog still appears, the supervisor closes the
+  tab, says why, and falls back to a sub-agent.
+- **subagent**: anywhere else, a fresh sub-agent of the harness.
+- **inline**: `/task do <id> inline`, two or fewer open steps, or a worker
+  model that is not cheaper than the session's own.
+
+The model: on Claude Code, `haiku` for a `change` or `test` of at most three
+steps and `sonnet` for everything else; on Copilot, `auto`. Set
+`LLM_AGENT_WORKER_MODEL` to choose, and `LLM_AGENT_WORKER_PERMISSION` to
+change the Herdr worker's Claude Code permission mode (default `auto`).
+Delegation is not claimed to be cheaper: supervision and review stay on your
+model.
 
 ## GitHub Copilot support
 

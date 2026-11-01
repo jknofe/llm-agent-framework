@@ -420,8 +420,12 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     # Task table and create-or-do resolver behind /task.
     write(root / TOOLS_DIR / "tasks.py", render_tool_tasks(),
           force, created, skipped)
-    # /task's Create and Do bodies, read on demand by the /task skill.
-    for part in ("create", "do"):
+    # Worker dispatch for /task do: Herdr tab, sub-agent or inline.
+    write(root / TOOLS_DIR / "delegate.py", render_tool_delegate(),
+          force, created, skipped)
+    # /task's Create and Do bodies, read on demand by the /task skill, and
+    # the Work body its worker reads.
+    for part in ("create", "do", "work"):
         write(root / TASK_DIR / f"{part}.md", render_task_part(part),
               force, created, skipped)
 

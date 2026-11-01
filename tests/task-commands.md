@@ -247,6 +247,46 @@ sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
 
+**TC-D6: supervised worker in a Herdr tab** (11.0)
+
+Run inside Herdr, from a project folder the harness already trusts, on a
+session model above the worker tier (claude: Opus or Fable). A task with
+three or more open steps; a `bug` gets `sonnet`, a short `change` `haiku`.
+`/task do <id>`.
+
+Pass when all hold:
+- The transcript shows `delegate.py plan <id>` with `MODE herdr`, then
+  `delegate.py launch <id>` printing `LAUNCHED`, then `herdr agent wait`
+  with a Bash timeout of at least the wait's 9 minutes.
+- `herdr tab list` showed a `task:<id>` tab during the run; it is gone at
+  the end (`delegate.py close`).
+- The supervisor changed no file while the worker ran.
+- Findings: a `Worker round 1` line with each check and its result, a
+  `Delegation: herdr claude/<model>` line, a `Review:` line. The `.ai` log
+  has `task: <id> worker round 1` before `task: done <id>`.
+- The worker ticked steps only: in the round commit (`git -C .ai show
+  <round commit>`), no done-when box, no Outcome, no `notes.md` change.
+- The transcript shows the supervisor rerunning the full test command
+  after the round, not only reading the report.
+- No host repo commit by the worker.
+
+**TC-D7: Herdr fallback and sub-agent worker** (11.0)
+
+Same as TC-D6 but from a folder the harness has not trusted (a fresh
+scratch repo), or outside Herdr.
+
+Pass when all hold:
+- Inside Herdr, untrusted folder: `plan` prints `MODE subagent` with a
+  REASON naming the trust, no `launch` runs, and no tab opens. The
+  supervisor says why in one line.
+- If a trust record was unreadable and a dialog appeared anyway: `launch`
+  prints `FAILED` with the worker's screen and closes its tab; no
+  `task:<id>` tab is left behind, and the supervisor does not answer the
+  dialog.
+- A fresh general-purpose sub-agent runs with `"model":"<MODEL>"` and
+  PROMPT as its prompt, not a fork.
+- The rest as TC-D6, with `Delegation: subagent ...`.
+
 ### Direct path (9.1)
 
 No `/task`: the plain prompt, as a user would type it.
