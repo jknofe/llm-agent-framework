@@ -186,7 +186,7 @@ small one, and it is now the only shape the generator emits:
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
   (command and documentation detection), `tasks.py` (the task table,
-  the create-or-do resolver, and `start`/`finish`, the status bookkeeping of
+  the create-or-do resolver, and `start`/`tick`/`finish`, the bookkeeping of
   `/task do`), and `delegate.py` (where `/task do`'s worker runs, on which
   model).
 

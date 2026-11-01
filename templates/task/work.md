@@ -15,10 +15,11 @@ of guessing.
    in `## Steps`, and the covering tests while you iterate. If code
    changed, run the project's full test and lint commands before you
    report. Ignore the rest of `do.md`: the supervisor owns it.
-3. Do not do the supervisor's part. Never run `tasks.py start` or
-   `finish`, or `delegate.py`. Never edit Goal, the Done-when criteria or
-   their checkboxes, Outcome, `.ai/notes.md` or `AGENTS.md`. Never write the
-   `Review:` line. Never hand the steps to another agent. Never commit to
+3. Do not do the supervisor's part. Tick each step you finish with
+   `python3 ${tools_dir}/tasks.py tick <id> steps <n>`; never run `tick
+   <id> done`, `tasks.py start` or `finish`, or `delegate.py`. Never edit
+   Goal, the Done-when criteria or their checkboxes, Outcome,
+   `.ai/notes.md` or `AGENTS.md`. Never write the `Review:` line. Never hand the steps to another agent. Never commit to
    the host repository, push, or merge: leave the code changes in the
    working tree for the supervisor to judge.
 4. Stop at the first of these, and say which in your report:
