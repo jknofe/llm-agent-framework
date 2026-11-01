@@ -317,10 +317,12 @@ def render_tool_probe() -> str:
     return render.load("tools/probe.py")
 
 def render_task_part(part: str) -> str:
-    """`/task`'s Create or Do body (`create`, `do`), written to TASK_DIR and
-    read by the dispatching skill only when `tasks.py resolve` sends it
-    there."""
-    rel = {"create": "task/create.md", "do": "task/do.md"}[part]
+    """`/task`'s Create, Do or Work body (`create`, `do`, `work`), written
+    to TASK_DIR. Create and Do are read by the dispatching skill only when
+    `tasks.py resolve` sends it there; Work is read by the worker Do hands
+    its steps to (CONCEPT.md section 50)."""
+    rel = {"create": "task/create.md", "do": "task/do.md",
+           "work": "task/work.md"}[part]
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR)
 
 def render_tool_tasks() -> str:
@@ -328,6 +330,13 @@ def render_tool_tasks() -> str:
     the probe: parsing frontmatter is deterministic work, so a script does
     it."""
     return render.load("tools/tasks.py")
+
+def render_tool_delegate() -> str:
+    """Worker dispatch behind /task do (CONCEPT.md section 50): decides
+    whether a Herdr tab, a harness sub-agent or the session itself works the
+    steps, and on which model; launches and closes the Herdr worker. Static,
+    like the other tools."""
+    return render.load("tools/delegate.py")
 
 def render_settings_json() -> str:
     """Project settings (.claude/settings.json): a read-only permission allow

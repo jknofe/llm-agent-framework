@@ -20,7 +20,8 @@ Read the first word of the arguments:
 - `tree`: run `python3 ${tools_dir}/tasks.py tree` and reply with its
   complete output, verbatim, and nothing else; see Tree.
 - `create <id> <title...>`: resolve `<id>`, then Create.
-- `do [<id>]`: resolve `<id>` (none: the resume pointer), then Do.
+- `do [<id>] [inline]`: resolve `<id>` (none: the resume pointer), then
+  Do. `inline` keeps the work in this session instead of a worker.
 - anything else is an id, maybe followed by a title: resolve it, and
   the verdict decides between Create and Do.
 

@@ -21,6 +21,51 @@ path. Those are the forms the permission allowlist matches.
    `.ai/.current` current as you go. If the session is compacted, that
    file and the Findings section are the backup of exactly what to
    preserve.
+
+Steps 2 to 5 are the work, and a worker does them; you supervise. The
+worker starts in a fresh context on a cheaper model and knows only the
+files, so anything the user told you that the work depends on goes into
+the task's Notes before it starts. Run `python3 ${tools_dir}/delegate.py
+plan <id>` (add `inline` when the user asked for it) and act on MODE:
+- `inline`: work steps 2 to 5 yourself, then go on at step 6.
+- `herdr`: run `python3 ${tools_dir}/delegate.py launch <id>`, then the
+  `herdr agent wait` command it prints. If launch prints `FAILED`, use
+  `subagent` instead.
+- `subagent`: spawn a fresh general-purpose sub-agent, never one that
+  inherits this conversation, on MODEL where the harness lets you pick a
+  model, with PROMPT as its whole prompt. Where no sub-agent can be
+  spawned (you are one yourself, or the harness has none), work inline.
+A worker on your own tier costs more than doing the work yourself, so
+delegate only when MODEL is a cheaper tier than the model you run on.
+When it is not, or you cannot tell (`auto`), work inline, unless the
+user set `LLM_AGENT_WORKER_MODEL`. Whichever way, say the mode in one
+line before you start.
+While a worker runs, change no file: wait for it. Then supervise the
+round from the files, never from the worker's message: read the
+`Worker round` line and every new Finding in the task file (a step
+ticked without evidence is not done), read `git status` and the diff,
+and if code changed, run the full test and lint commands yourself.
+Decide:
+- Accept when the report says `done` and your checks hold: go on at
+  step 6.
+- Correct otherwise: append `- <today> Supervisor round <n>: <each
+  correction: file, what is wrong, what done looks like>` to Findings,
+  commit `.ai`, and run the next round (`plan`, then launch or spawn).
+- `needs-user`: ask the user, write the answer into Notes, next round.
+- `stuck`, or a fourth round would be needed: stop delegating. Work the
+  rest yourself, ask the user, or finish the task as `blocked`.
+- A Herdr wait that returns `blocked` is a dialog in the worker's tab:
+  read it (`herdr agent read <name> --source recent-unwrapped --lines
+  60`), never answer it for the user, tell them the tab and what it
+  asks, and wait again. The wait fits one shell call (9 minutes; give
+  the call that long a timeout). One that times out while the worker is
+  still `working` is no failure: wait again. After an hour with no new
+  Finding, read the tab and decide as for `stuck`.
+After the last round, run `python3 ${tools_dir}/delegate.py close <id>`
+(herdr only) and append `- <today> Delegation: <mode> <kind>/<model>,
+<rounds> round(s), <accepted|taken over|blocked>` to Findings. The
+review gate, Outcome, notes and `finish` stay yours.
+
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
    when it is done.
