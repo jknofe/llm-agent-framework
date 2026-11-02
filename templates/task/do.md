@@ -13,7 +13,10 @@ path. Those are the forms the permission allowlist matches.
 1. Run `python3 ${tools_dir}/tasks.py start <id>`: it sets
    `status: in-progress` and `updated:`, clears a `blocked:` line, and
    writes `.ai/.current` (gitignored, one per working tree), the resume
-   pointer. Load `.ai/tasks/<id>/task.md`. Read `.ai/notes.md`, and any
+   pointer. Load `.ai/tasks/<id>/task.md`. Its `## Tracker` section is
+   the task's issue, already fetched at create time: work from what it
+   records, and query the tracker again only when the task needs the
+   issue's current state. Read `.ai/notes.md`, and any
    leaf under `.ai/notes/` the task touches. Keep the `modified:` list in
    `.ai/.current` current as you go. If the session is compacted, that
    file and the Findings section are the backup of exactly what to

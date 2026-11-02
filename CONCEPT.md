@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-01, v10.5.** The framework rests on four premises, stated in
+**State: 2026-11-02, v10.6.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -101,7 +101,17 @@ made. `/task <id> [title]` without a subcommand goes wherever the verdict
 says.
 
 `/task create <id> <title>` writes `.ai/tasks/<id>/task.md`: type, goal,
-done-when criteria, steps, and empty Findings and Outcome sections. The type
+done-when criteria, steps, empty Findings and Outcome sections, and a
+Tracker section. Its first question, asked in the same message as the
+type, is whether a tracker issue exists for the task (a GitHub issue, a
+Jira key); which tracker access the checkout has is again a script's
+answer (`tasks.py trackers` reads `.ai/trackers.conf` and detects the
+`gh` and `jira` CLIs), not the agent's guess. The fetched issue feeds the
+plan on equal footing with the user's input, the issue key becomes the
+task id's prefix (`12345-fix-ci-crash`), and the section holds the key,
+URL and a digest of what fed the plan, so `do` never queries the tracker
+again. With no issue, the user is asked once whether to file one and may
+decline; an issueless task is normal. The type
 comes from the user: when they did not name it, the first question asks for
 it; the agent never infers it. For a `change`, `bug` or `test` it runs a
 bounded Q&A and stops: the point is the plan a human reads before the work
@@ -211,8 +221,8 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 664 lines: the task table, the dependency tree, the
-  resolver, and `start`/`finish`.
+  `tasks.py`: 725 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, and `start`/`finish`.
 - A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
@@ -376,6 +386,14 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v10.6 (2026-11-02, /task create asks for the tracker issue, section 49.
+Create's first question, in the same message as the type, is whether a
+tracker issue exists; the fetched issue feeds the plan, its key prefixes
+the task id, and the task file records it in a `## Tracker` section.
+`tasks.py trackers` discovers the tracker access (`.ai/trackers.conf`,
+detected `gh`/`jira` CLIs) and `resolve` rejects a bare issue-key prefix
+without a slug. Runbook: TC-C3, TC-C4.)
 
 v10.5 (2026-11-01, /task tree placement fixes, section 48. Tasks sit at
 their shallowest position across the whole tree, branch characters
@@ -3181,3 +3199,46 @@ the first level. Ids match without case. The 10.2 fixture had baked in
 the depth-first answer (`deep-a` under `mid-task` although it names
 `root-task`); its expectation now follows the spec. Tests:
 `test_tasks_table.py` adds the four review cases.
+
+## 49. /task create asks for the tracker issue (2026-11-02, v10.6)
+
+Source: the owner's teams plan work in trackers (GitHub issues, Jira),
+so a `/task` task usually mirrors a ticket; until now the task file
+never named it, the plan ignored the ticket's own description, and
+nothing tied `12345` in a branch name back to a task.
+
+Change:
+
+- Create's first question, in the same message as the type question
+  (TC-C1's one-message rule is unchanged), is whether a tracker issue
+  exists for the task: an issue key, a URL, or none. An id or prompt
+  that already names one (`/task create 12345-fix-ci-crash`, `issue
+  #663`, a tracker URL) answers it and nothing is asked. The answer
+  `none` is normal: Create offers once to file the issue from the
+  Goal, and a decline stands.
+- The issue's key becomes the task id's prefix (`12345-fix-ci-crash`,
+  `PROJ-123-fix-ci-crash`), so a task sorts and greps with its ticket.
+  `tasks.py resolve` rejects the bare key without a slug as INVALID,
+  with the fixed form in the message; a CREATE verdict on an
+  issue-prefixed id prints that the tracker question is answered.
+- The fetched issue (title, body, open comments) feeds the Goal, the
+  Done-when criteria and the Steps on equal footing with the user's
+  input; a conflict between the issue and the user is the user's call
+  and is asked. The task file gains a `## Tracker` section: key, URL,
+  state, and a digest of what fed the plan, verbatim enough that
+  `/task do` works from the file and never queries the tracker again;
+  with no issue it says `none` and why. Old task files need nothing:
+  the section is optional and nothing parses it.
+- Which tracker access a checkout has is deterministic discovery, not
+  the agent's guess: `tasks.py trackers` prints `.ai/trackers.conf`
+  rows (`name`, `kind`, `command`), a detected `gh` CLI with the repo
+  it resolves to, and a `jira` CLI on PATH. Read-only, stdlib only;
+  the config file is hand-filled project knowledge and stays out of
+  the frontmatter so no parser changes.
+
+The task file remains the handoff: everything Do needs from the issue
+is written down at create time, so the fresh session works offline of
+the tracker. Tests: `test_tasks_table.py` covers the INVALID key
+prefix, the CREATE note on an issue-prefixed id, and `trackers` with
+config, without config, and with a fake `gh`. Runbook: TC-C3 (asked,
+fetched, prefix, section), TC-C4 (declined, offered once, `none`).

@@ -3,7 +3,8 @@
 How to check that `/task` (`create`, `do`, `list`, and the create-or-do
 resolver) still
 behave as CONCEPT.md Part I (Pillar 2) says. Run it after any change to
-`templates/skills/task.md`, `templates/tools/tasks.py`, the task file
+`templates/skills/task.md`, `templates/task/*.md`,
+`templates/tools/tasks.py`, the task file
 format, or the review gate, and before merging a branch that touches them.
 
 Two parts:
@@ -104,20 +105,21 @@ the close id is asked about instead of created. Fail: the agent searches
 with grep or ls to decide, or creates a second task for the same thing.
 
 
-**TC-C1: type is asked, never inferred** (8.3, 9.1)
+**TC-C1: type is asked, never inferred** (8.3, 9.1, amended 10.6)
 
 Prompt: `/task create config-errors-no-abort Config errors should not abort
-startup (issue #663): warn and fall back to defaults`
+startup: warn and fall back to defaults`
 
 Pass when all hold:
 - The first message asks for the type and offers `change`, `bug`,
-  `investigation`, `test`, together with the done-when questions in the
-  same message. No type is picked before the answer.
+  `investigation`, `test`, together with the tracker question (10.6)
+  and the done-when questions in the same message. No type is picked
+  before the answer.
 - After answering `change`, the file has `type: change`.
 
 Fail: the file has a type the user never gave, the type question comes
-after other questions, or the type is asked alone and the done-when
-questions follow in a second round trip.
+after other questions, or the type is asked alone and the tracker or
+done-when questions follow in a second round trip.
 
 **TC-C1b: Create and Do are read from their part files** (9.1)
 
@@ -153,6 +155,45 @@ Pass when, for each:
   `.ai/.current`, work not started. Exception: `investigation` continues into Do
   after its `task: create` commit (9.0); judge its create half from that
   commit, its Do half by TC-D1.
+
+**TC-C3: an existing issue feeds the plan** (10.6)
+
+Prompt: `/task create text-undo-redo Undo/redo for text does not work as
+expected (issue #674). Type: bug` (satty has real open issue #674 and,
+with `gh` available, `tasks.py trackers` detects it; without `gh`, paste
+the issue URL when asked and let the agent fetch it).
+
+Pass when all hold:
+- No tracker question is asked: the prompt names the issue.
+- The transcript shows the issue fetched (`gh issue view 674` or the
+  pasted URL), not just the number copied.
+- The Goal, Done-when or Steps carry something only the issue says
+  (its symptom or reproduction), alongside the user's own words.
+- The task id is `674-text-undo-redo`: the key prefixes the id the
+  user gave; the commit message names the new id.
+- `## Tracker` names `issue: #674` with the URL, the state, and a
+  digest of the body.
+
+Fail: the issue is never fetched, its content feeds nothing, the key
+prefix is missing, or the tracker question is asked anyway in a second
+message.
+
+**TC-C4: no issue, offered once** (10.6)
+
+Prompt: `/task create readme-typos-scan Sweep README.md for spelling
+mistakes and fix them. Type: change`, then answer the tracker question
+with `no issue`, and decline the offer to file one.
+
+Pass when all hold:
+- The tracker question came in the first message, with the type given
+  and no second round trip for it.
+- The offer to file an issue is made exactly once; after the decline
+  it is not repeated.
+- `## Tracker` says `none` and why.
+- The task id stays `readme-typos-scan`, no prefix.
+
+Fail: the offer comes twice, an issue is filed anyway, or the section
+is missing.
 
 ### /task do
 
@@ -353,6 +394,8 @@ Keep one line per case, and the evidence for any FAIL.
 Framework <version> (<commit>) | harness <h> | model <m> | cargo <yes/no> | <date>
 TC-C1 PASS|FAIL <note>
 TC-C2 ...
+TC-C3 ...
+TC-C4 ...
 TC-D1 ...
 TC-D2 ...
 TC-D3 ...

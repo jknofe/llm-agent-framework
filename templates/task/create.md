@@ -5,7 +5,44 @@ task; do not work it here.
 
 1. Read `.ai/notes.md` (and any leaf under `.ai/notes/` the task
    touches) and look at the relevant code, logs, or docs first.
-2. Set exactly one `type`:
+2. Tracker issue. A task that starts from a tracker ticket (a GitHub
+   issue, a Jira key) keeps its key as the id prefix
+   (`12345-fix-ci-crash`, `PROJ-123-fix-ci-crash`); `tasks.py resolve`
+   rejects the bare key without a slug.
+   - The id already carries a key (`/task create 12345-fix-ci-crash`,
+     resolve printed CREATE for it): use it, no question.
+   - The prompt or title names an issue (`issue #663`, `PROJ-123`, a
+     tracker URL): use that, no question.
+   - Otherwise ask, in the same message as the type question of step 3
+     (never a round trip of its own): is there a tracker issue for this?
+     An issue key, a URL, or none. When the answer is none, offer to
+     file one from the Goal below with the tracker of step 2a and use
+     its key. The user may always decline: an issueless task is normal,
+     the question is asked once, and the answer is recorded in the
+     Tracker section either way.
+   - In an autonomous run with no human: use a key the prompt or the id
+     names, otherwise proceed without one and record that as a numbered
+     assumption in Notes.
+
+   a. Resolve the key to the issue. Which tracker to use, in order:
+      a row of `python3 ${tools_dir}/tasks.py trackers` the user picks;
+      otherwise the first detected row (a `gh` CLI, a `jira` CLI);
+      otherwise a pasted URL fetched directly. Fetch the issue with
+      that tracker's fetch command, run in the project root
+      (`gh issue view 663`, the conf row's command), and read its
+      title, body and open comments.
+   b. The fetched content is input to the plan on equal footing with
+      the user's own words: its symptom, reproduction or question
+      seeds the Goal, the Done-when criteria and the Steps, and a
+      conflict between the issue and the user is the user's call, so
+      ask. Where the issue and the user say the same thing, the user
+      wins nothing and loses nothing; where only the issue says it,
+      it still counts.
+   c. Record the issue in the task file (step 4). The id keeps the
+      key prefix; when the key arrives only now and the given id has
+      none, the task's id becomes `<key>-<id>` (say so, and name the
+      new id in the commit message).
+3. Set exactly one `type`:
    - `change`: new or altered behavior in the code.
    - `bug`: something misbehaves; find the cause, then fix it or hand
      it on.
@@ -13,16 +50,18 @@ task; do not work it here.
      it happens, whether an approach or library fits). Covers research.
    - `test`: verify behavior by running scenarios or writing tests.
    Take the type only from the user. If they did not name it, ask which
-   of the four it is, and in the same message the questions step 3 would
-   ask for a `change`, `bug` or `test`; then wait for the answer. One
-   message, not a type question first and the rest after. Do not infer it
+   of the four it is, and in the same message the tracker question of
+   step 2 and the questions step 4 would ask for a `change`, `bug` or
+   `test`; then wait for the answer. One message, not a type question
+   first and the rest after. Do not infer it
    from the title, the id, or the code: the type decides what done
    means, and that is the user's call. In an autonomous run with no
    human, pick one and record it as a numbered assumption in Notes, as
-   step 3 does for every open question.
-3. For a `change`, `bug` or `test`: run a short, bounded Q&A with the
+   step 4 does for every open question.
+4. For a `change`, `bug` or `test`: run a short, bounded Q&A with the
    user until the done-when criteria are unambiguous. For a bug, ask for
-   the symptom, where it shows, and any reproduction or log. For an
+   the symptom, where it shows, and any reproduction or log the issue
+   does not already give. For an
    `investigation`: ask nothing more. Ask also, for any type, which live
    tasks this one must wait for: comma-separated ids from `/task list`,
    or none; an empty answer is normal. Resolve each open question (the
@@ -30,7 +69,7 @@ task; do not work it here.
    from the evidence and record it as a numbered assumption in Notes;
    the user redirects from the result. The same holds for any type when
    no human is available (autonomous run).
-4. Write `.ai/tasks/<id>/task.md`:
+5. Write `.ai/tasks/<id>/task.md`:
    ---
    id: <id>
    title: <title>
@@ -50,9 +89,19 @@ task; do not work it here.
    ## Findings    empty; Do appends here
    ## Outcome     empty; Do writes the result here
    ## Notes       Q&A answers, decisions, assumptions
+   ## Tracker     the issue this task comes from, or "none"
 
    Write `depends:` only when the user named real dependencies, with
    live task ids; `/task tree` reports ids that do not resolve.
+
+   The Tracker section records step 2's outcome, so Do works from the
+   file alone:
+   - An issue: its key and URL on the first line (`issue: PROJ-123,
+     <url>`), then the fetched title, the state (open, closed), and a
+     short digest of the body and the comments that fed the plan,
+     verbatim enough that the tracker is not queried again.
+   - No issue: `none`, plus one line on why (user declined, none
+     exists, filing declined).
 
    Done-when criteria by type:
    - `change`: the user's criteria, plus one that the project's full
@@ -85,7 +134,7 @@ task; do not work it here.
    confirm or rule it out (`- [ ] H1: <hypothesis> - check: <how>`),
    cheapest check first; the plan is expected to change as they
    resolve. For a `test`, one step per scenario.
-5. Commit `.ai` from the project root, relative path:
+6. Commit `.ai` from the project root, relative path:
    `git -C .ai add -A && git -C .ai commit -m "task: create <id>"`.
 
 Then, by type:
@@ -94,7 +143,7 @@ Then, by type:
   `${task_dir}/do.md` and follow it, without waiting for the user and
   without a fresh session. Keep the two phases apart in the
   record: the plan is written and committed first (`task: create <id>`,
-  step 5), then Do runs from its step 1 (`status: in-progress`,
+  step 6), then Do runs from its step 1 (`status: in-progress`,
   `.ai/.current`), and its findings go in as they happen. Never write
   plan and result in one go.
 - `change`, `bug`, `test`: stop here. Show the plan and wait: a plan

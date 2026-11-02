@@ -123,7 +123,10 @@ file list retires nothing and prints what to remove by hand.
 3. **Opt in to a plan** when you want a task written down and reviewed:
    `/task create BUG-7 Nav goal lost after reboot` asks you for its type
    (`change`, `bug`, `investigation`, `test`) unless you named it, and
-   writes `.ai/tasks/BUG-7/task.md` (goal, done-when criteria for that
+   whether a tracker issue (GitHub, Jira) exists for it: a fetched issue
+   feeds the plan and its key prefixes the task id
+   (`12345-fix-ci-crash`); declining leaves an ordinary issueless task.
+   It writes `.ai/tasks/BUG-7/task.md` (goal, done-when criteria for that
    type, steps; for bugs and investigations the steps are hypotheses with a
    check each). `/task BUG-7 ...` without `create` or `do` works too: a
    script checks whether BUG-7 exists and picks create or do, and asks
@@ -213,7 +216,7 @@ Both harnesses invoke them the same way, under the same names:
 | Command | What it does |
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
-| `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. A change, bug or test stops there; an investigation runs straight on into `do`. |
+| `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
 | `/task do [<id>]` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |

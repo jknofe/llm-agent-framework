@@ -38,13 +38,20 @@ verdict; act on it:
   follow-up task instead of reopening it, unless the user asks to
   reopen.
 - `ARCHIVED <id>`: archived. Say so and stop; do not create it again.
-- `INVALID <text>`: not an id (a title without an id, for example).
-  Propose a short kebab-case id, confirm it, and resolve again.
+- `INVALID <text>`: not an id (a title without an id, an issue key
+  without its slug, for example). Propose a short kebab-case id that
+  keeps an issue key as its prefix (`12345-fix-ci-crash`), confirm it,
+  and resolve again.
 - `NONE`: `do` without an id and no resume pointer. Ask which task.
 
 Create and Do live in their own files, read only when the verdict sends
 you there; read the whole file before acting on it:
-- Create: `${task_dir}/create.md`
+- Create: `${task_dir}/create.md`. Its first question is whether a
+  tracker issue (GitHub, Jira) exists for the task; run
+  `python3 ${tools_dir}/tasks.py trackers` to see which tracker access
+  this checkout has, fetch the issue with the command it prints, and
+  use its content together with the user's input. The issue key becomes
+  the task id's prefix.
 - Do: `${task_dir}/do.md`
 
 

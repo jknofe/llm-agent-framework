@@ -7,7 +7,9 @@ so everything both promise is checked here without an agent. Table: live
 tasks only, archive counted, sort order, emoji columns and legend, the flags,
 the resume pointer, a typo kept visible, no ANSI codes through a pipe, the two
 empty states. Resolver: every verdict, case-insensitive ids, near-duplicate
-ids, the resume pointer. Bookkeeping: start and finish set status, the
+ids, the resume pointer, the issue-key prefix rule (10.6). Tracker
+discovery: no config, config rows, a detected `gh`. Bookkeeping: start and
+finish set status, the
 blocked reason and the resume pointer, and finish done refuses an unmet
 gate. Builds fixture task files in a temp dir; stdlib
 only.
@@ -216,6 +218,21 @@ def main():
               "resolve rejects a title as id")
         check(verdict(root, "../etc").startswith("INVALID"),
               "resolve rejects a path")
+        # Issue-key prefixes (10.6): bare key rejected, key plus slug
+        # accepted with the tracker-answered note.
+        bare = run(root, "resolve", "12345-")
+        check(bare.startswith("INVALID 12345-")
+              and "12345-fix-ci-crash" in bare,
+              f"resolve rejects a bare issue number: {bare!r}")
+        check(verdict(root, "PROJ-123-").startswith("INVALID"),
+              "resolve rejects a bare Jira key")
+        out = run(root, "resolve", "12345-fix-ci-crash")
+        check(out.startswith("CREATE 12345-fix-ci-crash"),
+              f"resolve accepts key plus slug: {out!r}")
+        check("tracker issue" in out, "CREATE names the answered question")
+        out = run(root, "resolve", "PROJ-123-fix-ci-crash")
+        check(out.startswith("CREATE PROJ-123-fix-ci-crash"),
+              f"resolve accepts Jira key plus slug: {out!r}")
         check(verdict(root) == "DO fresh status=in-progress type=change",
               "resolve without id follows the resume pointer")
         (root / ".ai/.current").unlink()
@@ -295,6 +312,39 @@ def main():
         (root / ".ai/tasks/_archive").rmdir()
         (root / ".ai/tasks").rmdir()
         check(run(root, "tree") == run(root), "tree missing-dir message")
+
+        # Tracker discovery (10.6): no config, nothing detectable
+        # without a config file or a CLI on PATH.
+        out = run(root, "trackers", env_extra={"PATH": "/nonexistent"})
+        check("No tracker configured and none detected." in out
+              and ".ai/trackers.conf" in out, f"trackers empty: {out!r}")
+        # A config row survives a PATH with no CLIs.
+        (root / ".ai/trackers.conf").write_text(
+            "# team trackers\n"
+            "name: bosch-jira\nkind: jira\n"
+            "command: tr issue view <KEY>\n"
+            "\n"
+            "name: team-gh\nkind: github\n"
+            "command: gh issue view <number> --repo org/repo\n",
+            encoding="utf-8")
+        out = run(root, "trackers", env_extra={"PATH": "/nonexistent"})
+        check("| Name | Kind | Fetch with | From |" in out
+              and "| bosch-jira | jira | tr issue view <KEY> | "
+                  ".ai/trackers.conf |" in out
+              and "| team-gh | github | gh issue view <number> --repo "
+                  "org/repo | .ai/trackers.conf |" in out,
+              f"trackers config rows: {out!r}")
+        # A `gh` on PATH is detected, with the repo it resolves to.
+        fakebin = root / "fakebin"
+        fakebin.mkdir()
+        (fakebin / "gh").write_text(
+            '#!/bin/sh\nif [ "$1" = "repo" ]; then echo org/repo; fi\n',
+            encoding="utf-8")
+        (fakebin / "gh").chmod(0o755)
+        out = run(root, "trackers", env_extra={"PATH": str(fakebin)})
+        check("gh issue view <number>" in out and "org/repo" in out
+              and "detected: gh on PATH" in out,
+              f"trackers detects gh: {out!r}")
 
     # Tree view (10.2, independents on the first level since 10.4), in a
     # fresh temp dir: a 3-level chain, a diamond, independents, a cycle, an unknown dep, a blocked task, and the

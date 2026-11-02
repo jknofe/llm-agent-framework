@@ -49,7 +49,17 @@ no agent has to search for one: it prints one verdict line, then a sentence.
   INVALID         not usable as an id (a title without an id, a path)
   NONE            no id given and no resume pointer
 Ids match case-insensitively; the verdict carries the id as it is on disk.
-Without an id, the task `.ai/.current` points at is resolved.
+Without an id, the task `.ai/.current` points at is resolved. An id whose
+issue-key prefix (PROJECT-123 or 12345, from Create's tracker question) is
+not followed by a slug is INVALID.
+
+`tasks.py trackers`, the tracker discovery behind Create's issue question:
+prints one markdown table of tracker access visible from this checkout:
+rows from `.ai/trackers.conf` (`key: value` lines: `name`, `kind` github or
+jira, `command` run in the project root), an auto-detected `gh` CLI with
+the repo `gh repo view` resolves to, and a `jira` CLI on PATH. Read-only.
+The task's issue lives in its `## Tracker` section, not in frontmatter, so
+the table needs no parser for it.
 
 `tasks.py start <id>` and `tasks.py finish <id> done|blocked [<reason>]` are
 the task's bookkeeping, so no agent improvises it with shell redirects or
@@ -63,8 +73,8 @@ no review line, the two conditions `/task list` would flag; otherwise it
 sets the status, drops a `blocked:` line, and deletes `.ai/.current` when it
 names this task. Neither commits: the agent commits `.ai` itself.
 
-list, tree and resolve are read-only; start and finish write only the
-task's frontmatter and `.ai/.current`. Stdlib only.
+list, tree, resolve and trackers are read-only; start and finish write only
+the task's frontmatter and `.ai/.current`. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -73,6 +83,8 @@ import difflib
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -231,6 +243,11 @@ def ratio(pair):
 
 
 ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+# A task that comes from a tracker issue carries its key as the id prefix
+# (CONCEPT.md section 49): PROJECT-123-<slug> for Jira-style keys,
+# 12345-<slug> for a bare number. The prefix alone is not an id.
+ISSUE_PREFIX_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9]*-\d+|\d+)-$")
+ISSUE_SLUG_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9]*-\d+|\d+)-\S")
 
 
 def task_dirs(archived=False):
@@ -269,6 +286,11 @@ def resolve(arg):
         print("Not usable as a task id: use a short kebab-case id "
               "(letters, digits, - _ .), e.g. fix-login-timeout.")
         return 0
+    if ISSUE_PREFIX_RE.match(arg) and not ISSUE_SLUG_RE.match(arg):
+        print(f"INVALID {arg}")
+        print("A task id that starts with an issue key (PROJECT-123 or "
+              "12345) names the slug after it too, e.g. 12345-fix-ci-crash.")
+        return 0
     live, archived = task_dirs(), task_dirs(archived=True)
     for ids, where in ((live, "live"), (archived, "archive")):
         match = next((i for i in ids if i.lower() == arg.lower()), None)
@@ -294,8 +316,12 @@ def resolve(arg):
         r = load(src)
         state = "archived" if i in archived and i not in live else r["status"]
         print(f"SIMILAR {i} ({state}): {r['title']}")
+    # An id from an issue key says Create's tracker question is answered.
     print(f"No task `{arg}` yet." + (" Close ids exist; ask whether one of "
                                      "them is meant." if near else ""))
+    if ISSUE_SLUG_RE.match(arg):
+        print("The id names a tracker issue; Create records it and skips "
+              "asking for one.")
     return 0
 
 
@@ -524,8 +550,64 @@ def tree():
     return 0
 
 
+def trackers():
+    """The tracker access visible from this checkout, as one markdown
+    table; see the module docstring."""
+    rows = []
+    conf = AI / "trackers.conf"
+    if conf.is_file():
+        entry = {}
+        for line in conf.read_text(encoding="utf-8",
+                                   errors="replace").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, sep, value = line.partition(":")
+            if not sep:
+                continue
+            key, value = key.strip().lower(), value.strip()
+            if key == "name" and entry:
+                rows.append(entry)
+                entry = {}
+            entry[key] = value
+        if entry:
+            rows.append(entry)
+    if shutil.which("gh"):
+        repo = ""
+        try:
+            r = subprocess.run(["gh", "repo", "view", "--json",
+                                "nameWithOwner", "-q", ".nameWithOwner"],
+                               cwd=AI.parent, capture_output=True, text=True,
+                               timeout=10)
+            if r.returncode == 0:
+                repo = r.stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        rows.append({"name": repo or "this repository", "kind": "github",
+                     "command": "gh issue view <number>", "source":
+                     "detected: gh on PATH"})
+    if shutil.which("jira"):
+        rows.append({"name": "jira", "kind": "jira",
+                     "command": "jira issue view <KEY>",
+                     "source": "detected: jira on PATH"})
+    if not rows:
+        print("No tracker configured and none detected.")
+        print("Add one to `.ai/trackers.conf`, one block per tracker:")
+        print("  name: <label>")
+        print("  kind: github|jira")
+        print("  command: <fetch command, run in the project root>")
+        return 0
+    print("| Name | Kind | Fetch with | From |")
+    print("|---|---|---|---|")
+    for r in rows:
+        print(f"| {cell(r.get('name', '?'))} | {cell(r.get('kind', '?'))} "
+              f"| {cell(r.get('command', '?'))} | "
+              f"{cell(r.get('source', '.ai/trackers.conf'))} |")
+    return 0
+
+
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py start <id> | "
+         "| tasks.py trackers | tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>]")
 COMMIT = "Commit `.ai` now: git -C .ai add -A && git -C .ai commit -m"
 
@@ -612,6 +694,8 @@ def main():
         return finish(args[1], args[2], " ".join(args[3:]))
     if args and args[0] == "tree":
         return tree()
+    if args and args[0] == "trackers":
+        return trackers()
     if args and args[0] != "list":
         print(f"Unknown argument {args[0]!r}. {USAGE}")
         return 2
