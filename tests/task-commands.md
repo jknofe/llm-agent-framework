@@ -219,6 +219,11 @@ Pass when all hold:
 - The table shows the task with ⛔, the flag `❗ <id>: blocked: <reason>`,
   and the 👉 pointer on it; `.ai/.current` still exists.
 - Findings record what was done and what is missing.
+- With a worker (11.1): its report says `needs-user` (a missing toolchain
+  is outside its reach, not `stuck`). Between that report and the user's
+  answer the supervisor runs no host-code edit (no `Edit`/`Write` outside
+  `.ai`, no `sed -i` or script on `src/`) and no `delegate.py close`; the
+  worker tab is still listed while the question is open.
 
 Note: the review gate runs only before `done`, so a task that blocks at the
 test step may have no review line. That is correct.

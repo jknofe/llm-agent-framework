@@ -62,9 +62,15 @@ Decide:
   commit `.ai`, and run the next round (`plan`, then launch or spawn):
   every round is a fresh worker, so the correction must stand on its own
   in the file.
-- `needs-user`: ask the user, write the answer into Notes, next round.
-- `stuck`, or a fourth round would be needed: stop delegating. Work the
-  rest yourself, ask the user, or finish the task as `blocked`.
+- `needs-user`, or `stuck` on something outside the worker's reach (a
+  toolchain, access, hardware, a decision): ask the user first, and
+  change no file and close no tab until they have answered; the worker's
+  tab stays open so they can see it. Then write the answer into Notes and
+  run the next round, or finish the task as `blocked` if they say so.
+- `stuck` on the work itself (a test failing twice, hypotheses dead), or
+  a fourth round would be needed: stop delegating and ask the user how to
+  go on: a corrected round, you taking over, or `blocked`. Take over only
+  when they agree, and say so in one line before your first edit.
 - A Herdr wait that returns `blocked` is a dialog in the worker's tab:
   read it (`herdr agent read <name> --source recent-unwrapped --lines
   60`), never answer it for the user, tell them the tab and what it
@@ -72,9 +78,15 @@ Decide:
   the call that long a timeout). One that times out while the worker is
   still `working` is no failure: wait again. After an hour with no new
   Finding, read the tab and decide as for `stuck`.
-After the last round, run `python3 ${tools_dir}/delegate.py close <id>`
-(herdr only) and append `- <today> Delegation: <mode> <kind>/<model>,
-<rounds> round(s), <accepted|taken over|blocked>` to Findings. The
+You edit host code yourself only to fix what the review gate finds
+(step 6) or after the user agreed to a takeover; a worker's `stuck` or
+`needs-user` alone is never the cue to finish its work.
+Close the worker's tab (`python3 ${tools_dir}/delegate.py close <id>`,
+herdr only) only when delegation ends: the round is accepted, the task is
+finished, or the user agreed to a takeover; never while a question to the
+user is open (the next `launch` replaces the tab anyway). Then append
+`- <today> Delegation: <mode> <kind>/<model>, <rounds> round(s),
+<accepted|taken over|blocked>` to Findings. The
 review gate, Outcome, notes and `finish` stay yours.
 
 2. Work the steps in order. Explore the real code, logs, and docs with

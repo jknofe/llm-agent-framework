@@ -159,8 +159,12 @@ claim, not a gate result. A correction goes into Findings as a
 `Supervisor round <n>` line for the next round (an accepted round leaves at
 most a `Supervisor check` note, never that form), which always starts a fresh
 worker (in Herdr too: `launch` closes the last round's tab first), so the
-file is the only memory between rounds; at most three rounds, then
-the supervisor takes over, asks, or blocks. The worker never ticks a
+file is the only memory between rounds; at most three rounds. A worker
+that stops (`needs-user`, or `stuck`) is a question for the user, not a
+cue for the supervisor to finish the work: it asks first, edits nothing
+and keeps the worker's tab open until the user has answered, and takes
+over only with their agreement. Its own code edits are otherwise limited
+to fixing what the review gate finds. The worker never ticks a
 done-when box, never writes Outcome, notes or the review line, and never
 commits to the host repository. A Herdr dialog in the worker's tab (folder
 trust, a permission prompt) is the user's to answer; the supervisor names
@@ -445,7 +449,11 @@ v11.1 (2026-11-01, parallel tasks in one working tree, section 50.
 `.ai/.current`, the next gets `.ai/.current-<id>`; `tasks.py claim`
 gives each host file one owner; every `.ai` commit is path-scoped, never
 `add -A`; the review judges the claimed files. Live test: both satty
-tasks planned and worked in parallel. Runbook: TC-P1.)
+tasks planned and worked in parallel. Runbook: TC-P1. Also, from a report
+at work and the satty transcripts: a worker that stops is a question for
+the user. The supervisor asks first, edits no host code and keeps the
+worker tab open until the answer, and takes over only with agreement; a
+missing toolchain is `needs-user`, not `stuck`. Runbook: TC-D3.)
 
 v11.0 (2026-11-01, `/task do` on a supervised cheaper-tier worker, section
 49, after Google's Elephant-Goldfish Model. The `/task do` session
@@ -3470,6 +3478,22 @@ Opus 5.5 supervisors side by side, sonnet workers):
 - End state: one task `done` (its pointer deleted), one `blocked` on the
   missing toolchain (its parallel pointer kept, marked in `/task list`).
   Ten `.ai` commits, none holding another task's files.
+
+**Stops wait for the user (same version).** A report from work: the
+worker stopped where intervention was needed, the supervisor said so,
+then went on with the task itself and closed the worker's tab. The satty
+transcripts show the same in all three `config-errors-no-abort` runs:
+after the worker's `stuck` (no toolchain) the supervisor edited
+`src/configuration.rs` itself (a line wrap, an unused import) before
+asking, then closed the tab. 11.0's Do text allowed it: `stuck` meant
+"work the rest yourself, ask the user, or finish blocked", in no order,
+and the tab closed "after the last round". 11.1 orders it: a stop is a
+question first. On `needs-user`, or `stuck` on something outside reach,
+the supervisor asks, edits nothing and keeps the tab open until the
+answer; on `stuck` on the work it asks how to go on and takes over only
+with agreement, announcing it. Its own host-code edits are otherwise
+limited to review-gate fixes. The worker body now files "outside your
+reach" (a toolchain, access, hardware) under `needs-user`, not `stuck`.
 
 **Files.** `templates/tools/tasks.py` (`pointers`, `claim`,
 path-scoped commit lines), `templates/hooks/ai_repo_clean.py`, the
