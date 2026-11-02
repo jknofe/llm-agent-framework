@@ -170,7 +170,8 @@ Pass when all hold:
 - The Goal, Done-when or Steps carry something only the issue says
   (its symptom or reproduction), alongside the user's own words.
 - The task id is `674-text-undo-redo`: the key prefixes the id the
-  user gave; the commit message names the new id.
+  user gave; the title carries the prefix too; the commit message
+  names the new id.
 - `## Tracker` names `issue: #674` with the URL, the state, and a
   digest of the body.
 

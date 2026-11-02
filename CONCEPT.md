@@ -3217,9 +3217,10 @@ Change:
   `none` is normal: Create offers once to file the issue from the
   Goal, and a decline stands.
 - The issue's key becomes the task id's prefix (`12345-fix-ci-crash`,
-  `PROJ-123-fix-ci-crash`), so a task sorts and greps with its ticket.
-  `tasks.py resolve` rejects the bare key without a slug as INVALID,
-  with the fixed form in the message; a CREATE verdict on an
+  `PROJ-123-fix-ci-crash`), and the title is the id's words as a
+  title, so the key leads both; a task sorts and greps with its
+  ticket. `tasks.py resolve` rejects the bare key without a slug as
+  INVALID, with the fixed form in the message; a CREATE verdict on an
   issue-prefixed id prints that the tracker question is answered.
 - The fetched issue (title, body, open comments) feeds the Goal, the
   Done-when criteria and the Steps on equal footing with the user's

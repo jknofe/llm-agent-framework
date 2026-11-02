@@ -35,13 +35,14 @@ task; do not work it here.
       the user's own words: its symptom, reproduction or question
       seeds the Goal, the Done-when criteria and the Steps, and a
       conflict between the issue and the user is the user's call, so
-      ask. Where the issue and the user say the same thing, the user
-      wins nothing and loses nothing; where only the issue says it,
-      it still counts.
-   c. Record the issue in the task file (step 4). The id keeps the
-      key prefix; when the key arrives only now and the given id has
-      none, the task's id becomes `<key>-<id>` (say so, and name the
-      new id in the commit message).
+      ask. What only the issue says still counts.
+   c. Record the issue in the task file (step 5). The id keeps the
+      key prefix, and the title is the id's words as a title, so both
+      carry it (`title: 12345 fix ci crash` for `12345-fix-ci-crash`,
+      or the issue's own title when it says the same); when the key
+      arrives only now and the given id has none, the task's id
+      becomes `<key>-<id>` (say so, and name the new id in the commit
+      message).
 3. Set exactly one `type`:
    - `change`: new or altered behavior in the code.
    - `bug`: something misbehaves; find the cause, then fix it or hand
@@ -71,8 +72,8 @@ task; do not work it here.
    no human is available (autonomous run).
 5. Write `.ai/tasks/<id>/task.md`:
    ---
-   id: <id>
-   title: <title>
+   id: <id>             with an issue, `<key>-<slug>`; the key prefixes it
+   title: <title>       the id's words as a title, key prefix included
    type: change|bug|investigation|test
    status: planned
    created: <today>
