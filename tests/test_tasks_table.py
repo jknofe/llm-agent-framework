@@ -234,13 +234,18 @@ def main():
               "start sets status and updated")
         check(fm.split("\n---\n", 1)[1] == body,
               "start leaves the body byte for byte")
-        cur = (root / ".ai/.current").read_text(encoding="utf-8")
-        check(cur.startswith("task: keep\n") and "replaced the pointer to "
-              "fresh" in out, "start replaces another task's pointer")
-        (root / ".ai/.current").write_text(cur + "modified: a.py\n",
-                                           encoding="utf-8")
+        # `.ai/.current` names `fresh`, which is in progress: keep runs in
+        # parallel with its own pointer instead of replacing it (11.1).
+        mine = root / ".ai/.current-keep"
+        check(mine.read_text(encoding="utf-8").startswith("task: keep\n")
+              and "parallel" in out and "PARALLEL fresh is running" in out,
+              f"start beside a running task gets its own pointer: {out!r}")
+        check((root / ".ai/.current").read_text(encoding="utf-8")
+              .startswith("task: fresh"), "the running task's pointer stays")
+        mine.write_text(mine.read_text(encoding="utf-8") + "  - a.py\n",
+                        encoding="utf-8")
         run(root, "start", "keep")
-        check("a.py" in (root / ".ai/.current").read_text(encoding="utf-8"),
+        check("a.py" in mine.read_text(encoding="utf-8"),
               "start keeps a pointer that already names the task")
 
         r = attempt(root, "finish", "keep", "done")
@@ -270,8 +275,11 @@ def main():
         check(out.startswith("DONE keep") and "git -C .ai" in out,
               f"finish done: {out!r}")
         check("status: done" in tf.read_text(encoding="utf-8")
-              and not (root / ".ai/.current").exists(),
-              "finish done sets status and deletes the pointer")
+              and not mine.exists()
+              and (root / ".ai/.current").exists(),
+              "finish done deletes only its own pointer")
+        check("git -C .ai add tasks/keep &&" in out and "add -A" not in out,
+              f"finish prints a path-scoped commit: {out!r}")
         check(attempt(root, "start", "keep").returncode == 1,
               "start refuses a done task")
         check(attempt(root, "finish", "nope", "done").returncode == 1,
@@ -485,6 +493,68 @@ def main():
                   f"tick usage error for {bad}")
         check(attempt(root, "tick", "nope", "done", "1").returncode == 1,
               "tick on an unknown task")
+
+    # Parallel tasks (11.1): own pointers, claims, resume and list marks.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        for tid in ("pa", "pb", "pc"):
+            task(root, tid, tid, tid.upper(), "change", "planned", OLD)
+        out = run(root, "start", "pa")
+        check("`.ai/.current` written" in out and "PARALLEL" not in out,
+              f"first task takes .ai/.current: {out!r}")
+        out = run(root, "start", "pb")
+        check((root / ".ai/.current-pb").is_file() and
+              "PARALLEL pa is running" in out and "claims: none yet" in out,
+              f"second task runs in parallel: {out!r}")
+        check(run(root, "claim", "pa", "src/a.py", "README.md")
+              .startswith("CLAIMED for pa"), "claim adds files")
+        r = attempt(root, "claim", "pb", "./README.md")
+        check(r.returncode == 1 and "CLAIMED README.md by running task pa"
+              in r.stdout.replace("./", ""), f"claim refuses: {r.stdout!r}")
+        check("README.md" not in (root / ".ai/.current-pb")
+              .read_text(encoding="utf-8"), "a refused claim writes nothing")
+        check(run(root, "claim", "pb", "src/b.py").startswith(
+              "CLAIMED for pb"), "a free file is claimed")
+        check("(already claimed)" in run(root, "claim", "pa", "README.md"),
+              "re-claiming your own file is fine")
+        check(attempt(root, "claim", "pc", "x").returncode == 1,
+              "claim needs a started task")
+        out = run(root, "start", "pc")
+        check("claims: src/a.py, README.md" in out and
+              "PARALLEL pb is running" in out, f"start lists claims: {out!r}")
+        out = run(root)
+        marked = [r for r in ("pa", "pb", "pc") if (row(out, r) or [""])[0]]
+        check(marked == ["pa", "pb", "pc"] and "marks running tasks" in out,
+              f"list marks every running task: {out!r}")
+        check(verdict(root).startswith("DO pa"),
+              "do without an id resumes .ai/.current")
+        # finish pa: its pointer goes; pb and pc keep theirs.
+        tf = root / ".ai/tasks/pa/task.md"
+        tf.write_text(tf.read_text(encoding="utf-8")
+                      .replace("- [ ] c", "- [x] c")
+                      .replace("## Findings\n",
+                               "## Findings\n- x Review: inline: ok\n"),
+                      encoding="utf-8")
+        run(root, "finish", "pa", "done")
+        check(not (root / ".ai/.current").exists() and
+              (root / ".ai/.current-pb").exists(), "finish frees only pa")
+        check(run(root, "claim", "pb", "README.md").startswith(
+              "CLAIMED for pb"), "a finished task's files are free again")
+        check(verdict(root).startswith("NONE"),
+              "two parallel pointers and no .current: do without id asks")
+        run(root, "finish", "pc", "blocked", "x")
+        check((root / ".ai/.current-pc").exists(), "blocked keeps pointer")
+        # A pointer to a task that is not running is replaced, as before.
+        task(root, "qb", "qb", "QB", "change", "blocked", OLD)
+        task(root, "qa", "qa", "QA", "change", "planned", OLD)
+        (root / ".ai/.current").write_text("task: qb\n", encoding="utf-8")
+        out = run(root, "start", "qa")
+        check("replaced the pointer to qb" in out and
+              (root / ".ai/.current").read_text(encoding="utf-8")
+              .startswith("task: qa"), f"non-running pointer replaced: {out!r}")
 
     if FAILS:
         for f in FAILS:

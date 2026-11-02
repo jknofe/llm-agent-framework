@@ -41,8 +41,16 @@ r = subprocess.run(
     capture_output=True, text=True,
 )
 if r.returncode == 0 and r.stdout.strip():
-    reason = ("Uncommitted .ai changes. Commit them now: "
-              'git -C .ai add -A && git -C .ai commit -m "<short summary>"')
+    # Name the paths and never suggest `add -A`: with tasks running in
+    # parallel (.ai/.current-<id>), some of these may be another session's
+    # half-written files, and only this session knows which are its own.
+    dirty = [ln[3:].strip() for ln in r.stdout.splitlines() if ln.strip()]
+    shown = ", ".join(dirty[:8]) + (" ..." if len(dirty) > 8 else "")
+    reason = ("Uncommitted .ai changes: " + shown + ". Commit the ones you "
+              "changed now: git -C .ai add <your paths> && git -C .ai "
+              'commit -m "<short summary>". Leave paths of another task '
+              "running in parallel (a .ai/.current-<id> pointer) to its "
+              "session.")
     print(json.dumps({"decision": "block", "reason": reason}))
     sys.exit(0)
 print("{}")

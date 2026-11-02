@@ -122,8 +122,9 @@ def ensure_gitignore(root: Path):
 
 def ensure_ai_gitignore(root: Path):
     """Keep volatile working state out of .ai's own repo: raw external copies
-    (re-fetchable, would bloat KB history), the `.current` task cursor
-    (per-checkout session state, not shared knowledge), and the two rescue
+    (re-fetchable, would bloat KB history), the `.current` task cursor and
+    the `.current-<id>` pointers of tasks running in parallel (per-checkout
+    session state, not shared knowledge), and the two rescue
     copies of host-repo framework files, from /framework-update and from a harness
     switch (throwaway snapshots, not history - the `.ai` repo already versions
     everything it owns)."""
@@ -133,7 +134,8 @@ def ensure_ai_gitignore(root: Path):
     gi = ai_dir / ".gitignore"
     lines = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
     have = {line.strip().rstrip("/") for line in lines}
-    add = [e for e in ("external/", ".current", "agent/.update-backup/",
+    add = [e for e in ("external/", ".current", ".current-*",
+                       "agent/.update-backup/",
                        "agent/.harness-backup/")
            if e.rstrip("/") not in have]
     if not add:
