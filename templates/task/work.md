@@ -29,11 +29,12 @@ of guessing.
 4. Stop at the first of these, and say which in your report:
    - `done`: every step is ticked and the checks you ran are green.
    - `stuck`: the escalation rule at the end of `do.md` fired (a test
-     failing twice on the same step, two hypotheses in a row dead), or
-     a step is outside your reach.
-   - `needs-user`: only the user can decide something (the Goal or a
-     criterion would change, a choice the task file leaves open). You
-     have no user: write the question, do not pick an answer.
+     failing twice on the same step, two hypotheses in a row dead).
+   - `needs-user`: only the user can unblock it: the Goal or a criterion
+     would change, a choice the task file leaves open, or a step is
+     outside your reach (a missing toolchain, access, hardware). You have
+     no user: write the question and what you need, do not pick an
+     answer or work around it.
 5. Report. Append one line to `## Findings`:
    `- <today> Worker round <n>: <done|stuck|needs-user>: <what you did,
    each check you ran and its result, the question for needs-user>`.
