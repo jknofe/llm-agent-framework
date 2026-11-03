@@ -264,8 +264,7 @@ Pass when all hold:
 - With a worker (11.1): its report says `needs-user` (a missing toolchain
   is outside its reach, not `stuck`). Between that report and the user's
   answer the supervisor runs no host-code edit (no `Edit`/`Write` outside
-  `.ai`, no `sed -i` or script on `src/`) and no `delegate.py close`; the
-  worker tab is still listed while the question is open.
+  `.ai`, no `sed -i` or script on `src/`).
 
 Note: the review gate runs only before `done`, so a task that blocks at the
 test step may have no review line. That is correct.
@@ -297,23 +296,20 @@ sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
 
-**TC-D6: supervised worker in a Herdr tab** (11.0)
+**TC-D6: supervised worker sub-agent** (11.0, 11.2)
 
-Run inside Herdr, from a project folder the harness already trusts, on a
-session model above the worker tier (claude: Opus or Fable). A task with
-three or more open steps; a `bug` gets `sonnet`, a short `change` `haiku`.
-`/task do <id>`.
+On a session model above the cheapest tier (claude: Opus or Fable). A task
+with three or more open steps. `/task do <id>`.
 
 Pass when all hold:
-- The transcript shows `delegate.py plan <id>` with `MODE herdr`, then
-  `delegate.py launch <id>` printing `LAUNCHED`, then `herdr agent wait`
-  with a Bash timeout of at least the wait's 9 minutes.
-- `herdr tab list` showed a `task:<id>` tab during the run; it is gone at
-  the end (`delegate.py close`).
+- The transcript shows no `delegate.py` and no `herdr` call. A fresh
+  general-purpose sub-agent runs (not a fork) on a cheaper model than the
+  session's (claude: `"model":"haiku"` or `"sonnet"`), and its whole prompt
+  names the task, the round and `.ai/agent/task/work.md`.
 - The supervisor changed no file while the worker ran.
 - Findings: a `Worker round 1` line with each check and its result, a
-  `Delegation: herdr claude/<model>` line, a `Review:` line. The `.ai` log
-  has `task: <id> worker round 1` before `task: done <id>`.
+  `Delegation: <model> ...` line, a `Review:` line. The `.ai` log has
+  `task: <id> worker round 1` before `task: done <id>`.
 - The worker ticked steps only: in the round commit (`git -C .ai show
   <round commit>`), no done-when box, no Outcome, no `notes.md` change.
 - The transcript shows the supervisor rerunning the full test command
@@ -322,33 +318,24 @@ Pass when all hold:
 - An accepted round leaves at most a `Supervisor check: round <n>
   accepted` line, never a `Supervisor round <n>` line, which is reserved
   for corrections.
-- If a second round ran: `launch` printed `CLOSED previous worker` before
-  `LAUNCHED`, the round-2 worker sits in a new tab, and its transcript
-  starts by reading the task file's `Supervisor round 1` line.
+- If a second round ran: a new sub-agent, whose transcript starts by
+  reading the task file's `Supervisor round 1` line.
 
-**TC-D7: Herdr fallback and sub-agent worker** (11.0)
+**TC-D7: inline when asked** (11.0, 11.2)
 
-Same as TC-D6 but from a folder the harness has not trusted (a fresh
-scratch repo), or outside Herdr.
+`/task do <id> inline` on a task with three or more open steps.
 
-Pass when all hold:
-- Inside Herdr, untrusted folder: `plan` prints `MODE subagent` with a
-  REASON naming the trust, no `launch` runs, and no tab opens. The
-  supervisor says why in one line.
-- If a trust record was unreadable and a dialog appeared anyway: `launch`
-  prints `FAILED` with the worker's screen and closes its tab; no
-  `task:<id>` tab is left behind, and the supervisor does not answer the
-  dialog.
-- A fresh general-purpose sub-agent runs with `"model":"<MODEL>"` and
-  PROMPT as its prompt, not a fork.
-- The rest as TC-D6, with `Delegation: subagent ...`.
+Pass when the supervisor says in one line that it works inline, no
+sub-agent runs before the review gate, no `Worker round` or `Delegation:`
+line is written, and the task still ends with a `Review:` line.
 
 ### Parallel (11.1)
 
 **TC-P1: two tasks planned and worked side by side**
 
-One Herdr workspace, two supervisor panes in the same project, each on a
-model above the worker tier. Send both Create prompts at once (TC-D2's
+Two supervisor sessions in the same project (two Herdr panes when one
+agent drives the run), each on a model above the cheapest tier. Send
+both Create prompts at once (TC-D2's
 `readme-keybindings` and TC-C1's `config-errors-no-abort`), answer both,
 then `/clear` both and send both `/task do` at once.
 
@@ -358,7 +345,7 @@ Pass when all hold:
   transcript shows `git -C .ai add -A`.
 - The second `start` printed `parallel` and `PARALLEL <other> is running`,
   and wrote `.ai/.current-<id>`; `.ai/.current` still names the first.
-- Both worker tabs ran at the same time, and every host file a task
+- Both worker sub-agents ran at the same time, and every host file a task
   edited is in its pointer's `modified:` list, claimed before the edit.
   If either side tried a file the other claimed, the transcript shows the
   `CLAIMED ... by running task` refusal and the file was left alone.

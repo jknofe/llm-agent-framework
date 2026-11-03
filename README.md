@@ -136,9 +136,8 @@ file list retires nothing and prints what to remove by hand.
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
-   The steps themselves go to a cheaper-model worker that starts fresh
-   from the task file, in its own Herdr tab when you
-   run inside Herdr, as a sub-agent otherwise; the session you talk to
+   The steps themselves go to a cheaper-model worker, a sub-agent of the
+   harness that starts fresh from the task file; the session you talk to
    supervises it and checks every round from the files (see
    [Supervised workers](#supervised-workers)). `/task do BUG-7 inline`
    keeps the work in your session.
@@ -190,8 +189,7 @@ small one, and it is now the only shape the generator emits:
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
   (command and documentation detection), `tasks.py` (the task table,
   the create-or-do resolver, and `start`/`tick`/`finish`, the bookkeeping of
-  `/task do`), and `delegate.py` (where `/task do`'s worker runs, on which
-  model).
+  `/task do`).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
@@ -325,35 +323,24 @@ worker starts in a fresh context on a cheaper model and knows only
 `notes.md`, the task file and `.ai/agent/task/work.md`. It works the steps,
 records findings, runs the tests, reports with a `Worker round <n>` line in
 Findings, and commits `.ai`. It never ticks a done-when box and never
-commits your code. Each round starts a fresh worker, in Herdr too, so a
-correction reaches the next round only through the `Supervisor round` line
-in the task file.
+commits your code. Each round starts a fresh worker, so a correction
+reaches the next round only through the `Supervisor round` line in the
+task file.
 
-`python3 .ai/agent/tools/delegate.py plan <id>` shows the choice:
-
-- **herdr**: inside Herdr (`HERDR_ENV=1`) with the harness CLI installed.
-  The worker gets its own tab labelled `task:<id>`, so you can watch it and
-  step in. The worker runs in the project folder, so it needs the harness
-  to trust that folder, as your own session usually already does. The
-  script reads the harness's trust record first and picks `subagent` for a
-  folder it has not trusted (a fresh clone, a new worktree, a folder only
-  ever run headless). If a dialog still appears, the supervisor closes the
-  tab, says why, and falls back to a sub-agent.
-- **subagent**: anywhere else, a fresh sub-agent of the harness.
-- **inline**: `/task do <id> inline`, two or fewer open steps, or a worker
-  model that is not cheaper than the session's own.
-
-The model: on Claude Code, `haiku` for a `change` or `test` of at most three
-steps and `sonnet` for everything else; on Copilot, `auto`. Set
-`LLM_AGENT_WORKER_MODEL` to choose, and `LLM_AGENT_WORKER_PERMISSION` to
-change the Herdr worker's Claude Code permission mode (default `auto`).
-Delegation is not claimed to be cheaper: supervision and review stay on your
-model.
+The worker is the harness's own general-purpose sub-agent, spawned on a
+cheaper model than the session's where the harness lets the agent pick
+one. There is no dispatch script and no setting. The session works the
+steps itself with `/task do <id> inline`, when two or fewer steps are
+open, or when it cannot spawn a sub-agent. To have the worker run
+somewhere else, for example in a terminal pane you can watch, say so when
+you start `/task do`; the worker reads the same
+`.ai/agent/task/work.md` wherever it runs. Delegation is not claimed to be
+cheaper: supervision and review stay on your model.
 
 ## Parallel tasks
 
 Two `/task create` or `/task do` sessions can run side by side in the same
-project, for example in two Herdr panes, each with its own worker tab
+project, for example in two terminals, each with its own worker sub-agent
 (CONCEPT.md section 51). Nothing to switch on:
 
 - The first running task holds `.ai/.current`; a task started while it

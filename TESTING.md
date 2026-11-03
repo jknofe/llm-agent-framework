@@ -15,13 +15,7 @@ themselves.
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
    python3 tests/test_git_guard.py
-   python3 tests/test_delegate.py
    ```
-   `test_delegate.py` checks the `/task do` worker dispatch without an
-   agent: every MODE of `delegate.py plan` (inline asked, worker guard,
-   small plan, herdr, subagent), the model per type, size and harness, the
-   override, and the round count. Herdr and the CLIs are stub executables;
-   `launch` against a live Herdr is runbook case TC-D6.
    The fourth runs the git guard hook on the commands it must block, bare
    and behind a proxy (`rtk gh ...`, `rtk run "<line>"`), and on read-only
    ones it must let through.

@@ -25,30 +25,25 @@ those are the forms the permission allowlist matches.
    `## Tracker` section is the task's issue, already fetched at create
    time: work from what it records, and query the tracker again only when
    the task needs the issue's current state. Read `.ai/notes.md`, and any
-   leaf under `.ai/notes/` the task touches. Before you edit a host file, claim it: `python3 ${tools_dir}/tasks.py
-   claim <id> <path>...`. `CLAIMED ... by running task <other>` means a
-   parallel task owns it: do not edit it; ask the user, or wait until that
-   task finishes. If the session is compacted, the pointer and the
-   Findings section are the backup of exactly what to preserve.
+   leaf under `.ai/notes/` the task touches. Before you edit a host file,
+   claim it: `python3 ${tools_dir}/tasks.py claim <id> <path>...`.
+   `CLAIMED ... by running task <other>` means a parallel task owns it:
+   do not edit it; ask the user, or wait until that task finishes. If the
+   session is compacted, the pointer and the Findings section are the
+   backup of exactly what to preserve.
 
 Steps 2 to 5 are the work, and a worker does them; you supervise. The
-worker starts in a fresh context on a cheaper model and knows only the
-files, so anything the user told you that the work depends on goes into
-the task's Notes before it starts. Run `python3 ${tools_dir}/delegate.py
-plan <id>` (add `inline` when the user asked for it) and act on MODE:
-- `inline`: work steps 2 to 5 yourself, then go on at step 6.
-- `herdr`: run `python3 ${tools_dir}/delegate.py launch <id>`, then the
-  `herdr agent wait` command it prints. If launch prints `FAILED`, use
-  `subagent` instead.
-- `subagent`: spawn a fresh general-purpose sub-agent, never one that
-  inherits this conversation, on MODEL where the harness lets you pick a
-  model, with PROMPT as its whole prompt. Where no sub-agent can be
-  spawned (you are one yourself, or the harness has none), work inline.
-A worker on your own tier costs more than doing the work yourself, so
-delegate only when MODEL is a cheaper tier than the model you run on.
-When it is not, or you cannot tell (`auto`), work inline, unless the
-user set `LLM_AGENT_WORKER_MODEL`. Whichever way, say the mode in one
-line before you start.
+worker is a fresh general-purpose sub-agent of your harness, never one
+that inherits this conversation: it knows only the files, so anything the
+user told you that the work depends on goes into the task's Notes before
+it starts. Spawn it on a cheaper model than yours where the harness lets
+you pick one, with this whole prompt: `You are the worker for task <id>,
+round <n>. Read ${task_dir}/work.md and follow it.`, where `<n>` is one
+more than the `Worker round` lines in Findings. Work steps 2 to 5 yourself
+instead, then go on at step 6, when the user asked for `inline`, when two
+or fewer steps are open in the first round, or when no sub-agent can be
+spawned (you are one yourself, or the harness has none). Say which way in
+one line before you start.
 While a worker runs, change no file: wait for it. Then supervise the
 round from the files, never from the worker's message: read the
 `Worker round` line and every new Finding in the task file (a step
@@ -61,34 +56,23 @@ Decide:
   that form is a correction, and a later worker acts on it.
 - Correct otherwise: append `- <today> Supervisor round <n>: <each
   correction: file, what is wrong, what done looks like>` to Findings,
-  commit `.ai`, and run the next round (`plan`, then launch or spawn):
-  every round is a fresh worker, so the correction must stand on its own
-  in the file.
+  commit `.ai`, and spawn the next round's worker: every round is a fresh
+  sub-agent, so the correction must stand on its own in the file.
 - `needs-user`, or `stuck` on something outside the worker's reach (a
   toolchain, access, hardware, a decision): ask the user first, and
-  change no file and close no tab until they have answered; the worker's
-  tab stays open so they can see it. Then write the answer into Notes and
-  run the next round, or finish the task as `blocked` if they say so.
+  change no file until they have answered. Then write the answer into
+  Notes and run the next round, or finish the task as `blocked` if they
+  say so.
 - `stuck` on the work itself (a test failing twice, hypotheses dead), or
   a fourth round would be needed: stop delegating and ask the user how to
   go on: a corrected round, you taking over, or `blocked`. Take over only
   when they agree, and say so in one line before your first edit.
-- A Herdr wait that returns `blocked` is a dialog in the worker's tab:
-  read it (`herdr agent read <name> --source recent-unwrapped --lines
-  60`), never answer it for the user, tell them the tab and what it
-  asks, and wait again. The wait fits one shell call (9 minutes; give
-  the call that long a timeout). One that times out while the worker is
-  still `working` is no failure: wait again. After an hour with no new
-  Finding, read the tab and decide as for `stuck`.
 You edit host code yourself only to fix what the review gate finds
 (step 6) or after the user agreed to a takeover; a worker's `stuck` or
 `needs-user` alone is never the cue to finish its work.
-Close the worker's tab (`python3 ${tools_dir}/delegate.py close <id>`,
-herdr only) only when delegation ends: the round is accepted, the task is
-finished, or the user agreed to a takeover; never while a question to the
-user is open (the next `launch` replaces the tab anyway). Then append
-`- <today> Delegation: <mode> <kind>/<model>, <rounds> round(s),
-<accepted|taken over|blocked>` to Findings. The
+When delegation ends (the round is accepted, the task is finished, or
+the user agreed to a takeover), append `- <today> Delegation: <model>,
+<rounds> round(s), <accepted|taken over|blocked>` to Findings. The
 review gate, Outcome, notes and `finish` stay yours.
 
 2. Work the steps in order. Explore the real code, logs, and docs with

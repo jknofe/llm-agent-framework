@@ -66,8 +66,8 @@ def rendered_artifacts():
     out.append(("settings.json", content.render_settings_json()))
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
     for fn in ("render_tool_probe", "render_tool_tasks",
-               "render_tool_delegate", "render_hook_ai_repo_clean",
-               "render_hook_git_guard", "render_notes_stub"):
+               "render_hook_ai_repo_clean", "render_hook_git_guard",
+               "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
     return out
 
@@ -113,7 +113,7 @@ def check_unfilled():
 
 def check_python():
     for fn in ("render_tool_probe", "render_tool_tasks",
-               "render_tool_delegate", "render_hook_ai_repo_clean"):
+               "render_hook_ai_repo_clean"):
         try:
             ast.parse(getattr(content, fn)())
         except SyntaxError as e:

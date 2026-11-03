@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-01, v11.1.** The framework rests on four premises, stated in
+**State: 2026-11-03, v11.2.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 51, unchanged and
+- **Part III** is the revision history, sections 1 to 52, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -154,31 +154,25 @@ worker, the goldfish: a fresh context on a cheaper model that knows only
 `.ai/notes.md`, the task file and `.ai/agent/task/work.md`, and that
 reports by appending a `Worker round <n>` line to Findings. Anything the
 user said that the work depends on goes into Notes before the worker
-starts, because the file is all it has. A script, `delegate.py plan`,
-decides where the worker runs: a Herdr tab (`HERDR_ENV=1`, `herdr` and the
-harness CLI on PATH, the project folder trusted by the harness) the user
-can watch, a fresh sub-agent of the harness otherwise, inline when the user says `inline`, when two or fewer steps are
-open, or when the session is itself a worker. The model is the harness's
-cheaper tier, `haiku` for a `change` or `test` of at most three steps and
-`sonnet` otherwise on claude, `auto` on copilot,
-`LLM_AGENT_WORKER_MODEL` overriding both. The supervisor delegates only
-when that model is a cheaper tier than its own, and judges every round
-from the files: the report line, the evidence behind each ticked step,
-the diff, and the full suite run again by itself. A worker's `done` is a
-claim, not a gate result. A correction goes into Findings as a
-`Supervisor round <n>` line for the next round (an accepted round leaves at
-most a `Supervisor check` note, never that form), which always starts a fresh
-worker (in Herdr too: `launch` closes the last round's tab first), so the
-file is the only memory between rounds; at most three rounds. A worker
-that stops (`needs-user`, or `stuck`) is a question for the user, not a
-cue for the supervisor to finish the work: it asks first, edits nothing
-and keeps the worker's tab open until the user has answered, and takes
-over only with their agreement. Its own code edits are otherwise limited
-to fixing what the review gate finds. The worker never ticks a
-done-when box, never writes Outcome, notes or the review line, and never
-commits to the host repository. A Herdr dialog in the worker's tab (folder
-trust, a permission prompt) is the user's to answer; the supervisor names
-it and does not answer it.
+starts, because the file is all it has. The worker is the harness's own
+fresh general-purpose sub-agent, spawned on a cheaper model than the
+session's where the harness lets the agent pick one; no script decides
+where or on what it runs (section 52). The supervisor works the steps
+itself when the user says `inline`, when two or fewer steps are open in
+the first round, or when it cannot spawn a sub-agent. It judges every
+round from the files: the report line, the evidence behind each ticked
+step, the diff, and the full suite run again by itself. A worker's `done`
+is a claim, not a gate result. A correction goes into Findings as a
+`Supervisor round <n>` line for the next round (an accepted round leaves
+at most a `Supervisor check` note, never that form), which always starts
+a fresh sub-agent, so the file is the only memory between rounds; at most
+three rounds. A worker that stops (`needs-user`, or `stuck`) is a question
+for the user, not a cue for the supervisor to finish the work: it asks
+first, edits nothing until the user has answered, and takes over only with
+their agreement. Its own code edits are otherwise limited to fixing what
+the review gate finds. The worker never ticks a done-when box, never
+writes Outcome, notes or the review line, and never commits to the host
+repository.
 
 `/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
@@ -219,7 +213,7 @@ pointer, starting `task: <id>`.
 
 Since 11.1 tasks run in parallel in one working tree (section 51): two
 `/task create` or `/task do` sessions side by side, each with its own
-Herdr worker. Isolation is cooperative, not physical:
+worker sub-agent. Isolation is cooperative, not physical:
 - `tasks.py start` takes `.ai/.current` only while the task it names is
   not running; otherwise it writes the task's own pointer
   `.ai/.current-<id>` and prints every running task with its files
@@ -277,10 +271,9 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `delegate.py`: ~330 lines, the worker dispatch of `/task do`.
   `tasks.py`: 919 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 15 framework files, a copilot one 14, counting the three `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 14 framework files, a copilot one 13, counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -298,8 +291,9 @@ project's version and cannot know what the new version changed.
 - **Not proven cheaper by delegation.** The cheaper worker tier lowers the
   price of the steps, but supervision, re-verification and the review stay
   on the session's model. Section 23 measured a same-tier worker at +35%
-  tokens; 11.0 requires a tier gap, and its two live runs (section 50) are
-  evidence that the split works, not a cost result.
+  tokens; a harness that cannot pick the sub-agent's model pays that. The
+  two live runs of section 50 are evidence that the split works, not a
+  cost result.
 - **Not measured on anything but code changes.** Every benchmark task was a
   change with a gate. The bug, investigation and test types rest on the
   organizational argument of section 39, not on a round.
@@ -443,9 +437,10 @@ section 38: **15** (`/import-kb`), **22** (`/goal` as a documented mode, moved
 to the README), **25** (`/import-agent`), **26** (`/tidy-up`). Already marked
 removed in its own heading: **23** (Worker sub-agents), revived under its
 own conditions by section 50 for `/task do` only; read 23 for the evidence,
-50 for what is in force. Retired by section
+50 and 52 for what is in force. Retired by section
 43: **30** (Hermes as a third harness), and the Hermes parts of 32, 34, 35
-and 39.
+and 39. Retired by section 52: the Herdr worker, `delegate.py` and its
+model table in **50**, and the Herdr worker tabs of **51**.
 
 Everything else still describes current behavior, and sections 36 to 39
 are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
@@ -453,6 +448,15 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.2 (2026-11-03, the worker is the harness's own sub-agent, section 52.
+`delegate.py` and every Herdr path of `/task do` are gone: the supervisor
+spawns a fresh general-purpose sub-agent on a cheaper model where the
+harness lets it pick one, inline when asked, for two or fewer open steps,
+or when no sub-agent can be spawned. Supervision is unchanged. Removed:
+`delegate.py`, `tests/test_delegate.py`, the `delegate.py` and `herdr
+agent` permissions, `LLM_AGENT_WORKER_MODEL`. Runbook: TC-D6, TC-D7
+rewritten.)
 
 v11.1 (2026-11-01, parallel tasks in one working tree, section 51.
 `/task create` and `/task do` run side by side: a running task keeps
@@ -3564,3 +3568,73 @@ commit rule in `templates/instructions/agents.md`, `task/create.md`,
 the `.current-*` gitignore entry in `agentgen/scaffold.py`. Tests:
 `test_tasks_table.py` (pointers, claims, resume, list marks: 144 checks).
 Runbook: TC-P1.
+
+## 52. The worker is the harness's own sub-agent (2026-11-03, v11.2)
+
+**Source.** The owner's call after 11.1: `/task do` should use what the
+coding agent does on its own, a sub-agent, and carry no steering for where
+the worker runs. A Herdr tab stays possible when the user asks for it,
+through the agent's own Herdr knowledge, not through the framework.
+
+**Change.**
+
+- `delegate.py` is gone, and with it `plan`, `launch`, `close`, the folder
+  trust check, the round counter, the model table and the variables
+  `LLM_AGENT_WORKER_MODEL`, `LLM_AGENT_WORKER_PERMISSION` and
+  `LLM_AGENT_ROLE`. `/framework-update` deletes the file from existing
+  projects through the recorded file list.
+- Do states the dispatch in prose: a fresh general-purpose sub-agent,
+  never a fork, on a cheaper model than the session's where the harness
+  lets the agent pick one, with a fixed one-line prompt naming the task,
+  the round (one more than the `Worker round` lines) and `work.md`.
+  Inline when the user says `inline`, when two or fewer steps are open in
+  the first round, or when no sub-agent can be spawned, which also covers
+  a worker that would delegate again.
+- Every Herdr paragraph of Do goes: launch, the 9-minute wait, a
+  `blocked` dialog in the worker tab, keeping the tab open for the user,
+  closing it. The `Delegation:` line loses its mode and kind.
+- The permission allowlist loses `delegate.py plan` and `herdr agent
+  wait|get|read`.
+
+**Kept.** The supervisor and everything section 50 built around it: the
+task file as the whole brief, `work.md` as the worker's contract, the
+`Worker round` report, judgment from the files and a rerun of the suite,
+`Supervisor round` corrections, three rounds, a stopped worker as a
+question for the user, takeover only with agreement, and the review gate,
+Outcome, notes and `finish` on the supervisor. Parallel tasks (section 51)
+are untouched; each session has its own worker sub-agent.
+
+**What this gives up.** The tab the user could watch and answer a
+permission prompt in, and a model choice per task type. The tier gap that
+section 50 required before delegating is now a request, not a check: a
+harness that cannot pick the sub-agent's model runs the worker on the
+session's tier, the +35% case of section 23. Part I says so under what the
+framework does not claim.
+
+**Why.** Section 50's dispatch was 330 lines of script, 234 of tests and
+about 25 lines of Do for one terminal multiplexer, and its live runs
+already fell back to the sub-agent once (folder trust). The sub-agent path
+exists on both harnesses with no setup, which is property 3; the removed
+script shrinks the footprint, property 4, and a removal needs no further
+argument.
+
+**Live test, 2026-11-03** (claude, Opus 5.5 supervisor via `claude -p`,
+a scratch stdlib-Python repo, two 4-step `change` tasks written by hand in
+Create's format):
+
+- TC-D6, `/task do add-median-mode`: "Four steps open in round 1, so I'm
+  delegating to a worker sub-agent on Sonnet", then one general-purpose
+  sub-agent, `model: sonnet`, the fixed one-line prompt. No `delegate.py`,
+  no `herdr` call. The worker ticked steps only and committed `worker
+  round 1`; the supervisor read the diff, reran tests and lint itself,
+  wrote `Supervisor check: round 1 accepted`, sent the 50-line diff to
+  the `reviewer`, ticked each criterion with `tick`, and `finish done`
+  passed. Cost: Opus $0.388, Sonnet $0.106.
+- TC-D7, `/task do add-char-stats inline`: one line "Working inline",
+  no worker, no `Worker round` or `Delegation:` line, the 35-line diff
+  to the `reviewer`, `done`. Opus $0.301.
+
+Tests: `check_templates` (no orphan, permissions render), the delegate
+test file removed. Runbook: TC-D6 (worker sub-agent, no `delegate.py`, no
+`herdr` call) and TC-D7 (`inline`) rewritten; TC-D3 loses the tab check;
+TC-P1 counts worker sub-agents instead of tabs.
