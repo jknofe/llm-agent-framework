@@ -261,13 +261,13 @@ Pass when all hold:
 - The table shows the task with ⛔, the flag `❗ <id>: blocked: <reason>`,
   and the 👉 pointer on it; `.ai/.current` still exists.
 - Findings record what was done and what is missing.
-- With a worker (11.1): its report says `needs-user` (a missing toolchain
-  is outside its reach, not `stuck`). Between that report and the user's
+- With a worker (11.1, 11.3): its report says `question` (a missing
+  toolchain is outside its reach, not `stuck`). Between that report and the user's
   answer the supervisor runs no host-code edit (no `Edit`/`Write` outside
   `.ai`, no `sed -i` or script on `src/`).
 
-Note: the review gate runs only before `done`, so a task that blocks at the
-test step may have no review line. That is correct.
+Note: the review gate runs before code ships and before `done`, so a task
+that blocks at the test step may have no review line. That is correct.
 
 **TC-D4: small diff, inline review** (8.6)
 
@@ -296,30 +296,38 @@ sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
 
-**TC-D6: supervised worker sub-agent** (11.0, 11.2)
+**TC-D6: the worker ships, the supervisor reviews** (11.0, 11.3)
 
-On a session model above the cheapest tier (claude: Opus or Fable). A task
-with three or more open steps. `/task do <id>`.
+On a session model above the cheapest tier (claude: Opus or Fable). A
+`change` with three or more code steps, then a step "commit on branch
+`<branch>`, push, open the pull request" (a scratch repo with a bare
+local `origin` stands in for the pull request with a pushed branch).
+`/task do <id>`.
 
 Pass when all hold:
-- The transcript shows no `delegate.py` and no `herdr` call. A fresh
-  general-purpose sub-agent runs (not a fork) on a cheaper model than the
-  session's (claude: `"model":"haiku"` or `"sonnet"`), and its whole prompt
-  names the task, the round and `.ai/agent/task/work.md`.
-- The supervisor changed no file while the worker ran.
-- Findings: a `Worker round 1` line with each check and its result, a
-  `Delegation: <model> ...` line, a `Review:` line. The `.ai` log has
-  `task: <id> worker round 1` before `task: done <id>`.
-- The worker ticked steps only: in the round commit (`git -C .ai show
-  <round commit>`), no done-when box, no Outcome, no `notes.md` change.
-- The transcript shows the supervisor rerunning the full test command
-  after the round, not only reading the report.
-- No host repo commit by the worker.
-- An accepted round leaves at most a `Supervisor check: round <n>
-  accepted` line, never a `Supervisor round <n>` line, which is reserved
-  for corrections.
-- If a second round ran: a new sub-agent, whose transcript starts by
-  reading the task file's `Supervisor round 1` line.
+- One fresh general-purpose sub-agent (not a fork) runs on a cheaper
+  model than the session's (claude: `"model":"haiku"` or `"sonnet"`), its
+  whole prompt naming the task and `.ai/agent/task/work.md`. No
+  `delegate.py` and no `herdr` call.
+- The worker reports `review` before any host commit: the `.ai` log has
+  `worker round 1` before the host branch has a commit. The supervisor's
+  review leaves a `Review:` line and a `Supervisor check: round 1
+  accepted` line; a finding instead leaves a `Supervisor round 1`
+  correction that the worker fixes.
+- The worker then commits, pushes and records the evidence. Where the
+  harness can resume a sub-agent, the transcript shows the supervisor
+  continuing the same worker (claude: `SendMessage` to its id), not a
+  second spawn.
+- The supervisor made no host edit, commit or push (no `Edit`/`Write`
+  outside `.ai`, no `git commit` or `git push` in the host repo) and
+  changed no file while the worker ran.
+- The supervisor reran no test when Findings hold the worker's commands
+  and results; it read the evidence instead.
+- The worker ticked steps only: no done-when box, no Outcome, no
+  `notes.md` change in its round commits (`git -C .ai show <commit>`).
+- Findings end with a `Delegation: <model> ...` line; the supervisor
+  ticked each criterion with `tasks.py tick`, wrote the Outcome, and
+  `finish done` passed. Nothing merged into the default branch.
 
 **TC-D7: inline when asked** (11.0, 11.2)
 

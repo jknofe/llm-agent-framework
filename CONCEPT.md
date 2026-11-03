@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-03, v11.2.** The framework rests on four premises, stated in
+**State: 2026-11-03, v11.3.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 52, unchanged and
+- **Part III** is the revision history, sections 1 to 53, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -147,32 +147,32 @@ with every done-when criterion ticked, then distills what the repository
 cannot state into `.ai/notes.md`.
 
 Since 11.0 `/task do` splits into two roles, after Google's
-Elephant-Goldfish Model (section 50). The session that ran it is the
-supervisor, the elephant: it talks to the user, starts the task, and owns
-the review gate, the Outcome, the notes and `finish`. The steps go to a
-worker, the goldfish: a fresh context on a cheaper model that knows only
-`.ai/notes.md`, the task file and `.ai/agent/task/work.md`, and that
-reports by appending a `Worker round <n>` line to Findings. Anything the
-user said that the work depends on goes into Notes before the worker
-starts, because the file is all it has. The worker is the harness's own
-fresh general-purpose sub-agent, spawned on a cheaper model than the
-session's where the harness lets the agent pick one; no script decides
-where or on what it runs (section 52). The supervisor works the steps
-itself when the user says `inline`, when two or fewer steps are open in
-the first round, or when it cannot spawn a sub-agent. It judges every
-round from the files: the report line, the evidence behind each ticked
-step, the diff, and the full suite run again by itself. A worker's `done`
-is a claim, not a gate result. A correction goes into Findings as a
-`Supervisor round <n>` line for the next round (an accepted round leaves
-at most a `Supervisor check` note, never that form), which always starts
-a fresh sub-agent, so the file is the only memory between rounds; at most
-three rounds. A worker that stops (`needs-user`, or `stuck`) is a question
-for the user, not a cue for the supervisor to finish the work: it asks
-first, edits nothing until the user has answered, and takes over only with
-their agreement. Its own code edits are otherwise limited to fixing what
-the review gate finds. The worker never ticks a done-when box, never
-writes Outcome, notes or the review line, and never commits to the host
-repository.
+Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
+job and the supervisor none of it (section 53). The worker is the
+harness's own fresh general-purpose sub-agent, spawned on a cheaper model
+than the session's where the harness lets the agent pick one, and knows
+only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
+every step the task names: the code, the tests, then the branch, commit,
+push, pull request, the wait for CI, a dev run, a tracker comment. Before
+code ships it reports `review`; it also stops at `question`, `stuck` and
+`done`, each a `Worker round <n>` line in Findings. The session that ran
+`/task do` is the supervisor and stands in for the user: it reviews the
+uncommitted diff before it ships (the review gate), answers a question as
+the user would from the task file, and asks the user only what it cannot
+decide for them (a changed Goal or criterion, a merge, production,
+deleting data). It judges each report from the files and trusts recorded
+evidence, a CI result or a command with its output, rerunning the tests
+only when that evidence is missing or doubtful. A worker's `done` is a
+claim, not a gate result. Corrections and answers go into Findings as
+`Supervisor round <n>` lines, an accepted review as a `Supervisor check`
+line; then the supervisor continues the same worker where the harness can
+resume a sub-agent, or spawns a fresh one that reads the file. The
+supervisor never edits host code, commits or pushes, not even to fix a
+review finding; it takes over only when the user says so, and works the
+steps itself only for `inline` or where no sub-agent can be spawned. The
+Outcome, the notes, the Done-when ticks and `finish` are its own. The
+worker never ticks a done-when box, never writes Outcome, notes or the
+review line, and never merges into the default branch.
 
 `/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
@@ -289,9 +289,10 @@ project's version and cannot know what the new version changed.
 - **Not proven more correct.** The evidence is split and the only measured
   correctness loss was caused by the framework's own spec.
 - **Not proven cheaper by delegation.** The cheaper worker tier lowers the
-  price of the steps, but supervision, re-verification and the review stay
-  on the session's model. Section 23 measured a same-tier worker at +35%
-  tokens; a harness that cannot pick the sub-agent's model pays that. The
+  price of the steps, but the reviews, the decisions and the reading of
+  each report stay on the session's model. Section 23 measured a
+  same-tier worker at +35% tokens; a harness that cannot pick the
+  sub-agent's model pays that. The
   two live runs of section 50 are evidence that the split works, not a
   cost result.
 - **Not measured on anything but code changes.** Every benchmark task was a
@@ -437,7 +438,7 @@ section 38: **15** (`/import-kb`), **22** (`/goal` as a documented mode, moved
 to the README), **25** (`/import-agent`), **26** (`/tidy-up`). Already marked
 removed in its own heading: **23** (Worker sub-agents), revived under its
 own conditions by section 50 for `/task do` only; read 23 for the evidence,
-50 and 52 for what is in force. Retired by section
+50, 52 and 53 for what is in force. Retired by section
 43: **30** (Hermes as a third harness), and the Hermes parts of 32, 34, 35
 and 39. Retired by section 52: the Herdr worker, `delegate.py` and its
 model table in **50**, and the Herdr worker tabs of **51**.
@@ -448,6 +449,15 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.3 (2026-11-03, the worker does the whole job, section 53. The worker
+works every step the task names through to the pull request, CI and dev
+runs, asking for a review before code ships; the supervisor reviews,
+answers as the user would, asks the user only what it cannot decide, and
+does none of the work. Reports: `review`, `question`, `stuck`, `done`
+(`needs-user` gone). The supervisor resumes the same worker where the
+harness can, trusts CI and recorded evidence, and no longer works steps
+of small tasks itself. Runbook: TC-D6 rewritten, TC-D3 adjusted.)
 
 v11.2 (2026-11-03, the worker is the harness's own sub-agent, section 52.
 `delegate.py` and every Herdr path of `/task do` are gone: the supervisor
@@ -3638,3 +3648,86 @@ Tests: `check_templates` (no orphan, permissions render), the delegate
 test file removed. Runbook: TC-D6 (worker sub-agent, no `delegate.py`, no
 `herdr` call) and TC-D7 (`inline`) rewritten; TC-D3 loses the tab check;
 TC-P1 counts worker sub-agents instead of tabs.
+
+## 53. The worker does the whole job (2026-11-03, v11.3)
+
+**Source.** The first 11.2 run on a real task (DART 1196, Opus 5.5
+supervisor, Sonnet 5.5 worker, in Herdr). The worker did the code and
+tests of steps 1 to 4 on Sonnet: 28 turns, 14.6k output tokens. Then it
+reported `needs-user`, because `work.md` barred it from committing and
+pushing, and steps 5 to 8 were a branch, a commit, a pull request, a CI
+wait, a dev run, a prod check after the user's merge, and an issue
+comment. Nothing was left for the user to decide: `needs-user` was the
+only stop that fit a worker that had reached the edge of its rules. The
+supervisor accepted the round and did steps 5 to 8 itself (`step 5+
+supervisor`): 46 more Opus turns, 19.4k output tokens and 3.3M cache
+reads, more than the worker. The owner's call: the supervisor acts like
+the user's stand-in, a lead with a junior; the junior does nearly
+everything, the lead does not open the junior's pull request.
+
+**Change.**
+
+- The worker works every step the task names, through to the pull
+  request: commit, push, CI wait, dev run, tracker comment. The ban on
+  host commits and pushes is gone; what limits every agent still limits
+  it: the git guard hook blocks a merge into the default branch, and
+  `AGENTS.md` stops at the branch or pull request and asks before
+  anything destructive or outside the repository. A step that needs one
+  of these and does not name it is a `question`.
+- Code ships through the review gate. The worker reports `review` before
+  its first host commit, and before a push of code changed since the
+  last review; the supervisor runs the gate on the uncommitted diff and
+  answers with a `Supervisor check: round <n> accepted` line or a
+  `Supervisor round <n>` correction.
+- Reports: `review`, `question`, `stuck`, `done`. `needs-user` is gone:
+  the worker never addresses the user. The supervisor answers a
+  `question` as the user would from the Goal, the Notes and the criteria,
+  and asks the user only what it cannot decide for them: a changed Goal
+  or criterion, a merge, production, deleting data, an open choice it
+  cannot settle.
+- The supervisor does none of the work. It makes no host edit, commit or
+  push, not even to fix a review finding; the finding goes back to the
+  worker. It takes over only when the user says so. Section 50's rule
+  that two or fewer open steps stay inline is gone; `inline` and a
+  harness with no sub-agent remain.
+- After a report the supervisor continues the same worker with its
+  context where the harness can resume a sub-agent (Claude Code sends it
+  a message), and spawns a fresh worker that reads the file otherwise.
+  This gives up a little of the goldfish property: a resumed worker
+  remembers its own earlier rounds. The file still carries every answer
+  and correction, so a fresh worker or a later session loses nothing.
+- The supervisor trusts recorded evidence: a CI result on the pull
+  request, or a command and its output in Findings. It reruns the tests
+  only when there is no CI result and the recorded output is missing,
+  partial or doubtful. Section 50 made it rerun the full suite after
+  every round, which on Opus is the expensive half of a check that CI
+  repeats anyway.
+
+**Kept.** The task file as the brief, fresh-context spawning, the review
+gate and its sizing, the `reviewer` on the session's model, the Outcome,
+notes, Done-when ticks and `finish` on the supervisor, three tries at the
+same correction before the user is asked.
+
+**What this risks.** A cheaper model now pushes and runs things in shared
+environments. The review before the first commit, the hook, and the
+`question` stop for anything unnamed bound that; a task file that names a
+risky step authorizes it, which is the user's call at create time.
+
+**Live test, 2026-11-03** (claude, Opus 5.5 supervisor via `claude -p`, a
+scratch stdlib-Python repo with a bare local `origin` standing in for the
+pull request, a 5-step `change` whose last step is branch, commit, push):
+
+- Run 1: one Sonnet worker reported `review` with the code uncommitted;
+  the supervisor sent the 50-line diff to the `reviewer`, wrote
+  `Supervisor check: round 1 accepted`, and continued the same worker with
+  `SendMessage`, no second spawn. The worker branched, committed with no
+  co-author line, pushed, and reported `done`; the supervisor checked
+  `git ls-remote` (branch pushed, `main` untouched), ticked, and finished.
+  No host edit, commit or push by the supervisor. One fault: it reran the
+  tests twice, calling the worker's `9 tests OK` "only a summary". Opus
+  $0.53, Sonnet $0.15.
+- Fix: `work.md` records each check with its result line verbatim, and
+  `do.md` names that as enough evidence, not to be rerun.
+- Run 2, same task on a fresh copy: the same flow, the worker's Findings
+  carry `Ran 9 tests in 0.000s OK`, and the supervisor ran no test at all.
+  Opus $0.40, Sonnet $0.10.

@@ -136,9 +136,9 @@ file list retires nothing and prints what to remove by hand.
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
-   The steps themselves go to a cheaper-model worker, a sub-agent of the
-   harness that starts fresh from the task file; the session you talk to
-   supervises it and checks every round from the files (see
+   The work itself, through to the pull request, goes to a cheaper-model
+   worker, a sub-agent of the harness that starts fresh from the task
+   file; the session you talk to reviews, answers and decides for you (see
    [Supervised workers](#supervised-workers)). `/task do BUG-7 inline`
    keeps the work in your session.
    Findings the repository cannot state go into `notes.md`. The agent never
@@ -316,26 +316,37 @@ only guarantee, so commit `.ai` by hand and do not assume a hook ran.
 ## Supervised workers
 
 `/task do` runs as two roles, after Google's Elephant-Goldfish Model
-(CONCEPT.md section 50). The session you talk to is the supervisor: it
-starts the task, hands the steps to a worker, checks every round from the
-files, and keeps the review gate, the Outcome, `notes.md` and `finish`. The
-worker starts in a fresh context on a cheaper model and knows only
-`notes.md`, the task file and `.ai/agent/task/work.md`. It works the steps,
-records findings, runs the tests, reports with a `Worker round <n>` line in
-Findings, and commits `.ai`. It never ticks a done-when box and never
-commits your code. Each round starts a fresh worker, so a correction
-reaches the next round only through the `Supervisor round` line in the
-task file.
+(CONCEPT.md sections 50 and 53). The worker is a junior who does the
+whole job; the session you talk to is its lead and stands in for you.
 
-The worker is the harness's own general-purpose sub-agent, spawned on a
-cheaper model than the session's where the harness lets the agent pick
-one. There is no dispatch script and no setting. The session works the
-steps itself with `/task do <id> inline`, when two or fewer steps are
-open, or when it cannot spawn a sub-agent. To have the worker run
-somewhere else, for example in a terminal pane you can watch, say so when
-you start `/task do`; the worker reads the same
-`.ai/agent/task/work.md` wherever it runs. Delegation is not claimed to be
-cheaper: supervision and review stay on your model.
+- **The worker** is the harness's own general-purpose sub-agent, spawned
+  on a cheaper model than the session's where the harness lets the agent
+  pick one. It starts fresh and knows only `notes.md`, the task file and
+  `.ai/agent/task/work.md`. It does every step the task names: the code,
+  the tests, and after them the branch, commit, push, pull request,
+  waiting for CI, dev runs, a tracker comment. Before code ships it asks
+  for a review. It reports with a `Worker round <n>` line in Findings:
+  `review`, `question`, `stuck` or `done`.
+- **The supervisor** answers those reports and does none of the work: it
+  reviews the diff before it ships (the `reviewer` sub-agent for a large
+  one), answers questions as you would from the task file, and asks you
+  only what it cannot decide for you: a changed goal or criterion, a
+  merge, production, deleting data. It trusts CI and the evidence in
+  Findings, and reruns the tests only when that evidence is missing or
+  doubtful. A review finding goes back to the worker as a `Supervisor
+  round` line. The Outcome, `notes.md`, the done-when ticks and `finish`
+  stay with the supervisor.
+
+After a report the supervisor continues the same worker where the harness
+can resume a sub-agent (Claude Code), and spawns a fresh one that reads
+the task file otherwise. It works the steps itself only with `/task do
+<id> inline`, when it cannot spawn a sub-agent, or when you tell it to
+take over. To have the worker run somewhere else, for example in a
+terminal pane you can watch, say so when you start `/task do`. The
+worker's commits, pushes and pull requests go through the same guards as
+yours: the git guard hook blocks a merge into the default branch, and
+`AGENTS.md` stops every agent at the branch or pull request. Delegation
+is not claimed to be cheaper: reviews and decisions stay on your model.
 
 ## Parallel tasks
 

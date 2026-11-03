@@ -32,52 +32,64 @@ those are the forms the permission allowlist matches.
    session is compacted, the pointer and the Findings section are the
    backup of exactly what to preserve.
 
-Steps 2 to 5 are the work, and a worker does them; you supervise. The
-worker is a fresh general-purpose sub-agent of your harness, never one
+Steps 2 to 5 are the work, and a worker does all of it: the code, the
+tests, and every step the task names after them, a commit, a push, a
+pull request, waiting for CI, a run in a dev environment. You stand in for
+the user: you answer its questions, review its code before it ships, and
+decide. You never do the work yourself: no host edit, commit or push, not
+even to fix a review finding; that goes back to the worker.
+The worker is a fresh general-purpose sub-agent of your harness, never one
 that inherits this conversation: it knows only the files, so anything the
 user told you that the work depends on goes into the task's Notes before
 it starts. Spawn it on a cheaper model than yours where the harness lets
-you pick one, with this whole prompt: `You are the worker for task <id>,
-round <n>. Read ${task_dir}/work.md and follow it.`, where `<n>` is one
-more than the `Worker round` lines in Findings. Work steps 2 to 5 yourself
-instead, then go on at step 6, when the user asked for `inline`, when two
-or fewer steps are open in the first round, or when no sub-agent can be
-spawned (you are one yourself, or the harness has none). Say which way in
-one line before you start.
-While a worker runs, change no file: wait for it. Then supervise the
-round from the files, never from the worker's message: read the
-`Worker round` line and every new Finding in the task file (a step
-ticked without evidence is not done), read `git status` and the diff,
-and if code changed, run the full test and lint commands yourself.
-Decide:
-- Accept when the report says `done` and your checks hold: go on at
-  step 6. To record what you checked, write `- <today> Supervisor
-  check: round <n> accepted: <checks>`, never a `Supervisor round` line:
-  that form is a correction, and a later worker acts on it.
-- Correct otherwise: append `- <today> Supervisor round <n>: <each
-  correction: file, what is wrong, what done looks like>` to Findings,
-  commit `.ai`, and spawn the next round's worker: every round is a fresh
-  sub-agent, so the correction must stand on its own in the file.
-- `needs-user`, or `stuck` on something outside the worker's reach (a
-  toolchain, access, hardware, a decision): ask the user first, and
-  change no file until they have answered. Then write the answer into
-  Notes and run the next round, or finish the task as `blocked` if they
-  say so.
-- `stuck` on the work itself (a test failing twice, hypotheses dead), or
-  a fourth round would be needed: stop delegating and ask the user how to
-  go on: a corrected round, you taking over, or `blocked`. Take over only
-  when they agree, and say so in one line before your first edit.
-You edit host code yourself only to fix what the review gate finds
-(step 6) or after the user agreed to a takeover; a worker's `stuck` or
-`needs-user` alone is never the cue to finish its work.
-When delegation ends (the round is accepted, the task is finished, or
-the user agreed to a takeover), append `- <today> Delegation: <model>,
-<rounds> round(s), <accepted|taken over|blocked>` to Findings. The
-review gate, Outcome, notes and `finish` stay yours.
+you pick one, with this whole prompt: `You are the worker for task <id>.
+Read ${task_dir}/work.md and follow it.` Work steps 2 to 5 yourself only
+when the user asked for `inline` or no sub-agent can be spawned (you are
+one yourself, or the harness has none). Say which way in one line before
+you start.
+While the worker runs, change no file: wait for its report, the `Worker
+round` line it ends with. Judge each report from the files, never from
+the worker's message: the report line and every new Finding (a step
+ticked without evidence is not done), `git status` and the diff. Trust
+recorded evidence: a CI result on the pull request, or a command with its
+result line in Findings (`Ran 9 tests ... OK`) is enough; do not rerun it
+to confirm it. Rerun a check yourself only when its command or result is
+missing from Findings, or contradicts the diff. Then answer by the
+report:
+- `review`: run the review gate (step 6) on the uncommitted diff. If it
+  holds, append `- <today> Supervisor check: round <n> accepted: <what
+  you checked>`; the worker then commits, pushes and opens the pull
+  request. If not, append `- <today> Supervisor round <n>: <each
+  correction: file, what is wrong, what done looks like>`.
+- `question`: answer it as the user would, from the Goal, the Notes, the
+  criteria and what the user told you, in a `Supervisor round <n>` line.
+  Ask the user first, and change no file until they have answered, when
+  the answer would change the Goal or a criterion, merge, touch
+  production, delete data, or decide what the task file leaves open and
+  you cannot. Write their answer into Notes and point the worker to it
+  in the `Supervisor round <n>` line.
+- `done`: check the evidence for every step. If something is missing or
+  wrong, append a `Supervisor round <n>` correction. If code changed
+  after the last accepted review, run the gate again first.
+- `stuck`, or the same correction needed a third time: ask the user how
+  to go on: another round with a new direction, you taking over, or
+  `blocked`. Take over only when they say so, and say so in one line
+  before your first edit.
+Commit `.ai`, then continue the same worker with its context where your
+harness can send a message to a sub-agent that has reported; tell it to
+read Findings and go on. Otherwise spawn a fresh worker with the same
+prompt: the file holds everything it needs. When the worker reports
+`done` and you accept it, append `- <today> Delegation: <model>,
+<reports> report(s), <done|taken over|blocked>` to Findings and go on at
+step 7. The Outcome, the notes, the Done-when ticks and `finish` are
+yours.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
-   when it is done (`tasks.py tick <id> steps <n>`).
+   when it is done (`tasks.py tick <id> steps <n>`). Code ships through
+   the review gate: before its first commit, and before a push of code
+   changed since the last review, step 6 runs on the uncommitted diff (a
+   worker asks for it with a `review` report).
 3. Record findings as they happen, not at the end: append each to
    `## Findings`, dated, telegraphic, with its evidence (file and line,
    command and its output, log excerpt, doc URL). A finding the file
@@ -89,9 +101,9 @@ review gate, Outcome, notes and `finish` stay yours.
    the new steps, and say so in Findings. Do not drift away from the
    written plan without changing it. If the new direction changes the
    Goal or a Done-when criterion, stop and ask the user: they approved
-   the old ones. When the task cannot continue without something outside
-   your reach (hardware, access, another team), put the detail in
-   Findings and run `python3 ${tools_dir}/tasks.py finish <id> blocked
+   the old ones (a worker asks with a `question` report). When the task
+   cannot continue without something outside your reach (hardware,
+   access, another team), put the detail in Findings and run `python3 ${tools_dir}/tasks.py finish <id> blocked
    <reason in one line>`: it sets `status: blocked` and the `blocked:`
    line `/task list` shows, and keeps the pointer. `tasks.py start`
    clears the block when the task resumes.
@@ -101,12 +113,14 @@ review gate, Outcome, notes and `finish` stay yours.
    parallel, the suite also sees its unfinished edits: a failure in a
    file that task claimed is not yours to fix; record it in Findings and
    rerun once that task finishes.
-6. Review gate, sized to the result: before declaring the task done,
-   check it against every Done-when criterion.
+6. Review gate, sized to the result: before code ships (step 2) and
+   before declaring the task done, check it against every Done-when
+   criterion.
    - What to check: for a code diff, that it meets the criteria and
      changes nothing outside the task. The task's diff is `git diff --`
-     its claimed files; a changed file another running task claimed is
-     that task's, not scope creep. For an Outcome (bug cause,
+     its claimed files, against the branch's base once committed; a
+     changed file another running task claimed is that task's, not scope
+     creep. For an Outcome (bug cause,
      investigation answer, test results), that every claim cites
      evidence recorded in Findings, that the evidence was produced in
      this task (the reproduction was run, the command was executed, the
@@ -133,8 +147,9 @@ review gate, Outcome, notes and `finish` stay yours.
      one instead of re-reading your own conclusion.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
-   `.ai/notes.md`, confirm the diff honors it. Fix gaps that affect
-   correctness or the stated criteria; ignore style-only findings.
+   `.ai/notes.md`, confirm the diff honors it. Gaps that affect
+   correctness or the stated criteria get fixed, by the worker when one
+   works the task; ignore style-only findings.
    Append one line to Findings, `- <today> Review: <kind>: <result>`,
    where kind is inline, `reviewer` sub-agent, fresh sub-agent, or
    self-review; an inline review of a diff over ~30 lines names why it
