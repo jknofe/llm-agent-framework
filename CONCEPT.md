@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-03, v11.3.** The framework rests on four premises, stated in
+**State: 2026-11-05, v11.4.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -271,7 +271,7 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 919 lines: the task table, the dependency tree, the
+  `tasks.py`: 929 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 14 framework files, a copilot one 13, counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
@@ -449,6 +449,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.4 (2026-11-05, an archived dependency is a cleared blocker, section
+54. `/task tree` drops a `depends:` id that names a task archived as done
+without a warning, flags one archived in another status as `archived as
+<status>, not done`, and one that names no task as `names no task`.)
 
 v11.3 (2026-11-03, the worker does the whole job, section 53. The worker
 works every step the task names through to the pull request, CI and dev
@@ -3731,3 +3736,36 @@ pull request, a 5-step `change` whose last step is branch, commit, push):
 - Run 2, same task on a fresh copy: the same flow, the worker's Findings
   carry `Ran 9 tests in 0.000s OK`, and the supervisor ran no test at all.
   Opus $0.40, Sonnet $0.10.
+
+## 54. An archived dependency is a cleared blocker (2026-11-05, v11.4)
+
+**Source.** `/task tree` in a real project (DART, 13 live tasks, 28
+archived) printed 13 ❗ lines, `depends on <id>, which is not a live task
+(unknown or archived)`. All 13 named one of four tasks done and archived
+weeks earlier, still listed in the `depends:` lines of eight live tasks.
+The agent asked by the user called every warning noise and offered to edit
+the eight `depends:` lines. A warning that fires on the normal life of a
+task trains the user to skip the ❗ block, and a real typo in an id hides
+among them.
+
+**Change.** `tree` reads the status of the archived tasks too and sorts an
+unresolved `depends:` id three ways:
+
+- archived with `status: done`: the blocker cleared; the id is dropped
+  without a word, as it already was from the nesting;
+- archived in any other status: flagged, `depends on <id>, archived as
+  <status>, not done.`;
+- naming no task, live or archived: flagged, `depends on <id>, which names
+  no task.`
+
+The tree itself is unchanged: only edges between live tasks nest, as
+before.
+
+**Rejected.** Removing an id from every `depends:` line when its task is
+archived. It edits several task files on each archive, loses the record of
+what a task waited on, and adds a rule to `AGENTS.md`; reading the line
+right costs a status lookup over the archive.
+
+**Test.** `tests/test_tasks_table.py`: a live task depending on a task
+archived as done gets no warning, one depending on a task archived as
+`planned` gets the new flag, the unknown id the new wording.

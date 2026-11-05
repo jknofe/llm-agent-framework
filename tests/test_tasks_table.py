@@ -398,6 +398,14 @@ def main():
              "planned", NEW, extra="depends: done-root\n")
         task(root, "_archive/old", "old", "Archived", "change", "done",
              OLD)
+        # Archived as done: a cleared blocker, no warning. Archived while
+        # still planned: flagged.
+        task(root, "waits-old", "waits-old", "Waits on archived",
+             "change", "planned", NEW, extra="depends: OLD\n")
+        task(root, "_archive/shelved", "shelved", "Shelved", "change",
+             "planned", OLD)
+        task(root, "waits-shelved", "waits-shelved", "Waits on shelved",
+             "change", "planned", NEW, extra="depends: shelved\n")
         (root / ".ai/.current").write_text("task: leaf-task\n",
                                            encoding="utf-8")
         (root / ".ai/agent/framework.json").write_text(
@@ -445,12 +453,16 @@ def main():
         check(tops[-2:] == ["├── 📋 solo-2", "└── 📋 solo-1"],
               f"independents last on the first level: {tops[-2:]!r}")
         check("independent" not in out, "no trailing independent line")
-        check("old" not in out.replace("no-such-task", ""),
-              "archived task not in tree")
-        check("1 archived (not listed)." in out, "tree footer counts archive")
+        check(not any(ln.endswith((" old", " shelved")) for ln in lines),
+              "archived tasks not in tree")
+        check("2 archived (not listed)." in out, "tree footer counts archive")
         # Warnings: unknown dep and the cycle, once each.
-        check("- ❗ ghost: depends on no-such-task, which is not a live "
-              "task (unknown or archived)." in out, "unknown dep flagged")
+        check("- ❗ ghost: depends on no-such-task, which names no task."
+              in out, "unknown dep flagged")
+        check("- ❗ waits-shelved: depends on shelved, archived as planned, "
+              "not done." in out, "dep archived while not done flagged")
+        check("waits-old: depends" not in out,
+              "dep archived as done not flagged")
         cyc = [ln for ln in lines if "dependency cycle" in ln]
         check(len(cyc) == 2
               and "cyc-b -> cyc-a -> cyc-b; shown from cyc-b." in cyc[0]
@@ -462,8 +474,8 @@ def main():
         # Legend and summary reused from the table.
         check(any(ln.startswith("Legend:") for ln in lines),
               "legend under tree")
-        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 13 planned, ✅ 1 done; "
-              "1 archived (not listed)." in out, "tree footer summary")
+        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 15 planned, ✅ 1 done; "
+              "2 archived (not listed)." in out, "tree footer summary")
         check("👉 marks the resume pointer in `.ai/.current` (leaf-task)"
               in out, "tree pointer footer")
         check("\x1b[" not in out, "ANSI codes in piped tree output")

@@ -29,9 +29,10 @@ nearest the first level, the first in sort order on a tie, not twice.
 first level: it is the blocker that cleared. Tasks with no dependency
 ties stand on the first level too, as leaves after the tasks that block
 others. A
-`depends:` id that names no live task (unknown or archived) is flagged
-below the tree and ignored; a task whose whole chain is unresolvable
-stands on the first level. Every dependency cycle is flagged once, in
+`depends:` id that names a task archived as done is a cleared blocker and
+is dropped without a word. One that names an archived task not done, or
+no task at all, is flagged below the tree and ignored; a task whose whole
+chain is unresolvable stands on the first level. Every dependency cycle is flagged once, in
 edge order from its first task in sort order. A cycle that waits on no
 task outside itself is shown on the first level from that task, tasks
 waiting on it nested below; one that waits on other tasks nests where
@@ -443,20 +444,29 @@ def tree():
               "Create one with /task create <id> <title>.")
         return 0
 
-    # A dep that names no live task (unknown or archived) is flagged and
-    # ignored; nesting uses only edges between live tasks. Ids match
-    # without regard to case, as `resolve` matches them.
+    # Nesting uses only edges between live tasks. A dep archived as done
+    # cleared and is dropped silently; one archived in another status, or
+    # naming no task, is flagged and ignored. Ids match without regard to
+    # case, as `resolve` matches them.
     byname = {t.lower(): t for t in rows}
+    gone = {t.lower(): load(p)["status"]
+            for t, p in task_dirs(archived=True).items()}
     warns, deps = [], {}
     for tid, r in sorted(rows.items()):
         deps[tid] = []
         for d in r["depends"]:
             live = byname.get(d.lower())
-            if live and live not in deps[tid]:
-                deps[tid].append(live)
-            elif not live:
-                warns.append(f"- {FLAG} {tid}: depends on {d}, which is not "
-                             "a live task (unknown or archived).")
+            if live:
+                if live not in deps[tid]:
+                    deps[tid].append(live)
+            elif gone.get(d.lower()) == "done":
+                continue
+            elif d.lower() in gone:
+                warns.append(f"- {FLAG} {tid}: depends on {d}, archived as "
+                             f"{gone[d.lower()]}, not done.")
+            else:
+                warns.append(f"- {FLAG} {tid}: depends on {d}, which names "
+                             "no task.")
     children = {tid: [] for tid in rows}
     for tid, ds in deps.items():
         for d in ds:
