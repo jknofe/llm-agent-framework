@@ -1,7 +1,7 @@
 # llm-agent-framework
 
-Two pillars, one command set on either supported harness (Claude Code,
-Copilot):
+Two pillars, one command set on any supported harness (Claude Code,
+Copilot, OpenCode):
 
 1. **Durable project knowledge that the repository cannot state itself.**
    `.ai/notes.md` (decisions and why, gotchas, unwritten rules, runbooks) as
@@ -57,7 +57,7 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, claude/copilot); Enter accepts the defaults. If a
+description, claude/copilot/opencode); Enter accepts the defaults. If a
 scaffold already exists it asks before regenerating framework files
 (instructions, skills, hooks, settings); hand-filled notes and tasks are
 always preserved, never reverted to stubs. `init-agent -h` shows help.
@@ -136,6 +136,11 @@ file list retires nothing and prints what to remove by hand.
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
+   The work itself, through to the pull request, goes to a cheaper-model
+   worker, a sub-agent of the harness that starts fresh from the task
+   file; the session you talk to reviews, answers and decides for you (see
+   [Supervised workers](#supervised-workers)). `/task do BUG-7 inline`
+   keeps the work in your session.
    Findings the repository cannot state go into `notes.md`. The agent never
    starts a task plan on its own.
 4. **See where things stand**: `/task list` prints every live task as
@@ -182,8 +187,8 @@ small one, and it is now the only shape the generator emits:
 - **Five skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
-  (command and documentation detection), and `tasks.py` (the task table,
-  the create-or-do resolver, and `start`/`finish`, the status bookkeeping of
+  (command and documentation detection), `tasks.py` (the task table,
+  the create-or-do resolver, and `start`/`tick`/`finish`, the bookkeeping of
   `/task do`).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
@@ -207,17 +212,18 @@ used to script this; with the scaffold at six files it is a plain request.
 `init` scaffolds the workflow as Agent Skills, the open SKILL.md standard
 read by Claude Code and a growing set of other harnesses
 (`.claude/skills/<name>/SKILL.md`); the copilot harness gets the same
-bodies as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
+bodies as VS Code prompt files (`.github/prompts/*.prompt.md`), the opencode
+harness as commands (`.opencode/commands/*.md`). On claude
 the skills carry `disable-model-invocation: true`: they are pipeline steps
 with side effects (notes writes, code changes, `.ai` commits), so only an
 explicit `/name` from you triggers them, never the model mid-conversation.
-Both harnesses invoke them the same way, under the same names:
+Every harness invokes them the same way, under the same names:
 
 | Command | What it does |
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>]` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline]` | Opt-in. A cheaper-model worker works the steps under the session's supervision (`inline`: the session works them itself). Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
@@ -249,7 +255,7 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). Both harnesses read it natively; no `CLAUDE.md` is written.
+section). Every harness reads it natively; no `CLAUDE.md` is written.
 Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
 or `CLAUDE.local.md` exists in the project directory or any directory
 above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
@@ -291,22 +297,80 @@ stdout; only where they live and how they are registered differs:
 | Harness | Scripts | Registered in |
 |---|---|---|
 | claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
+| opencode | `.opencode/hooks/` | `.opencode/plugins/llm-agent.js`, a small plugin that calls the scripts from `tool.hook("execute.before")` and `session.hook("experimental.idle")` |
 | copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch. Loaded only from a trusted folder: the CLI asks on first interactive start in the repo, and a non-interactive run needs `COPILOT_ALLOW_ALL=true` (exactly `true`) to trust its working directory |
 
-- `.claude/agents/reviewer.md` defines the fresh-context adversarial
-  reviewer used by `/task do`'s review gate.
+- `.claude/agents/reviewer.md` (on opencode `.opencode/agents/reviewer.md`)
+  defines the fresh-context adversarial reviewer used by `/task do`'s review
+  gate.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
-gate. The reviewer subagent is claude-only; on Copilot
-`/task do` hands a large result to a fresh general-purpose sub-agent where
+gate. Copilot has no reviewer subagent;
+there `/task do` hands a large result to a fresh general-purpose sub-agent where
 the harness can spawn one, and only otherwise reviews it itself, saying why.
 
 Hooks only fire when the scaffolded repo is the session's working directory
 (on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
 the agent from a parent directory, a monorepo subdir, or a sub-agent means
 the hooks do not run; in that case the protocol rules in `AGENTS.md` are the
-only guarantee, so commit `.ai` by hand and do not assume a hook ran.
+only guarantee, so commit `.ai` by hand and do not assume a hook ran. On
+opencode the git guard does run inside a sub-agent.
+
+## Supervised workers
+
+`/task do` runs as two roles, after Google's Elephant-Goldfish Model
+(CONCEPT.md sections 50 and 53). The worker is a junior who does the
+whole job; the session you talk to is its lead and stands in for you.
+
+- **The worker** is the harness's own general-purpose sub-agent, spawned
+  on a cheaper model than the session's where the harness lets the agent
+  pick one. It starts fresh and knows only `notes.md`, the task file and
+  `.ai/agent/task/work.md`. It does every step the task names: the code,
+  the tests, and after them the branch, commit, push, pull request,
+  waiting for CI, dev runs, a tracker comment. Before code ships it asks
+  for a review. It reports with a `Worker round <n>` line in Findings:
+  `review`, `question`, `stuck` or `done`.
+- **The supervisor** answers those reports and does none of the work: it
+  reviews the diff before it ships (the `reviewer` sub-agent for a large
+  one), answers questions as you would from the task file, and asks you
+  only what it cannot decide for you: a changed goal or criterion, a
+  merge, production, deleting data. It trusts CI and the evidence in
+  Findings, and reruns the tests only when that evidence is missing or
+  doubtful. A review finding goes back to the worker as a `Supervisor
+  round` line. The Outcome, `notes.md`, the done-when ticks and `finish`
+  stay with the supervisor.
+
+After a report the supervisor continues the same worker where the harness
+can resume a sub-agent (Claude Code), and spawns a fresh one that reads
+the task file otherwise. It works the steps itself only with `/task do
+<id> inline`, when it cannot spawn a sub-agent, or when you tell it to
+take over. To have the worker run somewhere else, for example in a
+terminal pane you can watch, say so when you start `/task do`. The
+worker's commits, pushes and pull requests go through the same guards as
+yours: the git guard hook blocks a merge into the default branch, and
+`AGENTS.md` stops every agent at the branch or pull request. Delegation
+is not claimed to be cheaper: reviews and decisions stay on your model.
+
+## Parallel tasks
+
+Two `/task create` or `/task do` sessions can run side by side in the same
+project, for example in two terminals, each with its own worker sub-agent
+(CONCEPT.md section 51). Nothing to switch on:
+
+- The first running task holds `.ai/.current`; a task started while it
+  runs gets `.ai/.current-<id>`, and `tasks.py start` names every task
+  already running and the files it has claimed. `/task list` marks all
+  running tasks.
+- Before editing a file, a task claims it: `python3
+  .ai/agent/tools/tasks.py claim <id> <path>...`. A file another running
+  task claimed is refused, so two tasks never edit the same file.
+- `.ai` commits name their own paths (`git -C .ai add tasks/<id>`), never
+  `add -A`, so one session never commits the other's half-written files.
+
+Both tasks still share one working tree: a test run sees the other task's
+unfinished edits. Give parallel tasks disjoint files, and expect a
+failure in a file the other task claimed to be its business, not yours.
 
 ## GitHub Copilot support
 
@@ -328,12 +392,33 @@ therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
 `Run task do FEAT-42: read .github/prompts/task.prompt.md and follow it.`
 
+## OpenCode support
+
+Choosing `opencode` at the harness prompt targets OpenCode V2 (written and
+tested against 2.2.5; V1 is not supported). The commands work as they do with
+Claude Code's slash commands:
+
+- instructions file: `AGENTS.md` (read natively, no pointer file)
+- commands: `.opencode/commands/*.md`, invoked the same way (`/explore`,
+  `/task do FEAT-42`, `/framework-update dry-run`)
+- reviewer: `.opencode/agents/reviewer.md`, a sub-agent that cannot edit
+- permissions: `.opencode/opencode.json`, the same read-only list as `shell`
+  rules. OpenCode allows by default, so these matter if your global config
+  asks about shell commands
+- hooks: the two scripts in `.opencode/hooks/`, run by
+  `.opencode/plugins/llm-agent.js` (needs `python3`)
+
+Two differences from Claude Code: OpenCode has no per-command `effort`, and a
+sub-agent cannot be given a model when it is spawned, so the `/task do` worker
+runs on your session's model unless you configure the `general` agent
+otherwise. The turn-end `.ai` check uses a hook OpenCode marks experimental.
+
 ## Hermes (dropped in 10.0)
 
 Framework 10.0 no longer renders the Hermes harness. A scaffold built for
 it keeps working as it is, but init and `/framework-update` will not
 regenerate it. Move it to a supported harness with
-`init-agent --harness claude` (or `copilot`): the switch retires every
+`init-agent --harness claude` (or `copilot`, or `opencode`): the switch retires every
 `.agents/` file the version stamp recorded into
 `.ai/agent/.harness-backup/hermes/` and keeps notes, tasks and the project
 context. Init cannot reach outside the repository, so once no project uses
@@ -364,7 +449,7 @@ prompt when every part of the chain is allowed, so common chain members like
 auto permission mode (a classifier reviews commands and blocks only risky
 ones) is a lower-maintenance alternative; the allowlist is what keeps
 headless and CI runs deterministic. `AGENTS.md` and `.claude/` /
-`.github/` belong to the host repo.
+`.github/` / `.opencode/` belong to the host repo.
 
 The name and description prompted at init are recorded in
 `.ai/agent/framework.json`, and the description is also seeded into the

@@ -29,9 +29,10 @@ nearest the first level, the first in sort order on a tie, not twice.
 first level: it is the blocker that cleared. Tasks with no dependency
 ties stand on the first level too, as leaves after the tasks that block
 others. A
-`depends:` id that names no live task (unknown or archived) is flagged
-below the tree and ignored; a task whose whole chain is unresolvable
-stands on the first level. Every dependency cycle is flagged once, in
+`depends:` id that names a task archived as done is a cleared blocker and
+is dropped without a word. One that names an archived task not done, or
+no task at all, is flagged below the tree and ignored; a task whose whole
+chain is unresolvable stands on the first level. Every dependency cycle is flagged once, in
 edge order from its first task in sort order. A cycle that waits on no
 task outside itself is shown on the first level from that task, tasks
 waiting on it nested below; one that waits on other tasks nests where
@@ -73,8 +74,27 @@ no review line, the two conditions `/task list` would flag; otherwise it
 sets the status, drops a `blocked:` line, and deletes `.ai/.current` when it
 names this task. Neither commits: the agent commits `.ai` itself.
 
-list, tree, resolve and trackers are read-only; start and finish write only
-the task's frontmatter and `.ai/.current`. Stdlib only.
+`tasks.py tick <id> done|steps <n> [<n>...]` ticks the named checkboxes of
+Done when (`done`) or Steps (`steps`), counted from 1 in file order, and
+sets `updated:`. There is no "all": each item is named on purpose, so a box
+is ticked because it was checked, not swept by a blanket replace. It prints
+each item it ticked with its text, refuses a number the section does not
+have, and leaves every other byte of the file alone. Striking a dead step
+(`- [x] ~~H1~~ ruled out: ...`) is an edit, not a tick.
+
+Parallel tasks share one working tree (CONCEPT.md section 51). `.ai/.current`
+is the tree's resume pointer; a task started while the task it names is
+still `in-progress` gets its own pointer, `.ai/.current-<id>`, instead of
+replacing it, and start prints every other running task with the files it
+has claimed. `tasks.py claim <id> <path> [<path>...]` adds host files to the
+task's `modified:` list and refuses (CLAIMED, exit 1) a file another running
+task already listed, so two tasks never edit the same file. finish done
+deletes the task's own pointer, whichever it is. Every printed commit is
+path-scoped (`git -C .ai add tasks/<id>`), never `add -A`: a parallel
+session may be mid-edit.
+
+list, tree, resolve and trackers are read-only; start, finish, tick and
+claim write only the task file and the pointers. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -156,14 +176,54 @@ def checked(text, heading):
     return sum(b != " " for b in boxes), len(boxes)
 
 
-def current_id():
-    """The task id `.ai/.current` points at, or None."""
-    cur = AI / ".current"
-    if not cur.is_file():
+def pointer_id(path):
+    """The task id a pointer file names, or None."""
+    if not path.is_file():
         return None
-    text = cur.read_text(encoding="utf-8", errors="replace")
+    text = path.read_text(encoding="utf-8", errors="replace")
     m = re.search(r"^\s*(?:task|id)\s*:\s*(\S+)", text, re.M)
     return m.group(1) if m else None
+
+
+def pointers():
+    """{task id: pointer file} for every running task: `.ai/.current` first,
+    then one `.ai/.current-<id>` per task started in parallel."""
+    out = {}
+    for path in [AI / ".current"] + sorted(AI.glob(".current-*")):
+        tid = pointer_id(path)
+        if tid and tid not in out:
+            out[tid] = path
+    return out
+
+
+def claims(path):
+    """The files a pointer's `modified:` list names."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    block = text.split("modified:", 1)[1] if "modified:" in text else ""
+    return [ln.strip().lstrip("-").strip() for ln in block.splitlines()
+            if ln.strip().lstrip("-").strip()]
+
+
+def current_id():
+    """The task `/task do` without an id resumes: the one `.ai/.current`
+    names, else the only parallel pointer, else None."""
+    cur = pointer_id(AI / ".current")
+    if cur:
+        return cur
+    running = pointers()
+    return next(iter(running)) if len(running) == 1 else None
+
+
+def pointer_line():
+    """The footer line naming the running tasks' pointers, or ""."""
+    running = pointers()
+    if len(running) == 1 and (AI / ".current") in running.values():
+        return (f"{POINTER} marks the resume pointer in `.ai/.current` "
+                f"({next(iter(running))}).")
+    if running:
+        return (f"{POINTER} marks running tasks: " + ", ".join(
+            f"{tid} (`.ai/{p.name}`)" for tid, p in running.items()) + ".")
+    return ""
 
 
 def load(path):
@@ -384,20 +444,29 @@ def tree():
               "Create one with /task create <id> <title>.")
         return 0
 
-    # A dep that names no live task (unknown or archived) is flagged and
-    # ignored; nesting uses only edges between live tasks. Ids match
-    # without regard to case, as `resolve` matches them.
+    # Nesting uses only edges between live tasks. A dep archived as done
+    # cleared and is dropped silently; one archived in another status, or
+    # naming no task, is flagged and ignored. Ids match without regard to
+    # case, as `resolve` matches them.
     byname = {t.lower(): t for t in rows}
+    gone = {t.lower(): load(p)["status"]
+            for t, p in task_dirs(archived=True).items()}
     warns, deps = [], {}
     for tid, r in sorted(rows.items()):
         deps[tid] = []
         for d in r["depends"]:
             live = byname.get(d.lower())
-            if live and live not in deps[tid]:
-                deps[tid].append(live)
-            elif not live:
-                warns.append(f"- {FLAG} {tid}: depends on {d}, which is not "
-                             "a live task (unknown or archived).")
+            if live:
+                if live not in deps[tid]:
+                    deps[tid].append(live)
+            elif gone.get(d.lower()) == "done":
+                continue
+            elif d.lower() in gone:
+                warns.append(f"- {FLAG} {tid}: depends on {d}, archived as "
+                             f"{gone[d.lower()]}, not done.")
+            else:
+                warns.append(f"- {FLAG} {tid}: depends on {d}, which names "
+                             "no task.")
     children = {tid: [] for tid in rows}
     for tid, ds in deps.items():
         for d in ds:
@@ -520,11 +589,11 @@ def tree():
                      key=rank)
             kids[up].append(tid)
 
-    cur, lines = current_id(), []
+    cur, lines = set(pointers()), []
 
     def emit(tid, prefix, branch):
         r = rows[tid]
-        mark = f"{POINTER} " if tid == cur else ""
+        mark = f"{POINTER} " if tid in cur else ""
         note = (f"   blocked: {r['blocked'] or 'no reason recorded'}"
                 if r["status"] == "blocked" else "")
         ident = paint(tid, STATUS_COLOR.get(r["status"]))
@@ -545,8 +614,8 @@ def tree():
     if warns:
         print("\n" + "\n".join(warns))
     print(f"\n{summary(list(rows.values()), archived)}")
-    if cur:
-        print(f"{POINTER} marks the resume pointer in `.ai/.current` ({cur}).")
+    if pointer_line():
+        print(pointer_line())
     return 0
 
 
@@ -608,8 +677,16 @@ def trackers():
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
          "| tasks.py trackers | tasks.py start <id> | "
-         "tasks.py finish <id> done|blocked [<reason>]")
-COMMIT = "Commit `.ai` now: git -C .ai add -A && git -C .ai commit -m"
+         "tasks.py finish <id> done|blocked [<reason>] | "
+         "tasks.py tick <id> done|steps <n> [<n>...] | "
+         "tasks.py claim <id> <path> [<path>...]")
+TICK_SECTIONS = {"done": "Done when", "steps": "Steps"}
+def commit_line(tid, message):
+    """The path-scoped `.ai` commit to run: never `add -A`, which would
+    sweep a parallel session's half-written files into this commit."""
+    return (f"Commit `.ai` now (add notes.md or a notes/ leaf too if you "
+            f"changed one): git -C .ai add tasks/{tid} && git -C .ai commit "
+            f'-m "{message}"')
 
 
 def start(arg):
@@ -625,16 +702,31 @@ def start(arg):
     today = datetime.date.today().isoformat()
     set_fields(path, {"status": "in-progress", "updated": today},
                drop=("blocked",))
-    cur, note = AI / ".current", "kept (it already names this task)"
-    if current_id() != tid:
-        replaced = current_id()
-        cur.write_text(f"task: {tid}\npath: .ai/tasks/{tid}/task.md\n"
-                       f"started: {today}\nmodified:\n", encoding="utf-8")
-        note = (f"written (replaced the pointer to {replaced})" if replaced
+    running = pointers()
+    if tid in running:
+        mine, note = running[tid], "kept (it already names this task)"
+    else:
+        # `.ai/.current` is taken only while the task it names is running;
+        # a blocked or finished task's pointer is replaced, as before.
+        other = pointer_id(AI / ".current")
+        busy = other and other in task_dirs() and \
+            load(task_dirs()[other])["status"] == "in-progress"
+        mine = AI / (f".current-{tid}" if busy else ".current")
+        mine.write_text(f"task: {tid}\npath: .ai/tasks/{tid}/task.md\n"
+                        f"started: {today}\nmodified:\n", encoding="utf-8")
+        note = ("written (parallel: `.ai/.current` names running task "
+                f"{other})" if busy else
+                f"written (replaced the pointer to {other})" if other
                 else "written")
     print(f"STARTED {tid}: status in-progress, updated {today}; "
-          f"`.ai/.current` {note}.")
-    print("Keep its `modified:` list current as you change files.")
+          f"`.ai/{mine.name}` {note}.")
+    print(f"Claim each host file before you edit it: python3 "
+          f".ai/agent/tools/tasks.py claim {tid} <path>...")
+    for other, ptr in pointers().items():
+        if other != tid:
+            owned = ", ".join(claims(ptr)) or "none yet"
+            print(f"PARALLEL {other} is running (`.ai/{ptr.name}`), claims: "
+                  f"{owned}. Do not edit its files; commit only your paths.")
     return 0
 
 
@@ -654,9 +746,9 @@ def finish(arg, state, reason):
             return 1
         set_fields(path, {"status": "blocked", "blocked": reason,
                           "updated": today})
-        print(f"BLOCKED {tid}: {reason}. `.ai/.current` kept for the "
+        print(f"BLOCKED {tid}: {reason}. Its pointer is kept for the "
               "resume; `tasks.py start` clears the block.")
-        print(f'{COMMIT} "task: blocked {tid}"')
+        print(commit_line(tid, f"task: blocked {tid}"))
         return 0
     r = load(path)
     missing = []
@@ -672,12 +764,91 @@ def finish(arg, state, reason):
               "blocked.")
         return 1
     set_fields(path, {"status": "done", "updated": today}, drop=("blocked",))
-    cleared = current_id() == tid
-    if cleared:
-        (AI / ".current").unlink()
+    mine = pointers().get(tid)
+    if mine:
+        mine.unlink()
     print(f"DONE {tid}: status done, updated {today}"
-          + ("; `.ai/.current` deleted." if cleared else "."))
-    print(f'{COMMIT} "task: done {tid}"')
+          + (f"; `.ai/{mine.name}` deleted." if mine else "."))
+    print(commit_line(tid, f"task: done {tid}"))
+    return 0
+
+
+def tick(arg, which, nums):
+    """Tick numbered checkboxes in Done when or Steps, each named."""
+    found = live_task(arg) if arg else None
+    if not found:
+        print(f"No live task {arg!r}.")
+        return 1
+    try:
+        wanted = sorted({int(n) for n in nums})
+    except ValueError:
+        wanted = []
+    if which not in TICK_SECTIONS or not wanted:
+        print(USAGE)
+        return 2
+    tid, path = found
+    heading = TICK_SECTIONS[which]
+    text = path.read_text(encoding="utf-8")
+    m = re.search(rf"^## {re.escape(heading)}\b.*?$(.*?)(?=^## |\Z)", text,
+                  re.M | re.S)
+    boxes = (list(re.finditer(r"^\s*[-*] \[([ xX~-])\]\s*(.*)$",
+                              m.group(1), re.M)) if m else [])
+    bad = [n for n in wanted if not 1 <= n <= len(boxes)]
+    if bad:
+        print(f"{tid}: `## {heading}` has {len(boxes)} item(s); no item "
+              + ", ".join(map(str, bad)) + ". Nothing ticked.")
+        return 1
+    body = m.group(1)
+    for n in reversed(wanted):
+        b = boxes[n - 1]
+        if b.group(1) == " ":
+            body = body[:b.start(1)] + "x" + body[b.end(1):]
+    path.write_text(text[:m.start(1)] + body + text[m.end(1):],
+                    encoding="utf-8")
+    set_fields(path, {"updated": datetime.date.today().isoformat()})
+    for n in wanted:
+        b = boxes[n - 1]
+        state = "TICKED" if b.group(1) == " " else "already ticked"
+        print(f"{state} {heading} {n}: {b.group(2)[:90]}")
+    got, total = checked(path.read_text(encoding="utf-8"), heading)
+    print(f"{tid}: {heading} {got}/{total} ticked.")
+    return 0
+
+
+def claim(arg, files):
+    """Add host files to a running task's `modified:` list, refusing any a
+    parallel task already claimed."""
+    running = pointers()
+    found = live_task(arg) if arg else None
+    if not found or not files:
+        print(f"No live task {arg!r}." if not found else USAGE)
+        return 1 if not found else 2
+    tid = found[0]
+    if tid not in running:
+        print(f"{tid} is not running: run `tasks.py start {tid}` first.")
+        return 1
+    def norm(f):
+        return os.path.normpath(f)
+    taken = {norm(f): other for other, ptr in running.items()
+             if other != tid for f in claims(ptr)}
+    clash = [(f, taken[norm(f)]) for f in files if norm(f) in taken]
+    if clash:
+        for f, other in clash:
+            print(f"CLAIMED {f} by running task {other}: do not edit it. "
+                  "Ask the user, or wait until that task finishes.")
+        return 1
+    mine = running[tid]
+    have = {norm(f) for f in claims(mine)}
+    new = [f for f in dict.fromkeys(files) if norm(f) not in have]
+    if new:
+        text = mine.read_text(encoding="utf-8")
+        if "modified:" not in text:
+            text = text.rstrip("\n") + "\nmodified:\n"
+        text = text.rstrip("\n") + "\n" + "".join(
+            f"  - {f}\n" for f in new)
+        mine.write_text(text, encoding="utf-8")
+    print(f"CLAIMED for {tid}: " + ", ".join(files)
+          + (f" ({len(new)} new)" if new else " (already claimed)"))
     return 0
 
 
@@ -692,6 +863,16 @@ def main():
             print(USAGE)
             return 2
         return finish(args[1], args[2], " ".join(args[3:]))
+    if args and args[0] == "claim":
+        if len(args) < 3:
+            print(USAGE)
+            return 2
+        return claim(args[1], args[2:])
+    if args and args[0] == "tick":
+        if len(args) < 4:
+            print(USAGE)
+            return 2
+        return tick(args[1], args[2], args[3:])
     if args and args[0] == "tree":
         return tree()
     if args and args[0] == "trackers":
@@ -715,12 +896,12 @@ def main():
 
     rows.sort(key=lambda r: (STATUS_ORDER.get(r["status"], 9),
                              r["updated"], r["id"]))
-    cur = current_id()
+    cur = set(pointers())
 
     print("| | ID | Type | Status | Title | Steps | Done when | Updated |")
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
-        mark = POINTER if r["id"] == cur else ""
+        mark = POINTER if r["id"] in cur else ""
         # Known values show as their emoji only (see LEGEND); an unknown one
         # stays text so a typo in a task file is visible, not hidden.
         kind = TYPE_ICON.get(r["type"]) or cell(r["type"])
@@ -739,8 +920,8 @@ def main():
         print("\n".join(notes))
     print()
     print(summary(rows, archived))
-    if cur:
-        print(f"{POINTER} marks the resume pointer in `.ai/.current` ({cur}).")
+    if pointer_line():
+        print(pointer_line())
     return 0
 
 

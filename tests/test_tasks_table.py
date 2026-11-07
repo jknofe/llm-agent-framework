@@ -251,13 +251,18 @@ def main():
               "start sets status and updated")
         check(fm.split("\n---\n", 1)[1] == body,
               "start leaves the body byte for byte")
-        cur = (root / ".ai/.current").read_text(encoding="utf-8")
-        check(cur.startswith("task: keep\n") and "replaced the pointer to "
-              "fresh" in out, "start replaces another task's pointer")
-        (root / ".ai/.current").write_text(cur + "modified: a.py\n",
-                                           encoding="utf-8")
+        # `.ai/.current` names `fresh`, which is in progress: keep runs in
+        # parallel with its own pointer instead of replacing it (11.1).
+        mine = root / ".ai/.current-keep"
+        check(mine.read_text(encoding="utf-8").startswith("task: keep\n")
+              and "parallel" in out and "PARALLEL fresh is running" in out,
+              f"start beside a running task gets its own pointer: {out!r}")
+        check((root / ".ai/.current").read_text(encoding="utf-8")
+              .startswith("task: fresh"), "the running task's pointer stays")
+        mine.write_text(mine.read_text(encoding="utf-8") + "  - a.py\n",
+                        encoding="utf-8")
         run(root, "start", "keep")
-        check("a.py" in (root / ".ai/.current").read_text(encoding="utf-8"),
+        check("a.py" in mine.read_text(encoding="utf-8"),
               "start keeps a pointer that already names the task")
 
         r = attempt(root, "finish", "keep", "done")
@@ -287,8 +292,11 @@ def main():
         check(out.startswith("DONE keep") and "git -C .ai" in out,
               f"finish done: {out!r}")
         check("status: done" in tf.read_text(encoding="utf-8")
-              and not (root / ".ai/.current").exists(),
-              "finish done sets status and deletes the pointer")
+              and not mine.exists()
+              and (root / ".ai/.current").exists(),
+              "finish done deletes only its own pointer")
+        check("git -C .ai add tasks/keep &&" in out and "add -A" not in out,
+              f"finish prints a path-scoped commit: {out!r}")
         check(attempt(root, "start", "keep").returncode == 1,
               "start refuses a done task")
         check(attempt(root, "finish", "nope", "done").returncode == 1,
@@ -390,6 +398,14 @@ def main():
              "planned", NEW, extra="depends: done-root\n")
         task(root, "_archive/old", "old", "Archived", "change", "done",
              OLD)
+        # Archived as done: a cleared blocker, no warning. Archived while
+        # still planned: flagged.
+        task(root, "waits-old", "waits-old", "Waits on archived",
+             "change", "planned", NEW, extra="depends: OLD\n")
+        task(root, "_archive/shelved", "shelved", "Shelved", "change",
+             "planned", OLD)
+        task(root, "waits-shelved", "waits-shelved", "Waits on shelved",
+             "change", "planned", NEW, extra="depends: shelved\n")
         (root / ".ai/.current").write_text("task: leaf-task\n",
                                            encoding="utf-8")
         (root / ".ai/agent/framework.json").write_text(
@@ -437,12 +453,16 @@ def main():
         check(tops[-2:] == ["├── 📋 solo-2", "└── 📋 solo-1"],
               f"independents last on the first level: {tops[-2:]!r}")
         check("independent" not in out, "no trailing independent line")
-        check("old" not in out.replace("no-such-task", ""),
-              "archived task not in tree")
-        check("1 archived (not listed)." in out, "tree footer counts archive")
+        check(not any(ln.endswith((" old", " shelved")) for ln in lines),
+              "archived tasks not in tree")
+        check("2 archived (not listed)." in out, "tree footer counts archive")
         # Warnings: unknown dep and the cycle, once each.
-        check("- ❗ ghost: depends on no-such-task, which is not a live "
-              "task (unknown or archived)." in out, "unknown dep flagged")
+        check("- ❗ ghost: depends on no-such-task, which names no task."
+              in out, "unknown dep flagged")
+        check("- ❗ waits-shelved: depends on shelved, archived as planned, "
+              "not done." in out, "dep archived while not done flagged")
+        check("waits-old: depends" not in out,
+              "dep archived as done not flagged")
         cyc = [ln for ln in lines if "dependency cycle" in ln]
         check(len(cyc) == 2
               and "cyc-b -> cyc-a -> cyc-b; shown from cyc-b." in cyc[0]
@@ -454,8 +474,8 @@ def main():
         # Legend and summary reused from the table.
         check(any(ln.startswith("Legend:") for ln in lines),
               "legend under tree")
-        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 13 planned, ✅ 1 done; "
-              "1 archived (not listed)." in out, "tree footer summary")
+        check("🔄 1 in-progress, ⛔ 1 blocked, 📋 15 planned, ✅ 1 done; "
+              "2 archived (not listed)." in out, "tree footer summary")
         check("👉 marks the resume pointer in `.ai/.current` (leaf-task)"
               in out, "tree pointer footer")
         check("\x1b[" not in out, "ANSI codes in piped tree output")
@@ -498,6 +518,105 @@ def main():
     check(body == ["└── 📋 BUG-7", "    └── 📋 other"],
           f"depends ids match without case: {body!r}")
     check("not a live task" not in out, "case-only dep not flagged")
+
+    # tick (11.0): named boxes only, refuses unknown numbers, no "all".
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        task(root, "tk", "tk", "Tick", "change", "in-progress", OLD,
+             done_when="- [ ] first\n      continued\n- [ ] second\n- [ ] third",
+             steps="- [x] ~~H1~~ ruled out: x\n- [ ] s2\n- [ ] s3")
+        path = root / ".ai/tasks/tk/task.md"
+        before = path.read_text(encoding="utf-8")
+        out = run(root, "tick", "tk", "done", "1", "3")
+        after = path.read_text(encoding="utf-8")
+        check("TICKED Done when 1: first" in out and
+              "TICKED Done when 3: third" in out, f"tick prints items: {out!r}")
+        check("- [x] first\n      continued\n- [ ] second\n- [x] third"
+              in after, "tick ticks only the named boxes")
+        check("Done when 2/3 ticked" in out, "tick prints progress")
+        check(after.replace(f"updated: {TODAY}", f"updated: {OLD}")
+              .replace("[x] first", "[ ] first")
+              .replace("[x] third", "[ ] third") == before,
+              "tick changes nothing else but updated:")
+        out = run(root, "tick", "tk", "steps", "1", "2")
+        check("already ticked Steps 1" in out and "TICKED Steps 2: s2" in out,
+              f"tick reports an already-ticked step: {out!r}")
+        r = attempt(root, "tick", "tk", "done", "4")
+        check(r.returncode == 1 and "no item 4" in r.stdout,
+              f"tick refuses a missing item: {r.stdout!r}")
+        check(path.read_text(encoding="utf-8").count("- [ ] second") == 1,
+              "a refused tick changes nothing")
+        for bad in (["tk", "done", "all"], ["tk", "outcome", "1"],
+                    ["tk", "done"]):
+            check(attempt(root, "tick", *bad).returncode == 2,
+                  f"tick usage error for {bad}")
+        check(attempt(root, "tick", "nope", "done", "1").returncode == 1,
+              "tick on an unknown task")
+
+    # Parallel tasks (11.1): own pointers, claims, resume and list marks.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        for tid in ("pa", "pb", "pc"):
+            task(root, tid, tid, tid.upper(), "change", "planned", OLD)
+        out = run(root, "start", "pa")
+        check("`.ai/.current` written" in out and "PARALLEL" not in out,
+              f"first task takes .ai/.current: {out!r}")
+        out = run(root, "start", "pb")
+        check((root / ".ai/.current-pb").is_file() and
+              "PARALLEL pa is running" in out and "claims: none yet" in out,
+              f"second task runs in parallel: {out!r}")
+        check(run(root, "claim", "pa", "src/a.py", "README.md")
+              .startswith("CLAIMED for pa"), "claim adds files")
+        r = attempt(root, "claim", "pb", "./README.md")
+        check(r.returncode == 1 and "CLAIMED README.md by running task pa"
+              in r.stdout.replace("./", ""), f"claim refuses: {r.stdout!r}")
+        check("README.md" not in (root / ".ai/.current-pb")
+              .read_text(encoding="utf-8"), "a refused claim writes nothing")
+        check(run(root, "claim", "pb", "src/b.py").startswith(
+              "CLAIMED for pb"), "a free file is claimed")
+        check("(already claimed)" in run(root, "claim", "pa", "README.md"),
+              "re-claiming your own file is fine")
+        check(attempt(root, "claim", "pc", "x").returncode == 1,
+              "claim needs a started task")
+        out = run(root, "start", "pc")
+        check("claims: src/a.py, README.md" in out and
+              "PARALLEL pb is running" in out, f"start lists claims: {out!r}")
+        out = run(root)
+        marked = [r for r in ("pa", "pb", "pc") if (row(out, r) or [""])[0]]
+        check(marked == ["pa", "pb", "pc"] and "marks running tasks" in out,
+              f"list marks every running task: {out!r}")
+        check(verdict(root).startswith("DO pa"),
+              "do without an id resumes .ai/.current")
+        # finish pa: its pointer goes; pb and pc keep theirs.
+        tf = root / ".ai/tasks/pa/task.md"
+        tf.write_text(tf.read_text(encoding="utf-8")
+                      .replace("- [ ] c", "- [x] c")
+                      .replace("## Findings\n",
+                               "## Findings\n- x Review: inline: ok\n"),
+                      encoding="utf-8")
+        run(root, "finish", "pa", "done")
+        check(not (root / ".ai/.current").exists() and
+              (root / ".ai/.current-pb").exists(), "finish frees only pa")
+        check(run(root, "claim", "pb", "README.md").startswith(
+              "CLAIMED for pb"), "a finished task's files are free again")
+        check(verdict(root).startswith("NONE"),
+              "two parallel pointers and no .current: do without id asks")
+        run(root, "finish", "pc", "blocked", "x")
+        check((root / ".ai/.current-pc").exists(), "blocked keeps pointer")
+        # A pointer to a task that is not running is replaced, as before.
+        task(root, "qb", "qb", "QB", "change", "blocked", OLD)
+        task(root, "qa", "qa", "QA", "change", "planned", OLD)
+        (root / ".ai/.current").write_text("task: qb\n", encoding="utf-8")
+        out = run(root, "start", "qa")
+        check("replaced the pointer to qb" in out and
+              (root / ".ai/.current").read_text(encoding="utf-8")
+              .startswith("task: qa"), f"non-running pointer replaced: {out!r}")
 
     if FAILS:
         for f in FAILS:

@@ -30,11 +30,11 @@ yourself.
    and lint suite passes, not only the test a task names. Docs or comments
    only: no suite run. A question: done = an answer citing its evidence, or
    "inconclusive" with what was ruled out.
-3. After changing `.ai/`, commit it in its own repo: `git -C .ai add -A &&
-   git -C .ai commit -m "<summary>"`. Never commit `.ai` content to the host
-   project repo.${hook_note}
-4. `.ai/.current` (gitignored, one per working tree) is the resume pointer:
-   `task: <id>`, task path, modified files. Read it at session start and
+3. After changing `.ai/`, commit it in its own repo: `git -C .ai add <paths
+   you changed> && git -C .ai commit -m "<summary>"`, never `add -A`. Never
+   commit `.ai` content to the host repo.${hook_note}
+4. `.ai/.current` (gitignored) is the resume pointer, `.ai/.current-<id>`
+   one per parallel task: `task: <id>`, task path, modified files. Read it at session start and
    offer to resume. Run `/task do`, and any unrelated task, in a fresh
    session (an investigation runs in one go): adherence to instructions
    decays as a session grows.

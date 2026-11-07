@@ -68,8 +68,8 @@ def fail(test, msg):
     failures.append(f"{test}: {msg}")
 
 
-def guard(command, cwd):
-    payload = json.dumps({"tool_name": "Bash",
+def guard(command, cwd, tool="Bash"):
+    payload = json.dumps({"tool_name": tool,
                           "tool_input": {"command": command},
                           "cwd": str(cwd)})
     r = subprocess.run([sys.executable, str(HOOK)], input=payload,
@@ -91,6 +91,9 @@ def main():
         for c in PASSED:
             if guard(c, repo) != 0:
                 fail("harmless", f"blocked: {c!r}")
+        # OpenCode's tool name, through its plugin's payload.
+        if guard("git merge topic", repo, tool="shell") != 2:
+            fail("merge", "not blocked under the tool name shell")
     n = sum(map(len, BLOCKED.values())) + len(PASSED)
     if failures:
         print(f"FAIL ({len(failures)})")
