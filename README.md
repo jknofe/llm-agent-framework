@@ -443,9 +443,34 @@ Claude Code's slash commands:
   `.opencode/plugins/llm-agent.js` (needs `python3`)
 
 Two differences from Claude Code: OpenCode has no per-command `effort`, and a
-sub-agent cannot be given a model when it is spawned, so the `/task do` worker
-runs on your session's model unless you configure the `general` agent
-otherwise. The turn-end `.ai` check uses a hook OpenCode marks experimental.
+sub-agent cannot be given a model when it is spawned. The turn-end `.ai` check
+uses a hook OpenCode marks experimental.
+
+### Cheaper sub-agents on OpenCode
+
+The `/task do` worker is OpenCode's built-in `general` sub-agent. Unless it
+has a model of its own, it inherits the session's model, so the worker runs
+on the same tier as its supervisor. Give it a cheaper one per agent:
+
+```json
+{
+  "agents": {
+    "general":  { "model": "claude-agent/haiku" },
+    "reviewer": { "model": "claude-agent/sonnet" }
+  }
+}
+```
+
+- Put it in a project-root `opencode.json` for one repository, or in
+  `~/.config/opencode/opencode.json` for all of them. Not in
+  `.opencode/opencode.json`: the framework owns that file.
+- Keep `reviewer` on a strong model; it is the review gate. Without an entry
+  it inherits the session's model.
+- Model names depend on your provider: take them from `opencode models`.
+- Check what applies with `opencode debug agents`. The background service
+  may show the previous config for a moment after you edit the file.
+- A cheaper worker can need more rounds: the supervisor sends back what does
+  not hold.
 
 ## Hermes (dropped in 10.0)
 
