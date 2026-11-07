@@ -7,8 +7,10 @@ wire shape, so the differences are only in the names below:
 
 Claude Code `Stop`, Copilot `agentStop` and VS Code `Stop` all set
 `stop_hook_active` (Copilot: `stopHookActive`) on the pass after a block.
+OpenCode's `experimental.idle` has no such flag, so its plugin sets
+`stop_hook_active` itself and turns the block into a synthetic message.
 
-The block is the stdout JSON, which all three read; the message is what the
+The block is the stdout JSON, which all of them read; the message is what the
 agent sees. A second pass lets the turn end even if still dirty, so a repo
 the hook cannot commit never traps the loop.
 """

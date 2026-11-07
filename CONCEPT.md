@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.5.** The framework rests on four premises, stated in
+**State: 2026-11-09, v11.6.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -36,8 +36,8 @@ done-when criteria. A task is a code change, a bug, an investigation or a
 test; what counts as done depends on which. The user starts it. By default
 the agent just does the task.
 
-**Property 3. One command set on two harnesses.** Four commands, identical
-names and bodies on Claude Code and Copilot. No command's name depends
+**Property 3. One command set on three harnesses.** Three commands, identical
+names and bodies on Claude Code, Copilot and OpenCode. No command's name depends
 on where it is typed.
 
 **Property 4. Economical about its own text, not about the session.** The
@@ -242,8 +242,9 @@ that one task waits on another; it schedules nothing.
 
 Four commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
 `/agent-models`, `/framework-update`. Same names,
-same bodies, on both harnesses; only the entry files differ (Agent Skills
-under `.claude/skills/`, prompt files under `.github/prompts/`). `AGENTS.md` is the one instructions file and every
+same bodies, on every harness; only the entry files differ (Agent Skills
+under `.claude/skills/`, prompt files under `.github/prompts/`, commands under
+`.opencode/commands/`). `AGENTS.md` is the one instructions file and every
 harness reads it natively; since 7.1 no `CLAUDE.md` pointer is written. The
 condition on claude: no `CLAUDE.md` or `CLAUDE.local.md` in the project
 directory or above it, and a session that can load `AGENTS.md` (not Bedrock,
@@ -268,8 +269,8 @@ project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 527 words on claude, 643 on
-  copilot, where the balance is that harness's own CLI note.
+- `AGENTS.md` before the generated section: 527 words on claude, 512 on
+  opencode, 643 on copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
@@ -277,7 +278,8 @@ project's version and cannot know what the new version changed.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: 929 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 16 framework files, a copilot one 16, counting the three `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 16 framework files, a copilot one 16, an opencode
+  one 15 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -453,6 +455,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.6 (2026-11-09, OpenCode as a third harness, section 56. `--harness
+opencode` writes commands, the reviewer agent, a permission list and the two
+hook scripts under `.opencode/`, with a small plugin bridging OpenCode V2's
+hooks to the scripts. Tested live on 2.2.5.)
 
 v11.5 (2026-11-09, a `worker` agent and `/agent-models`, section 55. The
 `/task do` worker is a `worker` agent defined beside `reviewer` on both
@@ -3896,3 +3903,81 @@ the decision line comes first, before any other tool call. Cost per run,
 list-price estimate: Claude Code $2.18 (2.02 to 2.30), OpenCode $1.23
 (1.21 to 1.36); wall time per run overlapped (Claude Code 514 to 750 s,
 OpenCode 552 to 609 s), so the earlier time difference did not hold.
+
+## 56. OpenCode as a third harness (2026-11-07, v11.6)
+
+**Source.** The owner's call: the framework should work on OpenCode the way it
+works with Claude's slash commands.
+
+**Change.** Property 3 now reads three harnesses. `--harness opencode` writes
+`.opencode/`:
+
+- `commands/{explore,task,framework-update}.md`: the same bodies, invoked the
+  same way, with `$ARGUMENTS` for the argument string. A command only a user
+  can run needs nothing like `disable-model-invocation`. The built-in commands
+  found in the binary include `init` and `review`; none of ours collides.
+- `agents/reviewer.md`: the same reviewer text, `mode: subagent`, edits denied.
+- `opencode.json`: the same permission list, as `shell` rules. OpenCode allows
+  by default, so it matters only where a user's global config asks.
+- `hooks/`: the same two scripts as every other harness.
+- `plugins/llm-agent.js`: the one new artifact. OpenCode has no command hooks,
+  so a dependency-free plugin of 74 lines bridges to the scripts:
+  `tool.hook("execute.before")` runs `git_guard.py` and throws on exit 2, and
+  `session.hook("experimental.idle")` runs `ai_repo_clean.py` and turns a block
+  into a synthetic message. It keeps the loop guard itself, because OpenCode
+  has no `stop_hook_active`, and leaves alone a sub-agent's turn end and a
+  session waiting on background work, matching Claude's `Stop`.
+
+Written against OpenCode V2 and its `@opencode/plugin` types at 2.2.5, which
+differ from the V1 documentation still found online: `permissions`, `shell`
+and `subagent` replace `permission`, `bash` and `task`, and plugins register
+hooks in `setup` instead of returning `tool.execute.before`. V1 was not tested
+and is not supported. Upstream marks `experimental.idle` experimental, so the
+turn-end check is the part most likely to need a follow-up.
+
+**What differs from claude.** No per-skill `effort`. No per-invocation model
+for a sub-agent, so the `/task do` worker runs on the session's model unless
+the user configures `general` otherwise: the same-tier case Part I already
+names. A difference in the other direction: the plugin's tool hook also fires
+inside sub-agents.
+
+**Live test, 2026-11-07** (OpenCode 2.2.5 in a Herdr pane, Sonnet 5.5, a
+scratch stdlib-Python repo, judged from the files, the `.ai` log and the
+screen):
+
+- `/task list`: the script's output (see the fix below). `/task create add-ops ...`: the native question dialog, a well-formed
+  task file, committed as `task: create add-ops`.
+- `/task do add-ops`: one worker on `general`, `worker round 1` committed,
+  `Supervisor check`, `Review: inline` (about 28 lines, under the gate's
+  threshold), `Delegation:`, 3/3 steps and 5/5 criteria, `done`; the tests pass.
+- `reviewer`: a second task with a larger diff (two new files) sent it through
+  the gate itself, `Review: reviewer sub-agent`, 4/4 criteria, `done`. Asked for
+  directly on the first task, it also ran read-only, verdict PASS.
+- `/explore`: `probe.py`, the requirement questions, the block in `AGENTS.md`.
+  `/framework-update dry-run`: no file changed.
+- `/framework-update` for real, on a scaffold staged as 11.4 (`--standalone`,
+  `LLM_AGENT_HOME` on a copy without git, so nothing was pulled): stamp 11.5, a
+  stale command updated, a retired file deleted and off the file list, a missing
+  file restored, and kept: a user rule in `AGENTS.md`, the generated section, a
+  user command, a user permission, notes and the task. `.ai` committed as one
+  update, backup in place.
+- Guard: a `Co-Authored-By` commit and, from inside a `general` sub-agent, a
+  merge on `main` were both refused with the script's message; neither ran.
+- Idle: a line left uncommitted in `.ai/notes.md` produced the synthetic
+  message; the agent reported it and the next idle passed.
+
+A fix this run produced: after `/task list` the agent appended the AGENTS.md
+closing headings (Blocked on me, Changed, Found) although List says to add
+nothing, failing TC-L1. Claude Code with the same text replied with the script's
+output alone, 3 of 3, so the two rules in conflict showed up as a harness
+difference. List and Tree now say the headings do not apply, in the command
+body because `AGENTS.md` on copilot has one word of budget left. Rerun on
+OpenCode: `/task list` on an empty table in three fresh sessions, and `/task
+list` and `/task tree` on two dependent tasks, each ended on the script's last
+line. Claude once more after the change: unchanged.
+
+Tests: `test_opencode_plugin.py` runs the rendered plugin under node against a
+fake host (skips without node); `check_templates` gains `check_opencode_syntax`,
+because a command template runs !`...` in a shell outside the permission flow
+and replaces $1; `test_harness_switch` switches to OpenCode and back with a
+user's command beside ours; `test_git_guard` adds the tool name `shell`.

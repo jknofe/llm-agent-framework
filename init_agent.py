@@ -21,7 +21,8 @@ the agent through skills and folder conventions:
   archive                no command: ask the agent to archive a finished
                          task; the rules live in AGENTS.md
 
-Prompts: project name, one-line description, harness (claude/copilot).
+Prompts: project name, one-line description, harness
+(claude/copilot/opencode).
 Enter accepts the default; on an existing scaffold the defaults are what the
 version stamp recorded, so Enter keeps the project as it is. The name and
 description are recorded there because nothing else keeps them: /explore
@@ -48,7 +49,7 @@ Context layout:
   AGENTS.md                    canonical instructions (vendor-neutral):
                                conventions, right-sizing rules, commands, and
                                the generated project-context section. Read
-                               natively by Claude Code and Copilot
+                               natively by Claude Code, Copilot and OpenCode
   .ai/notes.md                 running memory: gotchas, runbooks, unwritten
                                rules
   .ai/tasks/<id>/task.md       per-task plan: type, goal, done-when, steps,
@@ -59,6 +60,9 @@ Context layout:
   .ai/agent/tools/tasks.py     task table and create-or-do resolver, /task
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
+  .opencode/commands/*.md      opencode harness: same content as commands, plus
+                               opencode.json, agents/reviewer.md, hooks/*.py
+                               and plugins/llm-agent.js, which runs them
   .claude/settings.json        permission allow list + hook registration
                                (claude only)
   .claude/hooks/*.py           hook scripts, the same two on both harnesses:
@@ -68,7 +72,7 @@ Context layout:
                                registers them in .github/hooks/llm-agent.json
 
 Framework 10.0 dropped the hermes harness. A scaffold built for it is
-switched with --harness claude or --harness copilot, like any other switch.
+switched with --harness claude, copilot or opencode, like any other switch.
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
 
 Versioning:
@@ -84,7 +88,7 @@ telegraphic. Identifiers verbatim.
 Usage:
   python init_agent.py        (or: init-agent)            interactive
   python init_agent.py --name foo --desc "..." --harness claude
-  Flags: --name, --description/--desc, --harness {claude,copilot},
+  Flags: --name, --description/--desc, --harness {claude,copilot,opencode},
   -y/--yes (overwrite framework files without prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 

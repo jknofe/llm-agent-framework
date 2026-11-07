@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "11.5"
+FRAMEWORK_VERSION = "11.6"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -46,10 +46,12 @@ SKILL_EFFORT = {"explore": "medium", "task": "medium",
 # The harnesses this generator renders. Hermes was the third until 10.0
 # (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized
 # only so init can switch it to one of these.
-HARNESSES = ["claude", "copilot"]
+HARNESSES = ["claude", "copilot", "opencode"]
 RETIRED_HARNESSES = {"hermes": ".agents/skills"}
 
 COPILOT_HOOKS_DIR = ".github/hooks"
+
+OPENCODE_DIR = ".opencode"
 
 # Where a harness switch parks the entry files of the harness it replaces.
 # Inside `.ai` so it travels with the scaffold, gitignored there because it is
@@ -62,6 +64,10 @@ HARNESS_BACKUP_DIR = ".ai/agent/.harness-backup"
 HARNESS_ENTRY_PATHS = {
     "claude": [".claude", "CLAUDE.md"],
     "copilot": [".github/prompts", ".github/agents", COPILOT_HOOKS_DIR],
+    # Not all of .opencode: a user's own config can sit beside these.
+    "opencode": [f"{OPENCODE_DIR}/commands", f"{OPENCODE_DIR}/agents",
+                 f"{OPENCODE_DIR}/plugins", f"{OPENCODE_DIR}/hooks",
+                 f"{OPENCODE_DIR}/opencode.json"],
     # Retired in 10.0, kept so a switch away from it reports leftovers.
     "hermes": [".agents/skills", ".agents/hooks"],
 }

@@ -242,7 +242,8 @@ def detect_scaffold(root: Path):
     harness: 'claude' when `.claude/` exists, else 'hermes' when
              `.agents/skills/` exists (retired in 10.0, reported so the
              caller can say how to switch), else 'copilot' when
-             `.github/prompts/` exists, else 'claude'.
+             `.github/prompts/` exists, else 'opencode' when
+             `.opencode/commands/` exists, else 'claude'.
     name: parsed from the AGENTS.md '# Agent: <name>' title, else the dir name.
     """
     agents = root / "AGENTS.md"
@@ -258,6 +259,8 @@ def detect_scaffold(root: Path):
         harness = "hermes"
     elif (root / ".github" / "prompts").exists():
         harness = "copilot"
+    elif (root / OPENCODE_DIR / "commands").exists():
+        harness = "opencode"
     else:
         harness = "claude"
     name = root.name
@@ -286,7 +289,7 @@ def retired_harness_message(harness: str) -> str:
     project context, as for any other switch."""
     return (f"Framework 10.0 dropped the {harness} harness. Switch this "
             "scaffold to a supported one:\n"
-            "  init-agent --harness claude     (or --harness copilot)\n"
+            "  init-agent --harness claude     (or copilot, or opencode)\n"
             f"The {harness} files it recorded move to "
             f"{HARNESS_BACKUP_DIR}/{harness}/; notes,\ntasks and the project "
             "context are kept." + RETIRED_CLEANUP.get(harness, ""))
@@ -356,6 +359,9 @@ def bootstrap_update(root: Path) -> int:
     if harness == "claude":
         rel = Path(".claude") / "skills" / cmd / "SKILL.md"
         body = content.render_skills(update_spec)[f"{cmd}/SKILL.md"]
+    elif harness == "opencode":
+        rel = Path(OPENCODE_DIR) / "commands" / f"{cmd}.md"
+        body = content.render_opencode_commands(update_spec)[f"{cmd}.md"]
     else:
         rel = Path(".github") / "prompts" / f"{cmd}.prompt.md"
         body = content.render_prompt_files(update_spec)[f"{cmd}.prompt.md"]
@@ -381,7 +387,7 @@ def bootstrap_update(root: Path) -> int:
           f"{harness} so the update need not re-detect it)")
     print("\nNothing else was touched. The agent does the merge; start it "
           "with:")
-    if harness == "claude":
+    if harness in ("claude", "opencode"):
         print(f"  /{cmd}")
     else:
         # Prompt files are a VS Code feature. Copilot CLI does not read
@@ -450,6 +456,22 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_git_guard(), force, created, skipped)
         write(root / ".claude" / "settings.json",
               render_settings_json(), force, created, skipped)
+    elif harness == "opencode":
+        opencode = root / OPENCODE_DIR
+        for fname, content in render_opencode_commands(
+                command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
+            write(opencode / "commands" / fname, content,
+                  force, created, skipped)
+        write(opencode / "agents" / "reviewer.md",
+              render_opencode_reviewer(), force, created, skipped)
+        write(opencode / "plugins" / "llm-agent.js",
+              render_opencode_plugin(), force, created, skipped)
+        write(opencode / "hooks" / "ai_repo_clean.py",
+              render_hook_ai_repo_clean(), force, created, skipped)
+        write(opencode / "hooks" / "git_guard.py",
+              render_hook_git_guard(), force, created, skipped)
+        write(opencode / "opencode.json",
+              render_opencode_config(), force, created, skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}", "${input:ticket}",
@@ -508,7 +530,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
             print(f"\nLeft in place under the old harness (not framework-"
                   "owned, so yours to keep or\nremove): "
                   + ", ".join(left_behind))
-    entry = ".claude" if harness == "claude" else ".github/prompts"
+    entry = {"claude": ".claude", "opencode": OPENCODE_DIR}.get(
+        harness, ".github/prompts")
     print(f"\n.ai: notes.md + tasks/  |  AGENTS.md + {entry}"
           f"  |  project: {name}  |  harness: {harness}")
     if harness == "copilot":

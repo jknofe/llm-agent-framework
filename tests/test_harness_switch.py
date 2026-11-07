@@ -68,6 +68,12 @@ def make_scaffold(tmp: Path, harness: str, seq: int) -> Path:
     return root
 
 
+def detect_harness(root: Path) -> str:
+    r = subprocess.run([sys.executable, str(FW), "--detect"], cwd=str(root),
+                       capture_output=True, text=True)
+    return json.loads(r.stdout)["harness"]
+
+
 def stamp(root: Path) -> dict:
     return json.loads((root / ".ai/agent/framework.json").read_text())
 
@@ -127,6 +133,37 @@ def test_switch(tmp: Path):
                if not (root / f).exists()]
     if missing:
         fail("stamp_follows", f"stamp lists files that do not exist: {missing}")
+
+
+def test_to_and_from_opencode(tmp: Path):
+    """The switch both ways, with a user's own .opencode file beside ours."""
+    root = make_scaffold(tmp, "claude", 7)
+    if run(root, "--harness", "opencode", "-y").returncode != 0:
+        fail("opencode", "switch claude -> opencode failed")
+        return
+    for live in (".opencode/commands/task.md", ".opencode/opencode.json",
+                 ".opencode/plugins/llm-agent.js",
+                 ".opencode/hooks/git_guard.py"):
+        if not (root / live).is_file():
+            fail("opencode", f"missing after the switch: {live}")
+    if (root / ".claude/skills/task/SKILL.md").exists():
+        fail("opencode", "the claude command set stayed live")
+    if detect_harness(root) != "opencode":
+        fail("opencode", "--detect does not report opencode")
+    mine = root / ".opencode/commands/my-own.md"
+    mine.write_text("---\ndescription: mine\n---\nhi\n")
+    r = run(root, "--harness", "claude", "-y")
+    if r.returncode != 0:
+        fail("opencode", f"switch opencode -> claude failed: {r.stderr}")
+        return
+    if (root / ".opencode/commands/task.md").exists():
+        fail("opencode", "the opencode command set stayed live")
+    if not (root / BACKUP / "opencode/.opencode/plugins/llm-agent.js").exists():
+        fail("opencode", "the plugin did not reach the backup")
+    if not mine.exists():
+        fail("opencode", "the user's own command was retired")
+    if "my-own.md" not in r.stdout:
+        fail("opencode", "the user's own command was not reported")
 
 
 def test_not_a_switch(tmp: Path):
@@ -253,6 +290,7 @@ def main():
         test_not_a_switch(tmp)
         test_refusable(tmp)
         test_identity_kept(tmp)
+        test_to_and_from_opencode(tmp)
         skipped = test_off_retired(tmp)
     if failures:
         print(f"FAIL ({len(failures)})")
@@ -260,7 +298,7 @@ def main():
             print("  " + f)
         return 1
     note = " (off_retired skipped: shallow clone)" if skipped else ""
-    print(f"ok: {5 - skipped} harness-switch tests passed{note}")
+    print(f"ok: {6 - skipped} harness-switch tests passed{note}")
     return 0
 
 

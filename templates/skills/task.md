@@ -62,15 +62,16 @@ Run `python3 ${tools_dir}/tasks.py`, then copy its complete output into
 your reply, verbatim, as the whole reply. The user does not see tool
 output, so a reply that only refers to it ("the table is above") shows
 them nothing. Add nothing, summarize nothing, and open no file: the
-script reads the task files and its output is the whole answer. List is
-read-only: change no file and commit nothing, and do not start or resume
-a task from it.
+script reads the task files and its output is the whole answer. The
+closing headings AGENTS.md asks for at the end of a run do not apply: end
+on the script's last line. List is read-only: change no file and commit
+nothing, and do not start or resume a task from it.
 
 ## Tree
 
 Run `python3 ${tools_dir}/tasks.py tree`, then copy its complete output
 into your reply, verbatim, as the whole reply. The tree shows which live
 tasks wait on which, built from the `depends:` line of each task file.
-The same rules as List apply: add nothing, summarize nothing, open no
-file, and change nothing. Tree is read-only: do not start or resume a
+The same rules as List apply: add nothing, no closing headings, summarize
+nothing, open no file, and change nothing. Tree is read-only: do not start or resume a
 task from it.

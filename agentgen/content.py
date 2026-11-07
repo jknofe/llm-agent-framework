@@ -17,6 +17,8 @@ def _entry_note(harness: str) -> str:
     """Where AGENTS.md tells the reader the commands live, per harness."""
     if harness == "claude":
         return "packaged as Agent Skills under `.claude/skills/`"
+    if harness == "opencode":
+        return f"exposed as commands under `{OPENCODE_DIR}/commands/`"
     return "exposed as prompt files under `.github/prompts/`"
 
 def render_agents_md(project_name: str, description: str = "",
@@ -56,7 +58,8 @@ def render_update_body(harness: str, arg: str) -> str:
     expensive artifact, so an update migrates it and never re-derives it.
 
     Varies on harness, which decides which framework files exist to merge:
-    settings, hooks and skills on claude, prompt files and hooks on copilot, and where the reference's own copy of
+    settings, hooks and skills on claude, prompt files and hooks on copilot,
+    commands, config and the plugin on opencode, and where the reference's own copy of
     this skill sits.
 
     The migrate list is frozen into every project at the version it was
@@ -80,6 +83,25 @@ def render_update_body(harness: str, arg: str) -> str:
         verify_extra = (
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
             "     it names points at a file that exists.\n")
+    elif harness == "opencode":
+        reference_skill = f"{OPENCODE_DIR}/commands/framework-update.md"
+        backup_paths = f"AGENTS.md and `{OPENCODE_DIR}/`"
+        merge_cases = (
+            f"     - `{OPENCODE_DIR}/opencode.json`: permission rules and other\n"
+            "       settings a user added are not framework state. Union them\n"
+            "       with the reference's; drop only rules the reference retired.\n"
+            f"     - `{OPENCODE_DIR}/plugins/llm-agent.js`: a hook a user added\n"
+            "       here, such as a lint gate, is not framework state. Keep it.\n"
+            "     - AGENTS.md outside the GENERATED markers: project-specific\n"
+            "       rules a user appended below the framework text.\n"
+            "     - commands, agents or plugins present here but not in the\n"
+            "       reference: the user's own, unless the generator's history\n"
+            "       says otherwise. Settle it with the orphan test below rather\n"
+            "       than assuming either way.\n")
+        verify_extra = (
+            f"   - `{OPENCODE_DIR}/opencode.json` parses as JSON, and the two\n"
+            f"     scripts under `{OPENCODE_DIR}/hooks/` that\n"
+            f"     `{OPENCODE_DIR}/plugins/llm-agent.js` runs exist.\n")
     else:
         reference_skill = ".github/prompts/framework-update.prompt.md"
         backup_paths = (f"AGENTS.md, `.github/prompts/` and "
@@ -264,6 +286,16 @@ def render_prompt_files(specs) -> dict:
         )
     return out
 
+def render_opencode_commands(specs) -> dict:
+    """OpenCode commands: .opencode/commands/<name>.md. The filename is the
+    command, `$ARGUMENTS` the argument string. Only a user can run a command,
+    so nothing like `disable-model-invocation` is needed. `specs` is a
+    command_specs list."""
+    out = {}
+    for name, desc, body in specs:
+        out[f"{name}.md"] = f'---\ndescription: "{desc}"\n---\n{body}'
+    return out
+
 def render_reviewer_agent() -> str:
     """The fresh-context adversarial reviewer used by /task do's review
     gate. A task's result is a diff, an Outcome, or both, so the reviewer
@@ -309,6 +341,21 @@ def render_copilot_agent(which: str) -> str:
              if which == "reviewer" else "")
     return (f'---\nname: {which}\ndescription: "{desc}"\n{tools}---\n'
             f"{body}")
+
+def render_opencode_reviewer() -> str:
+    """The same reviewer as an OpenCode V2 agent: a sub-agent by frontmatter,
+    with edits denied where the claude agent lists its read-only tools."""
+    desc, body = _split_frontmatter(render_reviewer_agent())
+    return ("---\n"
+            f'description: "{desc}"\n'
+            "mode: subagent\n"
+            "permissions:\n"
+            '  - { action: edit, resource: "*", effect: deny }\n'
+            "---\n"
+            f"{body}")
+
+def render_opencode_plugin() -> str:
+    return render.load("hooks/opencode_plugin.js")
 
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
@@ -401,3 +448,18 @@ def render_settings_json() -> str:
     }
     settings = {"permissions": {"allow": allow}, "hooks": hooks}
     return json.dumps(settings, indent=2) + "\n"
+
+def render_opencode_config() -> str:
+    """Project config (.opencode/opencode.json): the permission list of the
+    claude settings in OpenCode V2's form. OpenCode allows by default, so
+    these rules matter when a user's global config asks about shell commands;
+    they keep exploration free of prompts there. The plugin in
+    .opencode/plugins/ is discovered by its location and needs no entry."""
+    rules = []
+    for entry in render.sectioned_list("config/permissions.txt",
+                                       sections=("shared",),
+                                       tools_dir=TOOLS_DIR):
+        command = entry[len("Bash("):-len(":*)")]
+        rules.append({"action": "shell", "resource": f"{command} *",
+                      "effect": "allow"})
+    return json.dumps({"permissions": rules}, indent=2) + "\n"

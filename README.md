@@ -1,7 +1,7 @@
 # llm-agent-framework
 
-Two pillars, one command set on either supported harness (Claude Code,
-Copilot):
+Two pillars, one command set on any supported harness (Claude Code,
+Copilot, OpenCode):
 
 1. **Durable project knowledge that the repository cannot state itself.**
    `.ai/notes.md` (decisions and why, gotchas, unwritten rules, runbooks) as
@@ -57,7 +57,7 @@ to `~/.llm-agent-framework` first.
 
 The CLI has exactly one job: scaffolding. Run `init-agent` (no arguments)
 in your project root and answer the prompts (project name, one-line
-description, claude/copilot); Enter accepts the defaults. If a
+description, claude/copilot/opencode); Enter accepts the defaults. If a
 scaffold already exists it asks before regenerating framework files
 (instructions, skills, hooks, settings); hand-filled notes and tasks are
 always preserved, never reverted to stubs. `init-agent -h` shows help.
@@ -212,11 +212,12 @@ used to script this; with the scaffold at six files it is a plain request.
 `init` scaffolds the workflow as Agent Skills, the open SKILL.md standard
 read by Claude Code and a growing set of other harnesses
 (`.claude/skills/<name>/SKILL.md`); the copilot harness gets the same
-bodies as VS Code prompt files (`.github/prompts/*.prompt.md`). On claude
+bodies as VS Code prompt files (`.github/prompts/*.prompt.md`), the opencode
+harness as commands (`.opencode/commands/*.md`). On claude
 the skills carry `disable-model-invocation: true`: they are pipeline steps
 with side effects (notes writes, code changes, `.ai` commits), so only an
 explicit `/name` from you triggers them, never the model mid-conversation.
-Both harnesses invoke them the same way, under the same names:
+Every harness invokes them the same way, under the same names:
 
 | Command | What it does |
 |---|---|
@@ -255,7 +256,7 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). Both harnesses read it natively; no `CLAUDE.md` is written.
+section). Every harness reads it natively; no `CLAUDE.md` is written.
 Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
 or `CLAUDE.local.md` exists in the project directory or any directory
 above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
@@ -297,12 +298,14 @@ stdout; only where they live and how they are registered differs:
 | Harness | Scripts | Registered in |
 |---|---|---|
 | claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
+| opencode | `.opencode/hooks/` | `.opencode/plugins/llm-agent.js`, a small plugin that calls the scripts from `tool.hook("execute.before")` and `session.hook("experimental.idle")` |
 | copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch. Loaded only from a trusted folder: the CLI asks on first interactive start in the repo, and a non-interactive run needs `COPILOT_ALLOW_ALL=true` (exactly `true`) to trust its working directory |
 
 - `reviewer` and `worker` are the two sub-agents of `/task do`: the
   fresh-context adversarial reviewer of its review gate, and the worker that
   does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`
-  and `.github/agents/{reviewer,worker}.agent.md`.
+  and `.github/agents/{reviewer,worker}.agent.md`; on opencode only the
+  reviewer has one, `.opencode/agents/reviewer.md`.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
@@ -314,7 +317,8 @@ Hooks only fire when the scaffolded repo is the session's working directory
 (on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
 the agent from a parent directory, a monorepo subdir, or a sub-agent means
 the hooks do not run; in that case the protocol rules in `AGENTS.md` are the
-only guarantee, so commit `.ai` by hand and do not assume a hook ran.
+only guarantee, so commit `.ai` by hand and do not assume a hook ran. On
+opencode the git guard does run inside a sub-agent.
 
 ## Supervised workers
 
@@ -422,12 +426,33 @@ Run agent-models worker=<id> reviewer=<id>: read .github/prompts/agent-models.pr
 - The agent files belong to the framework; `/framework-update` keeps your
   `model:` line.
 
+## OpenCode support
+
+Choosing `opencode` at the harness prompt targets OpenCode V2 (written and
+tested against 2.2.5; V1 is not supported). The commands work as they do with
+Claude Code's slash commands:
+
+- instructions file: `AGENTS.md` (read natively, no pointer file)
+- commands: `.opencode/commands/*.md`, invoked the same way (`/explore`,
+  `/task do FEAT-42`, `/framework-update dry-run`)
+- reviewer: `.opencode/agents/reviewer.md`, a sub-agent that cannot edit
+- permissions: `.opencode/opencode.json`, the same read-only list as `shell`
+  rules. OpenCode allows by default, so these matter if your global config
+  asks about shell commands
+- hooks: the two scripts in `.opencode/hooks/`, run by
+  `.opencode/plugins/llm-agent.js` (needs `python3`)
+
+Two differences from Claude Code: OpenCode has no per-command `effort`, and a
+sub-agent cannot be given a model when it is spawned, so the `/task do` worker
+runs on your session's model unless you configure the `general` agent
+otherwise. The turn-end `.ai` check uses a hook OpenCode marks experimental.
+
 ## Hermes (dropped in 10.0)
 
 Framework 10.0 no longer renders the Hermes harness. A scaffold built for
 it keeps working as it is, but init and `/framework-update` will not
 regenerate it. Move it to a supported harness with
-`init-agent --harness claude` (or `copilot`): the switch retires every
+`init-agent --harness claude` (or `copilot`, or `opencode`): the switch retires every
 `.agents/` file the version stamp recorded into
 `.ai/agent/.harness-backup/hermes/` and keeps notes, tasks and the project
 context. Init cannot reach outside the repository, so once no project uses
@@ -458,7 +483,7 @@ prompt when every part of the chain is allowed, so common chain members like
 auto permission mode (a classifier reviews commands and blocks only risky
 ones) is a lower-maintenance alternative; the allowlist is what keeps
 headless and CI runs deterministic. `AGENTS.md` and `.claude/` /
-`.github/` belong to the host repo.
+`.github/` / `.opencode/` belong to the host repo.
 
 The name and description prompted at init are recorded in
 `.ai/agent/framework.json`, and the description is also seeded into the
