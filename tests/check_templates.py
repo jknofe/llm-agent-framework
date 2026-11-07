@@ -65,6 +65,9 @@ def rendered_artifacts():
     out.append(("reviewer", content.render_reviewer_agent()))
     out.append(("settings.json", content.render_settings_json()))
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
+    out.append(("opencode config", content.render_opencode_config()))
+    out.append(("opencode reviewer", content.render_opencode_reviewer()))
+    out.append(("opencode plugin", content.render_opencode_plugin()))
     for fn in ("render_tool_probe", "render_tool_tasks",
                "render_hook_ai_repo_clean", "render_hook_git_guard",
                "render_notes_stub"):
@@ -77,7 +80,7 @@ def check_orphans():
     used = set()
     for path in (REPO / "agentgen").rglob("*.py"):
         for lit in re.findall(
-                r'["\']([\w\-/{}]+\.(?:md|py|txt|json|yaml))["\']',
+                r'["\']([\w\-/{}]+\.(?:md|py|txt|json|yaml|js))["\']',
                 path.read_text()):
             # per-harness fragments are addressed as f"...{harness}/x.md"
             if "{harness}" in lit:
@@ -122,11 +125,24 @@ def check_python():
 
 def check_json():
     for label, fn in (("settings.json", content.render_settings_json),
-                      ("copilot hooks.json", content.render_copilot_hooks_json)):
+                      ("copilot hooks.json", content.render_copilot_hooks_json),
+                      ("opencode config", content.render_opencode_config)):
         try:
             json.loads(fn())
         except json.JSONDecodeError as e:
             fail("json", f"{label} invalid: {e}")
+
+
+def check_opencode_syntax():
+    """An OpenCode command template runs !`...` in a shell before the prompt
+    is sent, outside the permission flow, and replaces $1, $2 with arguments.
+    Prose that merely quotes such text would do both silently."""
+    specs = content.command_specs("opencode", "$ARGUMENTS", "$ARGUMENTS")
+    for fname, text in content.render_opencode_commands(specs).items():
+        if "!`" in text or re.search(r"\$\d", text):
+            fail("opencode", f"{fname}: !`...` or $N would be expanded")
+        if "$ARGUMENTS" not in text:
+            fail("opencode", f"{fname}: no $ARGUMENTS, arguments get appended")
 
 
 def check_register():
@@ -221,7 +237,8 @@ def check_budget():
 
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_register, check_names, check_reference,
+                  check_json, check_opencode_syntax, check_register, check_names,
+                  check_reference,
                   check_budget):
         check()
     if failures:
@@ -230,7 +247,7 @@ def main():
             print("  " + f)
         return 1
     print(f"ok: {len(all_templates())} templates, "
-          f"{len(rendered_artifacts())} rendered artifacts, 9 checks passed")
+          f"{len(rendered_artifacts())} rendered artifacts, 10 checks passed")
     return 0
 
 

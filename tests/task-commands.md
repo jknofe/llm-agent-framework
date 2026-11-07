@@ -22,6 +22,12 @@ Two parts:
 This is a regression check for rules, not a benchmark: it says whether the
 agent follows the skill text, not whether the framework makes it faster.
 
+On OpenCode (`--harness opencode`) the same cases apply, typed as the same
+slash commands: `reviewer` and the worker show as sub-agents in the TUI,
+`opencode session export <id>` is the transcript, and `Delegation:` names
+the `general` sub-agent, since a sub-agent's model cannot be picked at spawn.
+CONCEPT.md section 55 records the first run.
+
 ## Part B setup
 
 Pinned target: satty, the GTK4 screenshot annotator, at `f578432`. It has

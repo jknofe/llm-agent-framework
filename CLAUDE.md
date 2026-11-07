@@ -41,15 +41,16 @@ Where things live:
 - Skill bodies: `templates/skills/<name>.md`, one per rostered command; the
   two that vary on harness beyond slot filling are composed in
   `content.COMPOSED_BODIES` from `templates/skills/bodies/`
-- Rendered per harness by `render_skills` (claude) and
-  `render_prompt_files` (copilot)
+- Rendered per harness by `render_skills` (claude),
+  `render_prompt_files` (copilot) and `render_opencode_commands` (opencode)
 - Embedded tool scripts: `render_tool_probe` (`templates/tools/probe.py`),
   `render_tool_tasks` (`templates/tools/tasks.py`, the `/task list` table
   and the `/task` create-or-do resolver). `/task do`'s worker is a
   harness sub-agent with no script behind it; it reads
   `templates/task/work.md` (CONCEPT.md sections 50 and 52)
-- Hooks: `templates/hooks/`; permissions: `render_settings_json` over
-  `templates/config/permissions.txt`
+- Hooks: `templates/hooks/`, with `opencode_plugin.js` bridging OpenCode to
+  the same scripts; permissions: `render_settings_json` and
+  `render_opencode_config` over `templates/config/permissions.txt`
 - Adding or removing a command: the roster in `const.SKILLS`, plus its
   `ARG_HINTS` and `SKILL_EFFORT` entries. `check_templates` fails if a
   template is orphaned.
@@ -65,7 +66,7 @@ Where things live:
   updating is a merge and belongs to the agent (CONCEPT.md section 24).
 
 One axis cuts through most functions: **harness** (`const.HARNESSES`:
-`claude`, `copilot`). When you add behavior, handle both or state why one is
+`claude`, `copilot`, `opencode`). When you add behavior, handle both or state why one is
 skipped. Hermes was dropped in 10.0 (CONCEPT.md section 43); only the
 switch off it remains (`RETIRED_HARNESSES`). The profile axis is gone (5.22
 removed the large profile).
@@ -77,7 +78,7 @@ Identifiers, paths, commands verbatim. No em dashes.
 **What the framework claims (CONCEPT.md Part I):** four premises. Two pillars,
 durable knowledge the repository cannot state itself and an opt-in
 plan-and-do path for any task (change, bug, investigation, test); two
-properties, one command set on two harnesses and a bounded own footprint. A
+properties, one command set on three harnesses and a bounded own footprint. A
 change that adds an always-loaded summary of the codebase, or that makes a task
 plan or review the default, contradicts a measurement;
 argue it in Part I first, with the evidence that overturns the old one. A
@@ -102,7 +103,7 @@ Full procedure: **[TESTING.md](TESTING.md)**. The short version:
   `python3 tests/check_templates.py` and nothing else.
 - Layer 1 (any change under `templates/`, `agentgen/`, `tests/`, or to
   `init_agent.py`): `python3 tests/check_templates.py`, syntax check,
-  scaffold both harness variants into a temp dir, grep the render,
+  scaffold every harness variant into a temp dir, grep the render,
   verify referenced tool paths run, check re-init preservation, sweep for
   test-target term leakage.
 - Layer 2 (behavior changes): run the affected cases of

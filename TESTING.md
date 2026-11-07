@@ -15,7 +15,12 @@ themselves.
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
    python3 tests/test_git_guard.py
+   python3 tests/test_opencode_plugin.py
    ```
+   The last runs the rendered OpenCode plugin under node against a fake host:
+   a guarded command throws the script's reason, a dirty `.ai` gets one
+   synthetic message and the next idle passes, a sub-agent is left alone. It
+   skips without node.
    The fourth runs the git guard hook on the commands it must block, bare
    and behind a proxy (`rtk gh ...`, `rtk run "<line>"`), and on read-only
    ones it must let through.
@@ -50,11 +55,11 @@ themselves.
    python3 -c "import ast; ast.parse(open('init_agent.py').read())"
    for f in agentgen/*.py; do python3 -c "import ast; ast.parse(open('$f').read())"; done
    ```
-2. **Scaffold both harnesses** into a throwaway dir (init writes to CWD;
+2. **Scaffold every harness** into a throwaway dir (init writes to CWD;
    never scaffold into this repo root):
    ```bash
    d=$(mktemp -d)
-   for h in claude copilot; do
+   for h in claude copilot opencode; do
      mkdir -p "$d/$h"
      ( cd "$d/$h" && python3 /path/to/init_agent.py \
          --name t --description d --harness $h -y >/dev/null )
