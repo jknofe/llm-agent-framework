@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 55, unchanged and
+- **Part III** is the revision history, sections 1 to 56, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -36,7 +36,7 @@ done-when criteria. A task is a code change, a bug, an investigation or a
 test; what counts as done depends on which. The user starts it. By default
 the agent just does the task.
 
-**Property 3. One command set on three harnesses.** Three commands, identical
+**Property 3. One command set on three harnesses.** Four commands, identical
 names and bodies on Claude Code, Copilot and OpenCode. No command's name depends
 on where it is typed.
 
@@ -149,7 +149,7 @@ cannot state into `.ai/notes.md`.
 Since 11.0 `/task do` splits into two roles, after Google's
 Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
 job and the supervisor none of it (section 53). The worker is the
-framework's `worker` sub-agent, defined beside `reviewer` on both harnesses
+framework's `worker` sub-agent, defined beside `reviewer` on every harness
 (section 55): on the model its agent file pins (`/agent-models`), else on
 a cheaper model than the session's where the harness lets the agent pick
 one at spawn, and it knows
@@ -269,7 +269,7 @@ project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 527 words on claude, 512 on
+- `AGENTS.md` before the generated section: 527 words on claude, 525 on
   opencode, 643 on copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
@@ -279,7 +279,7 @@ project's version and cannot know what the new version changed.
   `tasks.py`: 929 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 16 framework files, a copilot one 16, an opencode
-  one 15 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
+  one 17 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -455,6 +455,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.7 (2026-11-09, OpenCode gets the `worker` agent and `/agent-models`,
+section 57. The OpenCode harness follows the 11.5 change: a `worker` agent
+beside `reviewer`, the `model:` line set by `/agent-models`.)
 
 v11.6 (2026-11-09, OpenCode as a third harness, section 56. `--harness
 opencode` writes commands, the reviewer agent, a permission list and the two
@@ -3981,3 +3985,76 @@ fake host (skips without node); `check_templates` gains `check_opencode_syntax`,
 because a command template runs !`...` in a shell outside the permission flow
 and replaces $1; `test_harness_switch` switches to OpenCode and back with a
 user's command beside ours; `test_git_guard` adds the tool name `shell`.
+
+## 57. OpenCode gets the worker agent and `/agent-models` (2026-11-07, v11.7)
+
+**Note.** `main` took the Claude Code and Copilot half of this change as
+section 55 (v11.5) before OpenCode (section 56) was rebased onto it. This
+section is the full change as tested on three harnesses; the OpenCode parts
+are what this version adds.
+
+**Source.** The owner's call after the OpenCode benchmark (section 56):
+OpenCode cannot pick a sub-agent's model at spawn, so its worker ran on the
+session's model; the owner wanted the worker and reviewer models set per
+project, by a command, on every harness.
+
+**Finding that shaped it.** Each harness pins a sub-agent's model somewhere
+else: OpenCode in `opencode.json` per agent, Claude Code at spawn (which
+beats every project setting), Copilot only in a custom agent file. What all
+three share is a `model:` line in an agent definition, which is how
+`reviewer` already shipped. So the worker became an agent too.
+
+**Change.**
+
+- `worker` agent beside `reviewer`: `.claude/agents/worker.md`,
+  `.opencode/agents/worker.md`, `.github/agents/worker.agent.md`. Its body
+  only points at `work.md`, which stays the worker's contract. Copilot gets
+  `reviewer.agent.md` as well (read, search and shell tools), its first
+  reviewer agent.
+- Do spawns `worker`. A `model:` line in its file is the user's choice and Do
+  passes no model at spawn (on Claude Code a spawn model would win); without
+  one, Do picks a cheaper model where it can, as before. Without a `worker`
+  agent, a fresh general-purpose sub-agent as before. The `Delegation:` line
+  names the worker's model.
+- `/agent-models [worker=<model>] [reviewer=<model>]`: with no argument it
+  shows both, says what an unset line means on this harness, lists the names
+  the harness accepts and asks; with arguments it changes only the `model:`
+  line, and `default` removes it. `/framework-update` keeps that line as the
+  user's choice.
+- Small tasks inline: Do works the steps itself when it expects a host diff
+  under ~30 lines, the inline review size, or no host change at all, and says
+  why in one line. The 11.3 rule delegated everything except `inline`, and the
+  section 55 benchmark found both harnesses working 3 of 4 tasks inline
+  anyway; a rule the agents ignore is worse than a rule that matches them.
+- Copilot's `AGENTS.md` CLI note lost two redundant lines to stay under 650
+  words with the new command row.
+
+**Live test, 2026-11-07** (a scratch stdlib-Python repo per harness, two
+hand-written tasks: `add-stats`, a module with tests well over 30 lines, and
+`fix-version`, a one-line README edit; judged from the files, the `.ai` log
+and the transcripts):
+
+- `/agent-models` with no argument (Claude Code, Copilot): both shown as not
+  set with what that means, accepted names listed, nothing changed until
+  answered. Set on all three (Claude `haiku`/`sonnet`, OpenCode
+  `claude-agent/haiku`/`claude-agent/sonnet`, Copilot `gpt-5.6-luna`/
+  `gpt-6-luna`): exactly one `model:` line added per file;
+  `opencode debug agents` resolved both.
+- `add-stats`: Claude Code said "The worker's agent file sets its model, so
+  I'm passing none", spawned `worker` (ran on `claude-haiku-5-5`) and
+  `reviewer` (`claude-sonnet-5-5`), `done` with the full record. OpenCode: the
+  worker child session on `haiku`, the reviewer on `sonnet`, `done`. Copilot
+  CLI 1.0.89: "Worker (model: gpt-5.6-luna)" and later "Reviewer (model:
+  gpt-6-luna)", so Copilot CLI honors an agent file's `model:`, which its
+  documentation promises only for IDEs.
+- `fix-version`: all three worked inline and said why ("Small task (one-line
+  edit), so I'll do it inline"), `done`, one `Review: inline` line, no worker.
+
+**Seen, not changed.** On Copilot (session model Auto, which picked
+`gpt-6-luna`), the worker rewrote the whole task file, ticked the done-when
+boxes and ran `finish`, all of which `work.md` forbids; the supervisor then
+sent the diff to the reviewer, and the record ends with the review line
+before the worker's and `Delegation: reviewer sub-agent`. A model following
+`work.md` loosely, not the model setting; Claude Code and OpenCode on Sonnet
+kept the roles apart. Copilot asks before each command and file edit, so
+the run needed per-prompt approval.

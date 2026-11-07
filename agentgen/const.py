@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "11.6"
+FRAMEWORK_VERSION = "11.7"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -101,6 +101,8 @@ AGENT_FILES = {
     "claude": (".claude/agents/worker.md", ".claude/agents/reviewer.md"),
     "copilot": (".github/agents/worker.agent.md",
                 ".github/agents/reviewer.agent.md"),
+    "opencode": (f"{OPENCODE_DIR}/agents/worker.md",
+                 f"{OPENCODE_DIR}/agents/reviewer.md"),
 }
 
 MODEL_UNSET = {
@@ -108,6 +110,7 @@ MODEL_UNSET = {
                "spawns it\n(a cheaper one where it can), and the reviewer "
                "on the session's model."),
     "copilot": "the sub-agent runs on the session's model.",
+    "opencode": "the sub-agent inherits the session's model.",
 }
 
 MODEL_VERIFY = {
@@ -115,4 +118,7 @@ MODEL_VERIFY = {
               "the change.",
     "copilot": "A session reads agent files when it starts; new sessions "
                "use the change.",
+    "opencode": "Then run `opencode debug agents` and confirm both agents "
+                "show the model;\n   the background service can show the old "
+                "config for a moment, so rerun\n   it once if not.",
 }

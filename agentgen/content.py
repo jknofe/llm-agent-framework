@@ -354,6 +354,35 @@ def render_opencode_reviewer() -> str:
             "---\n"
             f"{body}")
 
+def render_worker_agent() -> str:
+    """The worker sub-agent of /task do (CONCEPT.md section 56). It carries no
+    `model:` line: /agent-models adds one when the user picks a model, and
+    without one the harness default applies. Its body only points at
+    work.md, the worker's contract, which stays harness-neutral."""
+    return render.fill(
+        "agents/worker.md",
+        desc=("Works the steps of a task for /task do, which supervises it. "
+              "Spawned by /task do only."),
+        task_dir=TASK_DIR)
+
+def render_opencode_worker() -> str:
+    """The worker as an OpenCode V2 sub-agent, with the default permissions
+    of a sub-agent: it edits, runs the tests and commits."""
+    desc, body = _split_frontmatter(render_worker_agent())
+    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+
+def render_copilot_agent(which: str) -> str:
+    """worker or reviewer as a Copilot custom agent (.github/agents/
+    <name>.agent.md). `description` is the one required key; the reviewer
+    gets the read-only tool aliases plus the shell, its tools on claude."""
+    source = (render_worker_agent() if which == "worker"
+              else render_reviewer_agent())
+    desc, body = _split_frontmatter(source)
+    tools = ('tools: ["read", "search", "execute"]\n'
+             if which == "reviewer" else "")
+    return (f'---\nname: {which}\ndescription: "{desc}"\n{tools}---\n'
+            f"{body}")
+
 def render_opencode_plugin() -> str:
     return render.load("hooks/opencode_plugin.js")
 

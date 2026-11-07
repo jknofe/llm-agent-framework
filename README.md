@@ -303,9 +303,9 @@ stdout; only where they live and how they are registered differs:
 
 - `reviewer` and `worker` are the two sub-agents of `/task do`: the
   fresh-context adversarial reviewer of its review gate, and the worker that
-  does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`
-  and `.github/agents/{reviewer,worker}.agent.md`; on opencode only the
-  reviewer has one, `.opencode/agents/reviewer.md`.
+  does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`,
+  `.opencode/agents/{reviewer,worker}.md` and
+  `.github/agents/{reviewer,worker}.agent.md`.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
@@ -443,34 +443,35 @@ Claude Code's slash commands:
   `.opencode/plugins/llm-agent.js` (needs `python3`)
 
 Two differences from Claude Code: OpenCode has no per-command `effort`, and a
-sub-agent cannot be given a model when it is spawned. The turn-end `.ai` check
-uses a hook OpenCode marks experimental.
+sub-agent cannot be given a model when it is spawned, so set the worker's with
+[`/agent-models`](#sub-agent-models). The turn-end `.ai` check uses a hook
+OpenCode marks experimental.
 
-### Cheaper sub-agents on OpenCode
+## Sub-agent models
 
-The `/task do` worker is OpenCode's built-in `general` sub-agent. Unless it
-has a model of its own, it inherits the session's model, so the worker runs
-on the same tier as its supervisor. Give it a cheaper one per agent:
+`/agent-models` sets which model the `worker` and `reviewer` sub-agents run
+on in this project. It writes one `model:` line into their agent files, the
+one mechanism every harness shares:
 
-```json
-{
-  "agents": {
-    "general":  { "model": "claude-agent/haiku" },
-    "reviewer": { "model": "claude-agent/sonnet" }
-  }
-}
+```
+/agent-models worker=haiku reviewer=sonnet                              # Claude Code
+/agent-models worker=claude-agent/haiku reviewer=claude-agent/sonnet    # OpenCode
+Run agent-models worker=<id> reviewer=<id>: read .github/prompts/agent-models.prompt.md and follow it.   # Copilot CLI
 ```
 
-- Put it in a project-root `opencode.json` for one repository, or in
-  `~/.config/opencode/opencode.json` for all of them. Not in
-  `.opencode/opencode.json`: the framework owns that file.
-- Keep `reviewer` on a strong model; it is the review gate. Without an entry
-  it inherits the session's model.
-- Model names depend on your provider: take them from `opencode models`.
-- Check what applies with `opencode debug agents`. The background service
-  may show the previous config for a moment after you edit the file.
-- A cheaper worker can need more rounds: the supervisor sends back what does
-  not hold.
+- Without an argument it shows both, says what an unset line means on this
+  harness, lists the names it accepts, and asks. `default` removes the line.
+- Model names are the harness's own: Claude Code aliases (`sonnet`, `haiku`,
+  ...) or full IDs, `opencode models` output for OpenCode, the IDs of
+  Copilot's model picker.
+- Without a `model:` line the worker runs on a cheaper model where the
+  harness can pick one at spawn (Claude Code), else on the session's model
+  (OpenCode, Copilot); the reviewer runs on the session's model.
+- Keep the reviewer at least as strong as the worker: it is the gate that
+  catches what a cheaper worker gets wrong, and a cheaper worker can need
+  more rounds.
+- The agent files belong to the framework; `/framework-update` keeps your
+  `model:` line. On OpenCode, `opencode debug agents` shows what applies.
 
 ## Hermes (dropped in 10.0)
 

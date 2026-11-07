@@ -464,6 +464,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                   force, created, skipped)
         write(opencode / "agents" / "reviewer.md",
               render_opencode_reviewer(), force, created, skipped)
+        write(opencode / "agents" / "worker.md",
+              render_opencode_worker(), force, created, skipped)
         write(opencode / "plugins" / "llm-agent.js",
               render_opencode_plugin(), force, created, skipped)
         write(opencode / "hooks" / "ai_repo_clean.py",
