@@ -448,6 +448,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                   force, created, skipped)
         write(root / ".claude" / "agents" / "reviewer.md",
               render_reviewer_agent(), force, created, skipped)
+        write(root / ".claude" / "agents" / "worker.md",
+              render_worker_agent(), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "hooks" / "git_guard.py",
@@ -462,6 +464,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                   force, created, skipped)
         write(opencode / "agents" / "reviewer.md",
               render_opencode_reviewer(), force, created, skipped)
+        write(opencode / "agents" / "worker.md",
+              render_opencode_worker(), force, created, skipped)
         write(opencode / "plugins" / "llm-agent.js",
               render_opencode_plugin(), force, created, skipped)
         write(opencode / "hooks" / "ai_repo_clean.py",
@@ -472,10 +476,13 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_opencode_config(), force, created, skipped)
     else:
         for fname, content in render_prompt_files(
-                command_specs(harness, "${input:focus}",
-                              "${input:ticket}")).items():
+                command_specs(harness, "${input:focus}", "${input:ticket}",
+                              "${input:models}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
+        for which in ("worker", "reviewer"):
+            write(root / ".github" / "agents" / f"{which}.agent.md",
+                  render_copilot_agent(which), force, created, skipped)
         write(root / COPILOT_HOOKS_DIR / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / COPILOT_HOOKS_DIR / "git_guard.py",

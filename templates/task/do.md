@@ -38,15 +38,21 @@ pull request, waiting for CI, a run in a dev environment. You stand in for
 the user: you answer its questions, review its code before it ships, and
 decide. You never do the work yourself: no host edit, commit or push, not
 even to fix a review finding; that goes back to the worker.
-The worker is a fresh general-purpose sub-agent of your harness, never one
-that inherits this conversation: it knows only the files, so anything the
-user told you that the work depends on goes into the task's Notes before
-it starts. Spawn it on a cheaper model than yours where the harness lets
-you pick one, with this whole prompt: `You are the worker for task <id>.
-Read ${task_dir}/work.md and follow it.` Work steps 2 to 5 yourself only
-when the user asked for `inline` or no sub-agent can be spawned (you are
-one yourself, or the harness has none). Say which way in one line before
-you start.
+The worker is a fresh `worker` sub-agent, the agent the framework defines
+beside `reviewer`, never one that inherits this conversation: it knows
+only the files, so anything the user told you that the work depends on
+goes into the task's Notes before it starts. Spawn it with this whole
+prompt: `You are the worker for task <id>. Read ${task_dir}/work.md and
+follow it.` If its agent file has a `model:` line, the user chose that
+model (`/agent-models`): pass none at spawn. Otherwise pick a cheaper model
+than yours where the harness lets you. Without a `worker` agent, use a
+fresh general-purpose sub-agent the same way.
+Work steps 2 to 5 yourself instead when the user asked for `inline`, when
+no sub-agent can be spawned (you are one yourself, or the harness has
+none), or when the task is small: you expect a host diff under ~30 lines,
+the same size the review gate checks inline, or no host change at all (an
+investigation, a test campaign that only records findings). Say which way
+in one line before you start, and for a small task why.
 While the worker runs, change no file: wait for its report, the `Worker
 round` line it ends with. Judge each report from the files, never from
 the worker's message: the report line and every new Finding (a step
@@ -80,8 +86,9 @@ harness can send a message to a sub-agent that has reported; tell it to
 read Findings and go on. Otherwise spawn a fresh worker with the same
 prompt: the file holds everything it needs. When the worker reports
 `done` and you accept it, append `- <today> Delegation: <model>,
-<reports> report(s), <done|taken over|blocked>` to Findings and go on at
-step 7. The Outcome, the notes, the Done-when ticks and `finish` are
+<reports> report(s), <done|taken over|blocked>` to Findings, where
+`<model>` is the worker's model: its agent file's `model:` line, the one
+you passed, or `session model`. Then go on at step 7. The Outcome, the notes, the Done-when ticks and `finish` are
 yours.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
