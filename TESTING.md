@@ -90,6 +90,13 @@ themselves.
    artifacts must stay ecosystem-neutral; named linters are allowed only as
    diverse example lists.
 
+## Harness benchmark (optional, on request)
+
+`tests/harness-benchmark.md` compares Claude Code and OpenCode on the same
+satty tasks, models and effort, with the scripts in `tests/harness-bench/`.
+It writes only outside the repository and is not part of any gate; run it
+when a harness or model question needs numbers.
+
 ## Layer 2: Agent behavior (behavior changes)
 
 Run the affected cases of [tests/task-commands.md](tests/task-commands.md)

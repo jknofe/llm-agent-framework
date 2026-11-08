@@ -109,7 +109,8 @@ Full procedure: **[TESTING.md](TESTING.md)**. The short version:
 - Layer 2 (behavior changes): run the affected cases of
   `tests/task-commands.md` on a live repo, and rerun a failed case after the
   fix before committing. The benchmark tree is gone (CONCEPT.md Part II says
-  where it is in git history).
+  where it is in git history); the harness benchmark in
+  `tests/harness-benchmark.md` is the one comparison kept runnable.
 
 Non-negotiables: never scaffold into this repo root; judge an agent run from
 the files, the `.ai` log and the transcript, never from the agent's summary;
