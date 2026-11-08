@@ -26,6 +26,9 @@ Keep the reviewer at least as strong as the worker: it is the gate that
 catches what a cheaper worker gets wrong. If the user asks for the
 reverse, say so once, then do as asked.
 
+Effort is not set here: both sub-agents think at the session's effort
+level, the supervisor's, on every harness.
+
 The two files belong to the framework; `/framework-update` keeps a
 `model:` line in them as the user's choice.
 
