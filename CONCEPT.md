@@ -4071,3 +4071,15 @@ one-line reason names that count (`Inline: 1 of 3 steps edits a host
 file.`), which also makes the decision checkable. Neither run counts as a
 benchmark run; the pilot's content results were 6 of 6 on both
 harnesses.
+
+**Effort is inherited, 2026-11-08.** The first counted benchmark round
+recorded the effort each role ran at: the supervisor at `medium` on both
+harnesses, but Claude Code's `reviewer` at `high` (its agent file pinned
+it) and OpenCode's two sub-agents at the `default` variant (a model pinned
+without a variant does not take the session's). The owner's call: the
+sub-agents inherit the supervisor's effort. The Claude `reviewer` loses its
+`effort: high`, so it follows the session like the `worker`; on OpenCode
+`/agent-models` writes the model with the session's variant
+(`claude-agent/haiku#medium`). Copilot CLI keeps a sub-agent's effort in the
+user's settings (`/subagents`), not in the agent file, so the framework
+sets none there.

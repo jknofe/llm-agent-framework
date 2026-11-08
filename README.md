@@ -470,6 +470,10 @@ Run agent-models worker=<id> reviewer=<id>: read .github/prompts/agent-models.pr
 - Keep the reviewer at least as strong as the worker: it is the gate that
   catches what a cheaper worker gets wrong, and a cheaper worker can need
   more rounds.
+- Effort is inherited: both sub-agents think at the session's effort
+  level. On OpenCode the model is written with the session's variant
+  (`claude-agent/haiku#medium`), because a pinned model without one runs at
+  OpenCode's default variant.
 - The agent files belong to the framework; `/framework-update` keeps your
   `model:` line. On OpenCode, `opencode debug agents` shows what applies.
 
