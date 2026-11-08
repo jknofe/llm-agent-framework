@@ -51,10 +51,11 @@ Work steps 2 to 5 yourself instead when the user asked for `inline`, when
 no sub-agent can be spawned (you are one yourself, or the harness has
 none), or when the task is small: at most one of its open steps changes
 a host file, or none does (an investigation, a test campaign that only
-records findings). Count the steps in the task file; do not judge size
-any other way, and documentation counts like code. Say which way in one
-line before you start, naming the count: `Inline: 1 of 3 steps edits a
-host file.` or `Worker: 3 of 4 steps edit host files.`
+records findings). Count the steps in the task file, not the files they
+touch: two steps that edit the same file are two steps. Do not judge size
+any other way, and documentation counts like code. Your first line, before
+any other tool call, names the decision and the count: `Inline: 1 of 3
+steps edits a host file.` or `Worker: 3 of 4 steps edit host files.`
 While the worker runs, change no file: wait for its report, the `Worker
 round` line it ends with. Judge each report from the files, never from
 the worker's message: the report line and every new Finding (a step
