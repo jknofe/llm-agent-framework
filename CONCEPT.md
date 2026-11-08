@@ -4083,3 +4083,16 @@ sub-agents inherit the supervisor's effort. The Claude `reviewer` loses its
 (`claude-agent/haiku#medium`). Copilot CLI keeps a sub-agent's effort in the
 user's settings (`/subagents`), not in the agent file, so the framework
 sets none there.
+
+**Equal-effort round and a wording fix, 2026-11-08.** With every role at
+`medium` on both harnesses (verified from Claude's requests and OpenCode's
+session records), 3 runs each: 18/18 tasks on both, 17/18 correct
+inline/worker decisions on both. The two misses: OpenCode counted "2 of 4
+steps edit a host file (both in README.md, one file)" and went inline,
+reading the rule as files, as Claude Code had in the first round; Claude
+Code stated no decision and did the work itself. Do now says to count
+steps, not the files they touch (two steps on one file are two), and that
+the decision line comes first, before any other tool call. Cost per run,
+list-price estimate: Claude Code $2.18 (2.02 to 2.30), OpenCode $1.23
+(1.21 to 1.36); wall time per run overlapped (Claude Code 514 to 750 s,
+OpenCode 552 to 609 s), so the earlier time difference did not hold.
