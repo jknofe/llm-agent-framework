@@ -4058,3 +4058,14 @@ before the worker's and `Delegation: reviewer sub-agent`. A model following
 `work.md` loosely, not the model setting; Claude Code and OpenCode on Sonnet
 kept the roles apart. Copilot asks before each command and file edit, so
 the run needed per-prompt approval.
+
+**Fix from the benchmark pilot, 2026-11-08.** In the pilot of the harness
+benchmark (satty, Sonnet session, Haiku `worker`, Sonnet `reviewer`), both
+Claude Code and OpenCode worked two README changes of about 110 lines inline,
+with the same words: "Small docs-only task, so I'm doing it inline." The rule
+said small meant an expected diff under ~30 lines; both read it as a kind of
+task, not a size. Do now says small is a line count estimated from the
+steps, that documentation counts like code, and that a change the review
+gate may call mechanical is still delegated by its size; the one-line
+reason names the expected line count. The pilot does not count as a
+benchmark run; its content results were 6 of 6 on both harnesses.
