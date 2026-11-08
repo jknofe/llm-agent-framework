@@ -346,11 +346,11 @@ line is written, and the task still ends with a `Review:` line.
 
 **TC-D8: a small task is worked inline** (11.6)
 
-`/task do <id>` on a task whose change is one or two lines, without
-`inline`.
+`/task do <id>` on a task where at most one step edits a host file,
+without `inline`.
 
-Pass when the supervisor says in one line that it works inline and why
-(small task), no worker runs, the task ends `done` with a `Review: inline`
+Pass when the supervisor says in one line that it works inline and names
+the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
 line, and no `Worker round` line is written.
 
 ### /agent-models (11.6)

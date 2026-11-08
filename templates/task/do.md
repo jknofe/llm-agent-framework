@@ -49,14 +49,12 @@ than yours where the harness lets you. Without a `worker` agent, use a
 fresh general-purpose sub-agent the same way.
 Work steps 2 to 5 yourself instead when the user asked for `inline`, when
 no sub-agent can be spawned (you are one yourself, or the harness has
-none), or when the task is small: you expect a host diff under ~30 lines,
-the same size the review gate checks inline, or no host change at all (an
-investigation, a test campaign that only records findings). Small is a
-line count, estimated from the steps before you start: documentation
-counts like code, so a README section of 80 lines is not small, and a
-change the review gate may call mechanical is still delegated by its
-size. Say which way in one line before you start, and for a small task
-the expected line count.
+none), or when the task is small: at most one of its open steps changes
+a host file, or none does (an investigation, a test campaign that only
+records findings). Count the steps in the task file; do not judge size
+any other way, and documentation counts like code. Say which way in one
+line before you start, naming the count: `Inline: 1 of 3 steps edits a
+host file.` or `Worker: 3 of 4 steps edit host files.`
 While the worker runs, change no file: wait for its report, the `Worker
 round` line it ends with. Judge each report from the files, never from
 the worker's message: the report line and every new Finding (a step

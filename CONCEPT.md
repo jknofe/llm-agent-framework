@@ -172,8 +172,8 @@ resume a sub-agent, or spawns a fresh one that reads the file. The
 supervisor never edits host code, commits or pushes, not even to fix a
 review finding; it takes over only when the user says so, and works the
 steps itself only for `inline`, where no sub-agent can be spawned, or for
-a small task: an expected host diff under ~30 lines, the inline review
-size, or no host change at all (section 56). The
+a small task: at most one open step changes a host file, or none does
+(section 56). The
 Outcome, the notes, the Done-when ticks and `finish` are its own. The
 worker never ticks a done-when box, never writes Outcome, notes or the
 review line, and never merges into the default branch.
@@ -459,7 +459,7 @@ generalized; their evidence carries over unchanged.
 v11.6 (2026-11-07, a `worker` agent and `/agent-models`, section 56. The
 `/task do` worker is a `worker` agent defined beside `reviewer` on every
 harness; `/agent-models` sets the `model:` line of either, the same way
-everywhere. A small task, under ~30 lines of diff or no host change, is
+everywhere. A small task, at most one open step that edits a host file, is
 worked inline.)
 
 v11.5 (2026-11-07, OpenCode as a third harness, section 55. `--harness
@@ -3895,9 +3895,8 @@ three share is a `model:` line in an agent definition, which is how
   the harness accepts and asks; with arguments it changes only the `model:`
   line, and `default` removes it. `/framework-update` keeps that line as the
   user's choice.
-- Small tasks inline: Do works the steps itself when it expects a host diff
-  under ~30 lines, the inline review size, or no host change at all, and says
-  why in one line. The 11.3 rule delegated everything except `inline`, and the
+- Small tasks inline: Do works the steps itself when at most one open step
+  changes a host file, or none does, and names that count in one line. The 11.3 rule delegated everything except `inline`, and the
   section 55 benchmark found both harnesses working 3 of 4 tasks inline
   anyway; a rule the agents ignore is worse than a rule that matches them.
 - Copilot's `AGENTS.md` CLI note lost two redundant lines to stay under 650
@@ -3938,8 +3937,11 @@ benchmark (satty, Sonnet session, Haiku `worker`, Sonnet `reviewer`), both
 Claude Code and OpenCode worked two README changes of about 110 lines inline,
 with the same words: "Small docs-only task, so I'm doing it inline." The rule
 said small meant an expected diff under ~30 lines; both read it as a kind of
-task, not a size. Do now says small is a line count estimated from the
-steps, that documentation counts like code, and that a change the review
-gate may call mechanical is still delegated by its size; the one-line
-reason names the expected line count. The pilot does not count as a
-benchmark run; its content results were 6 of 6 on both harnesses.
+task, not a size. A first fix asked for an estimated line count; in the
+next run OpenCode still said "This is a small task, so I'll handle it
+inline" without a count. So small is now read off the task file, not
+estimated: at most one open step changes a host file, or none does. The
+one-line reason names that count (`Inline: 1 of 3 steps edits a host
+file.`), which also makes the decision checkable. Neither run counts as a
+benchmark run; the pilot's content results were 6 of 6 on both
+harnesses.

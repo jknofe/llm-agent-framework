@@ -223,7 +223,7 @@ Every harness invokes them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent on a cheaper model works the steps under the session's supervision; a small task (under ~30 lines of diff, or no host change) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent on a cheaper model works the steps under the session's supervision; a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
@@ -329,7 +329,7 @@ whole job; the session you talk to is its lead and stands in for you.
 - **The worker** is the `worker` sub-agent, on the model its agent file
   pins (see [Sub-agent models](#sub-agent-models)), else on a cheaper model
   than the session's where the harness lets the agent pick one. A small
-  task, under ~30 lines of diff or no host change, gets no worker: the
+  task, where at most one step edits a file, gets no worker: the
   session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
   `.ai/agent/task/work.md`. It does every step the task names: the code,
   the tests, and after them the branch, commit, push, pull request,
