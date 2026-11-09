@@ -319,29 +319,6 @@ def render_reviewer_agent() -> str:
                      "Done when, Findings,\nOutcome) plus the code diff, "
                      "if the task changed code."))
 
-def render_worker_agent() -> str:
-    """The worker sub-agent of /task do (CONCEPT.md section 55). It carries no
-    `model:` line: /agent-models adds one when the user picks a model, and
-    without one the harness default applies. Its body only points at
-    work.md, the worker's contract, which stays harness-neutral."""
-    return render.fill(
-        "agents/worker.md",
-        desc=("Works the steps of a task for /task do, which supervises it. "
-              "Spawned by /task do only."),
-        task_dir=TASK_DIR)
-
-def render_copilot_agent(which: str) -> str:
-    """worker or reviewer as a Copilot custom agent (.github/agents/
-    <name>.agent.md). `description` is the one required key; the reviewer
-    gets the read-only tool aliases plus the shell, its tools on claude."""
-    source = (render_worker_agent() if which == "worker"
-              else render_reviewer_agent())
-    desc, body = _split_frontmatter(source)
-    tools = ('tools: ["read", "search", "execute"]\n'
-             if which == "reviewer" else "")
-    return (f'---\nname: {which}\ndescription: "{desc}"\n{tools}---\n'
-            f"{body}")
-
 def render_opencode_reviewer() -> str:
     """The same reviewer as an OpenCode V2 agent: a sub-agent by frontmatter,
     with edits denied where the claude agent lists its read-only tools."""

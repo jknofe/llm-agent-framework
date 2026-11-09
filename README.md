@@ -400,32 +400,6 @@ therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
 `Run task do FEAT-42: read .github/prompts/task.prompt.md and follow it.`
 
-## Sub-agent models
-
-`/agent-models` sets which model the `worker` and `reviewer` sub-agents run
-on in this project. It writes one `model:` line into their agent files, the
-one mechanism both harnesses share:
-
-```
-/agent-models worker=haiku reviewer=sonnet                              # Claude Code
-Run agent-models worker=<id> reviewer=<id>: read .github/prompts/agent-models.prompt.md and follow it.   # Copilot CLI
-```
-
-- Without an argument it shows both, says what an unset line means on this
-  harness, lists the names it accepts, and asks. `default` removes the line.
-- Model names are the harness's own: Claude Code aliases (`sonnet`, `haiku`,
-  ...) or full IDs, the IDs of Copilot's model picker.
-- Without a `model:` line the worker runs on a cheaper model where the
-  harness can pick one at spawn (Claude Code), else on the session's model
-  (Copilot); the reviewer runs on the session's model.
-- Keep the reviewer at least as strong as the worker: it is the gate that
-  catches what a cheaper worker gets wrong, and a cheaper worker can need
-  more rounds.
-- Effort is inherited: both sub-agents think at the session's effort
-  level.
-- The agent files belong to the framework; `/framework-update` keeps your
-  `model:` line.
-
 ## OpenCode support
 
 Choosing `opencode` at the harness prompt targets OpenCode V2 (written and
