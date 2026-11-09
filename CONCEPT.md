@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.11.** The framework rests on four premises, stated in
+**State: 2026-11-09, v12.0.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -464,14 +464,13 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
-v11.11 (2026-11-09, no commit on the default branch unasked, section 61.
-Rule 5 and the worker's contract now name committing, not only merging;
-protocol only, no hook, so the user can still ask for it. Force-pushing is
-asked about only for the default branch.)
-
-v11.10 (2026-11-09, OpenCode model test, section 60. `init-agent --models`
-tests an OpenCode name the way it tests a Claude Code one, and also checks
-that the sub-agent ran on the model the file names.)
+v12.0 (2026-11-09, OpenCode model test and default-branch rules, sections
+60 and 61. `init-agent --models` tests an OpenCode name the way it tests a
+Claude Code one, and also checks that the sub-agent ran on the model the
+file names. Rule 5 and the worker's contract name committing on the default
+branch, not only merging into it; protocol only, no hook, so the user can
+still ask for it. Force-pushing is asked about only for the default branch,
+and destructive work only when nobody asked for it.)
 
 v11.9 (2026-11-09, sub-agent models are explicit, section 59. `/task do`
 refuses unless the `worker` and the `reviewer` each have a model in their
@@ -4212,7 +4211,7 @@ impossible. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` overrides the files and the
 framework cannot see it. Layer 2: TC-M1 and TC-M2 in
 `tests/task-commands.md` are written, not yet run on a live repo.
 
-## 60. OpenCode model test (2026-11-09, v11.10)
+## 60. OpenCode model test (2026-11-09, v12.0)
 
 **Source.** Section 59 shipped `init-agent --models` with a sub-agent test on
 Claude Code only; OpenCode got the line and a note. The owner asked for full
@@ -4285,7 +4284,7 @@ beside it, not part of this change: the OpenCode worker committed on the
 default branch. No rule forbade it then: rule 5 and the git guard cover
 merging and pushing, not a local commit (section 61).
 
-## 61. No commit on the default branch unasked (2026-11-09, v11.11)
+## 61. No commit on the default branch unasked (2026-11-09, v12.0)
 
 **Source.** In the OpenCode TC-M2 run of section 60 the worker committed
 `wordstat` straight onto `main`; the Claude Code worker of the same case

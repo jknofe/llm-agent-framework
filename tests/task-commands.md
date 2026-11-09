@@ -335,7 +335,7 @@ Pass when all hold:
 - Findings end with a `Delegation: <model> ...` line; the supervisor
   ticked each criterion with `tasks.py tick`, wrote the Outcome, and
   `finish done` passed. Nothing merged into the default branch, and the
-  host's default branch got no commit (11.11): the worker committed on a
+  host's default branch got no commit (12.0): the worker committed on a
   feature branch (`git log <default>` unchanged).
 
 **TC-D7: inline when asked** (11.0, 11.2)
