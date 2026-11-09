@@ -318,7 +318,9 @@ repeat it.
 
 Execution (section 42): keep going while a step needs no input, with status
 notes in the same message as the next action; stop only when blocked on the
-user, when a workflow says so, or before anything destructive. An answered
+user, when a workflow says so, or before anything destructive nobody asked
+for; a change the user or a task step asked for, even to a production
+database, is the job (section 61). An answered
 question stays settled unless the user reopens it. Every run ends with the
 headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 `.ai/notes.md`.
@@ -4311,6 +4313,20 @@ that request too, since it cannot tell an asked commit from an unasked one.
   among the destructive acts to ask about first, and `work.md` said "never
   force-push", which read as any branch; rewriting a feature branch is
   ordinary work. Both now name the default branch only.
+- `work.md`'s rule paragraph for the worker is about the default branch
+  only: work on a feature branch, and never commit on, merge into or
+  force-push the default branch unless a step names it; a step that needs
+  one without naming it is a `question`. The worker's former line "nothing
+  destructive or outside this repository unless a step names it" is gone
+  from `work.md` by the owner's decision: listing what lies outside read as
+  a ban on work that is the job, such as a change to a production database.
+- `AGENTS.md` Execution, which the worker also follows: stop and ask before
+  anything destructive "nobody asked for". Before, the list (deleting data,
+  changing anything outside this repository) had no such clause and pulled
+  toward stopping even when the change was the task, such as one to a
+  production database. A request from the user or a task step is the ask.
+  Three words, because the copilot `AGENTS.md` stood at 645 of its 650-word
+  budget; a sentence naming the production database did not fit.
 - Part I's enforcement paragraph states the exception to "a checkable rule
   gets a hook". The git guard is unchanged.
 - TC-D6 checks that the host repo's default branch got no commit.

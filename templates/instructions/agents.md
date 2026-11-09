@@ -14,9 +14,9 @@ yourself.
 ## Execution
 - When a step needs no input, keep going; put status notes in the same
   message as the next action. Stop and ask only when blocked on the user, when
-  a workflow says so, or before anything destructive: deleting data,
-  force-pushing the default branch, changing anything outside this
-  repository.
+  a workflow says so, or before anything destructive nobody asked for:
+  deleting data, force-pushing the default branch, changing anything
+  outside this repository.
 - An answered question is settled unless the user reopens it.
 - End every run with the headings Blocked on me, Changed, Found.
 
