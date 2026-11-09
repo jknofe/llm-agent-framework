@@ -136,6 +136,11 @@ file list retires nothing and prints what to remove by hand.
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
+   The work itself, through to the pull request, goes to a cheaper-model
+   worker, a sub-agent of the harness that starts fresh from the task
+   file; the session you talk to reviews, answers and decides for you (see
+   [Supervised workers](#supervised-workers)). `/task do BUG-7 inline`
+   keeps the work in your session.
    Findings the repository cannot state go into `notes.md`. The agent never
    starts a task plan on its own.
 4. **See where things stand**: `/task list` prints every live task as
@@ -182,8 +187,8 @@ small one, and it is now the only shape the generator emits:
 - **Five skills**, listed under [Skills](#skills).
 - **Kept from the framework machinery:** the `reviewer` subagent, the
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
-  (command and documentation detection), and `tasks.py` (the task table,
-  the create-or-do resolver, and `start`/`finish`, the status bookkeeping of
+  (command and documentation detection), `tasks.py` (the task table,
+  the create-or-do resolver, and `start`/`tick`/`finish`, the bookkeeping of
   `/task do`).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
@@ -217,7 +222,7 @@ Both harnesses invoke them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>]` | Opt-in. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline]` | Opt-in. A cheaper-model worker works the steps under the session's supervision (`inline`: the session works them itself). Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
@@ -307,6 +312,61 @@ Hooks only fire when the scaffolded repo is the session's working directory
 the agent from a parent directory, a monorepo subdir, or a sub-agent means
 the hooks do not run; in that case the protocol rules in `AGENTS.md` are the
 only guarantee, so commit `.ai` by hand and do not assume a hook ran.
+
+## Supervised workers
+
+`/task do` runs as two roles, after Google's Elephant-Goldfish Model
+(CONCEPT.md sections 50 and 53). The worker is a junior who does the
+whole job; the session you talk to is its lead and stands in for you.
+
+- **The worker** is the harness's own general-purpose sub-agent, spawned
+  on a cheaper model than the session's where the harness lets the agent
+  pick one. It starts fresh and knows only `notes.md`, the task file and
+  `.ai/agent/task/work.md`. It does every step the task names: the code,
+  the tests, and after them the branch, commit, push, pull request,
+  waiting for CI, dev runs, a tracker comment. Before code ships it asks
+  for a review. It reports with a `Worker round <n>` line in Findings:
+  `review`, `question`, `stuck` or `done`.
+- **The supervisor** answers those reports and does none of the work: it
+  reviews the diff before it ships (the `reviewer` sub-agent for a large
+  one), answers questions as you would from the task file, and asks you
+  only what it cannot decide for you: a changed goal or criterion, a
+  merge, production, deleting data. It trusts CI and the evidence in
+  Findings, and reruns the tests only when that evidence is missing or
+  doubtful. A review finding goes back to the worker as a `Supervisor
+  round` line. The Outcome, `notes.md`, the done-when ticks and `finish`
+  stay with the supervisor.
+
+After a report the supervisor continues the same worker where the harness
+can resume a sub-agent (Claude Code), and spawns a fresh one that reads
+the task file otherwise. It works the steps itself only with `/task do
+<id> inline`, when it cannot spawn a sub-agent, or when you tell it to
+take over. To have the worker run somewhere else, for example in a
+terminal pane you can watch, say so when you start `/task do`. The
+worker's commits, pushes and pull requests go through the same guards as
+yours: the git guard hook blocks a merge into the default branch, and
+`AGENTS.md` stops every agent at the branch or pull request. Delegation
+is not claimed to be cheaper: reviews and decisions stay on your model.
+
+## Parallel tasks
+
+Two `/task create` or `/task do` sessions can run side by side in the same
+project, for example in two terminals, each with its own worker sub-agent
+(CONCEPT.md section 51). Nothing to switch on:
+
+- The first running task holds `.ai/.current`; a task started while it
+  runs gets `.ai/.current-<id>`, and `tasks.py start` names every task
+  already running and the files it has claimed. `/task list` marks all
+  running tasks.
+- Before editing a file, a task claims it: `python3
+  .ai/agent/tools/tasks.py claim <id> <path>...`. A file another running
+  task claimed is refused, so two tasks never edit the same file.
+- `.ai` commits name their own paths (`git -C .ai add tasks/<id>`), never
+  `add -A`, so one session never commits the other's half-written files.
+
+Both tasks still share one working tree: a test run sees the other task's
+unfinished edits. Give parallel tasks disjoint files, and expect a
+failure in a file the other task claimed to be its business, not yours.
 
 ## GitHub Copilot support
 

@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-02, v10.6.** The framework rests on four premises, stated in
+**State: 2026-11-05, v11.4.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -11,7 +11,7 @@ candidate for removal.
   and Part I disagree, Part I is right and the template is a bug.
 - **Part II** is what has been measured, one line per round, with what each
   round decided. It is why Part I says what it says.
-- **Part III** is the revision history, sections 1 to 44, unchanged and
+- **Part III** is the revision history, sections 1 to 53, unchanged and
   numbered as they always were, because other documents cite those numbers.
   Many of them describe a framework that no longer exists; the ones that were
   explicitly retired are listed at the top of Part III. History is kept
@@ -146,6 +146,34 @@ leaves one line in Findings naming the review that ran. It sets `done` only
 with every done-when criterion ticked, then distills what the repository
 cannot state into `.ai/notes.md`.
 
+Since 11.0 `/task do` splits into two roles, after Google's
+Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
+job and the supervisor none of it (section 53). The worker is the
+harness's own fresh general-purpose sub-agent, spawned on a cheaper model
+than the session's where the harness lets the agent pick one, and knows
+only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
+every step the task names: the code, the tests, then the branch, commit,
+push, pull request, the wait for CI, a dev run, a tracker comment. Before
+code ships it reports `review`; it also stops at `question`, `stuck` and
+`done`, each a `Worker round <n>` line in Findings. The session that ran
+`/task do` is the supervisor and stands in for the user: it reviews the
+uncommitted diff before it ships (the review gate), answers a question as
+the user would from the task file, and asks the user only what it cannot
+decide for them (a changed Goal or criterion, a merge, production,
+deleting data). It judges each report from the files and trusts recorded
+evidence, a CI result or a command with its output, rerunning the tests
+only when that evidence is missing or doubtful. A worker's `done` is a
+claim, not a gate result. Corrections and answers go into Findings as
+`Supervisor round <n>` lines, an accepted review as a `Supervisor check`
+line; then the supervisor continues the same worker where the harness can
+resume a sub-agent, or spawns a fresh one that reads the file. The
+supervisor never edits host code, commits or pushes, not even to fix a
+review finding; it takes over only when the user says so, and works the
+steps itself only for `inline` or where no sub-agent can be spawned. The
+Outcome, the notes, the Done-when ticks and `finish` are its own. The
+worker never ticks a done-when box, never writes Outcome, notes or the
+review line, and never merges into the default branch.
+
 `/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
 a task leaves the working view. A script (`tasks.py`) produces the whole
@@ -158,8 +186,10 @@ agent only shows the output; it opens no file. Outside any agent,
 involved.
 
 The task's bookkeeping is the same script: `tasks.py start <id>` sets
-`in-progress` and writes the resume pointer `.ai/.current`, and `tasks.py
-finish <id> done|blocked [reason]` closes it. `finish done` refuses while a
+`in-progress` and writes the resume pointer `.ai/.current`, `tasks.py tick
+<id> done|steps <n>...` ticks the named criteria or steps, and `tasks.py
+finish <id> done|blocked [reason]` closes it. `tick` has no "all": every
+box is named on purpose (section 50). `finish done` refuses while a
 criterion is unticked or the review line is missing, so the gate the
 table flags afterwards is also enforced before. Neither commits; the agent
 commits `.ai` with the relative `git -C .ai` (section 44).
@@ -179,10 +209,30 @@ Rules that came from failures, not from theory:
 
 `status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
 index across parallel task directories. `.ai/.current` is the resume
-pointer, one per working tree, starting `task: <id>`. Parallel work is an
-intent that was never built and the framework claims nothing about it. A
-`depends:` line records that one task waits on another; it schedules
-nothing.
+pointer, starting `task: <id>`.
+
+Since 11.1 tasks run in parallel in one working tree (section 51): two
+`/task create` or `/task do` sessions side by side, each with its own
+worker sub-agent. Isolation is cooperative, not physical:
+- `tasks.py start` takes `.ai/.current` only while the task it names is
+  not running; otherwise it writes the task's own pointer
+  `.ai/.current-<id>` and prints every running task with its files
+  (`PARALLEL`).
+- A host file is claimed before it is edited, `tasks.py claim <id>
+  <path>...`, which refuses (`CLAIMED`) a file another running task
+  listed. Two tasks never edit the same file; the one that needs it asks
+  the user or waits.
+- Every `.ai` commit names its own paths (`git -C .ai add tasks/<id>`,
+  plus `notes.md` when changed), never `add -A`, which would sweep a
+  parallel session's half-written files; the turn-end hook names the
+  dirty paths instead of suggesting `add -A`.
+- A review judges the task's diff as `git diff --` its claimed files; a
+  file another running task claimed is not scope creep.
+What stays shared: one working tree and so one test run, which sees the
+other task's unfinished edits (a failure in a file another task claimed is
+recorded, not fixed), and `notes.md`. Git worktrees, the physical
+alternative, were rejected for now (section 51). A `depends:` line records
+that one task waits on another; it schedules nothing.
 
 ## Property 3: one command set
 
@@ -221,9 +271,9 @@ project's version and cannot know what the new version changed.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 725 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, and `start`/`finish`.
-- A claude scaffold records 13 framework files, a copilot one 12, counting the two `/task` parts under `.ai/agent/task/`.
+  `tasks.py`: 929 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
+- A claude scaffold records 14 framework files, a copilot one 13, counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -238,6 +288,13 @@ project's version and cannot know what the new version changed.
   none supported it.
 - **Not proven more correct.** The evidence is split and the only measured
   correctness loss was caused by the framework's own spec.
+- **Not proven cheaper by delegation.** The cheaper worker tier lowers the
+  price of the steps, but the reviews, the decisions and the reading of
+  each report stay on the session's model. Section 23 measured a
+  same-tier worker at +35% tokens; a harness that cannot pick the
+  sub-agent's model pays that. The
+  two live runs of section 50 are evidence that the split works, not a
+  cost result.
 - **Not measured on anything but code changes.** Every benchmark task was a
   change with a gate. The bug, investigation and test types rest on the
   organizational argument of section 39, not on a round.
@@ -269,7 +326,8 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
-4. `.ai/.current` is the resume pointer; read it at session start.
+4. `.ai/.current` is the resume pointer (`.ai/.current-<id>` for a task
+   running in parallel); read it at session start.
    `/task do` (except an investigation, run in one go by `/task create`)
    and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
@@ -349,6 +407,8 @@ to that commit.
 | `seq-sonnet5-medium-2026-09-14` | Three tasks, two arms, three reps, hidden tests | Marginal cost of tasks 2+3: +74%, +160%, +136%. Amortization failed 0 of 3. One correctness loss from a spec criterion naming a single test. Made spec and build opt-in (v6.1). |
 | `v7-vs-6.1-sonnet5-medium-2026-09-14` | 7.0 against 6.1, framework arm and context-only arm | All four PASS, identical packages. 7.0 was 7% cheaper on one arm and 11% dearer on the other: noise. The useful number: the spec chain costs 2.1x to 2.5x the direct path. |
 | `constraint-sonnet5-medium-2026-09-14` | Does a stated non-derivable rule survive three sessions? 21 sessions, hidden constraint test | 18 of 18 gates passed. Constraint held F 6/6, B 5/6: no support under the pre-stated rule. The round cannot decide, because task N's output became task N+1's local precedent. `/explore` with a human answering landed the rule verbatim 3 of 3. |
+| `egm-live-opus5.5-2026-11-01` | `/task do` with a supervised cheaper worker (section 50), two tasks, n=1 each | Both done. Herdr worker (sonnet) ran in its own tab; a trust dialog forced the sub-agent fallback (haiku) once. Supervisor caught one wrong citation. No cost claim: no inline twin. |
+| `parallel-satty-opus5.5-2026-11-01` | Two `/task` sessions side by side in one tree, create then do (section 51) | Both pairs ran at once. Commits path-scoped, a `CLAIMED` refusal stopped a real collision, first live second round. One done, one blocked. |
 
 **Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
 navigation2) was withdrawn with the amortization thesis. `constraint-runbook.md`
@@ -376,9 +436,12 @@ section 36: **1** (Knowledge Base), **2** (Phases), **4** (Ticket lifecycle),
 selection), **21** (Explore-freshness guard). Retired by the v7.0 cut list in
 section 38: **15** (`/import-kb`), **22** (`/goal` as a documented mode, moved
 to the README), **25** (`/import-agent`), **26** (`/tidy-up`). Already marked
-removed in its own heading: **23** (Worker sub-agents). Retired by section
+removed in its own heading: **23** (Worker sub-agents), revived under its
+own conditions by section 50 for `/task do` only; read 23 for the evidence,
+50, 52 and 53 for what is in force. Retired by section
 43: **30** (Hermes as a third harness), and the Hermes parts of 32, 34, 35
-and 39.
+and 39. Retired by section 52: the Herdr worker, `delegate.py` and its
+model table in **50**, and the Herdr worker tabs of **51**.
 
 Everything else still describes current behavior, and sections 36 to 39
 are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
@@ -386,6 +449,50 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.4 (2026-11-05, an archived dependency is a cleared blocker, section
+54. `/task tree` drops a `depends:` id that names a task archived as done
+without a warning, flags one archived in another status as `archived as
+<status>, not done`, and one that names no task as `names no task`.)
+
+v11.3 (2026-11-03, the worker does the whole job, section 53. The worker
+works every step the task names through to the pull request, CI and dev
+runs, asking for a review before code ships; the supervisor reviews,
+answers as the user would, asks the user only what it cannot decide, and
+does none of the work. Reports: `review`, `question`, `stuck`, `done`
+(`needs-user` gone). The supervisor resumes the same worker where the
+harness can, trusts CI and recorded evidence, and no longer works steps
+of small tasks itself. Runbook: TC-D6 rewritten, TC-D3 adjusted.)
+
+v11.2 (2026-11-03, the worker is the harness's own sub-agent, section 52.
+`delegate.py` and every Herdr path of `/task do` are gone: the supervisor
+spawns a fresh general-purpose sub-agent on a cheaper model where the
+harness lets it pick one, inline when asked, for two or fewer open steps,
+or when no sub-agent can be spawned. Supervision is unchanged. Removed:
+`delegate.py`, `tests/test_delegate.py`, the `delegate.py` and `herdr
+agent` permissions, `LLM_AGENT_WORKER_MODEL`. Runbook: TC-D6, TC-D7
+rewritten.)
+
+v11.1 (2026-11-01, parallel tasks in one working tree, section 51.
+`/task create` and `/task do` run side by side: a running task keeps
+`.ai/.current`, the next gets `.ai/.current-<id>`; `tasks.py claim`
+gives each host file one owner; every `.ai` commit is path-scoped, never
+`add -A`; the review judges the claimed files. Live test: both satty
+tasks planned and worked in parallel. Runbook: TC-P1. Also, from a report
+at work and the satty transcripts: a worker that stops is a question for
+the user. The supervisor asks first, edits no host code and keeps the
+worker tab open until the answer, and takes over only with agreement; a
+missing toolchain is `needs-user`, not `stuck`. Runbook: TC-D3.)
+
+v11.0 (2026-11-01, `/task do` on a supervised cheaper-tier worker, section
+50, after Google's Elephant-Goldfish Model. The `/task do` session
+supervises; a fresh worker on a cheaper model works steps 2 to 5 from
+`.ai/agent/task/work.md`, in a Herdr tab when the session runs inside
+Herdr, as a harness sub-agent otherwise. `delegate.py plan|launch|close`
+decides the mode and model; `inline` keeps the old path. `tasks.py tick`
+ticks named criteria and steps, no "all". New framework
+files: `delegate.py`, `task/work.md`. Test: `tests/test_delegate.py`;
+runbook: TC-D6, TC-D7.)
 
 v10.6 (2026-11-02, /task create asks for the tracker issue, section 49.
 Create's first question, in the same message as the type, is whether a
@@ -3243,3 +3350,422 @@ the tracker. Tests: `test_tasks_table.py` covers the INVALID key
 prefix, the CREATE note on an issue-prefixed id, and `trackers` with
 config, without config, and with a fake `gh`. Runbook: TC-C3 (asked,
 fetched, prefix, section), TC-C4 (declined, offered once, `none`).
+
+## 50. /task do on a supervised cheaper-tier worker (2026-11-01, v11.0)
+
+**Source.** Google's Elephant-Goldfish Model (EGM, open-sourced October
+2026, github.com/google/elephant-goldfish-model, Apache-2.0). Its roles:
+"Elephant holds your project context and drafts the specification.
+Goldfish reviewers examine the draft and referenced source material
+without the earlier conversation." A goldfish gets the document and the
+files it links, never the conversation; if the harness cannot spawn a
+fresh context the review stops, because "a review in the same context is
+not a Goldfish review." Findings flow back to the elephant, which fixes or
+contests each; loops are capped (five rounds, two clean rounds to
+converge). EGM itself applies the pattern to design review only and says
+nothing about model tiers. A third-party port (vshvedov/elephant-goldfish)
+carries it into implementation: a no-code gate, then the elephant builds
+and a goldfish reviews the diff.
+
+**The mapping.** The framework already had the EGM shape for review: the
+`/task do` gate's `reviewer` is a goldfish (task file and diff only). 11.0
+turns the same idea one step earlier and makes the worker the goldfish.
+The task file is EGM's design doc: written by `/task create` with the
+user, it is the whole input. The `/task do` session is the elephant: it
+holds the user, the notes and the verification history across rounds, and
+writes nothing but Findings, Outcome and notes. The worker starts with no
+conversation, which is the point: whatever the user said and the file
+does not hold, it cannot act on, so the supervisor must move it into Notes
+first, and a gap in the file becomes visible instead of being bridged by
+the session's memory. Corrections travel the way EGM's findings do, as
+written lines (`Supervisor round <n>`), capped at three rounds.
+
+**Why this is not section 23 again.** Section 23 removed worker sub-agents
+for two reasons and named the conditions for a revival. Each is met or
+stated:
+
+1. Harness leakage. The 5.12 prose named a claude-only agent. 11.0 names
+   no agent definition: a Herdr tab runs either harness's own CLI, and a
+   "fresh general-purpose sub-agent" exists on both; where none can be
+   spawned the supervisor works inline. `delegate.py` reads the harness
+   from the stamp, so the worker always runs under the scaffold's own
+   hooks and permissions.
+2. Cost at an equal tier (+35% tokens). 11.0 delegates only to a cheaper
+   tier than the session's model, and the supervisor checks that before
+   handing off. The brief costs nothing to build (the task file is the
+   brief), and the report is one Findings line.
+3. Ceremony on small work. Two or fewer open steps stay inline.
+
+Section 3's "the framework pins no tier" no longer holds for `/task do`:
+the script names a tier per task, the user overrides it with
+`LLM_AGENT_WORKER_MODEL`, and `inline` turns delegation off for one run.
+The tier is named by alias (`haiku`, `sonnet`) on claude so it does not
+go stale; copilot gets `auto` because its model ids churn, and since
+`auto` cannot be shown to be cheaper, a copilot supervisor works inline
+unless the user sets the variable.
+
+**Why Herdr first.** Inside Herdr the worker gets its own tab, so the user
+sees it work and can step in. A permission prompt in that tab is the
+user's to answer, and a sub-agent has no such surface. Herdr's lifecycle
+states (`working`, `blocked`, `done`) give the supervisor a wait that does
+not poll. `delegate.py launch` confirms the prompt started a turn
+(`agent prompt --wait` with a short timeout: a stall or a dialog fails),
+because the runbook had recorded a prompt that was never submitted. On
+any failure it captures the worker's screen, closes the tab it opened,
+and the supervisor falls back to a sub-agent. Each round starts a fresh
+worker in a new tab: the first cut re-prompted a worker still alive from
+the round before, which kept its context and made Herdr rounds differ from
+sub-agent rounds. A correction must then stand on its own in the file.
+
+**Folder trust.** The worker runs in the project folder, so it needs the
+harness's trust for that folder, which an interactive session there has
+already granted. A folder only ever run headless (`claude -p`, as in the
+live test below), a fresh clone or a new worktree has none, and the worker
+stops at the dialog. `plan` therefore reads the harness's own trust record
+(claude's `.claude.json`, exact folder only, since the live test showed a
+trusted parent does not cover it; copilot's `trustedFolders`, parents
+included) and picks `subagent` for an untrusted folder, saying why. An
+unreadable record counts as trusted and `launch` catches the dialog. The
+other way round, a headless worker that skips the dialog, was rejected:
+it gives up the tab the user can watch and step into.
+
+**What the worker may not do.** Tick a done-when box, write Outcome, notes
+or the review line, run `tasks.py start|finish` or `delegate.py`, hand the
+steps on, or commit to the host repository. It commits `.ai` once per
+round, which also satisfies the turn-end hook in its own tab. A worker's
+`done` is a claim: the supervisor re-reads the evidence, the diff and the
+full suite itself (the 2026-07-04 asymmetry rule of section 23).
+
+**Live test, 2026-11-01** (claude, Opus 5.5 supervisor via `claude -p`,
+a scratch Python repo, both tasks written by hand in Create's format):
+
+- `add-median`, a 3-step `change`: plan said `herdr`/`haiku`. The worker
+  tab stopped at the harness's folder-trust dialog (fresh scratch folder),
+  `agent start` returned `agent_not_ready`, and the supervisor fell back
+  to a haiku general-purpose sub-agent as the rules say. One round,
+  accepted. The worker ticked steps only, reported its checks, and
+  committed `.ai`. The supervisor reran the suite and sent the diff to the
+  `reviewer` sub-agent. Cost: supervisor $0.483, worker $0.008. That run
+  also exposed two bugs, both since fixed: the first `launch` left the tab
+  open, and its wait timeout (30 min) exceeded a shell call.
+- `top-words-order`, a 4-hypothesis `bug`, after the user trusted the
+  folder: `herdr`/`sonnet`, `LAUNCHED` in its own tab, one `herdr agent
+  wait` (Bash timeout 570 s), state `done`, tab closed. The supervisor
+  reran the suite, proved fail-before and pass-after itself by stashing
+  only the fix, and caught a worker citation off by two lines, which it
+  corrected in Findings. The review ran inline (9-line diff). Supervisor:
+  $0.361, 3.6k output tokens. Worker (sonnet): 2.3k output, 271k cache
+  reads.
+- Both: every Done-when ticked by the supervisor, `finish done`
+  accepted, `.ai` log `worker round 1` before `done`, no host commit,
+  no `task:` tab left behind.
+
+What the runs do not show: that delegation is cheaper. On tasks this
+small the supervisor's reading and verifying is most of the bill, and
+inline Opus was not run as a twin. One pre-existing slip recurred in both
+runs: the supervisor ticked done-when boxes with an in-place Python edit
+rather than its edit tool, against `do.md`'s rule. That is not new to
+11.0 and is left for a separate change.
+
+**Fixes from the satty run, same day.** A runbook run on satty
+(`f578432`, Opus 5.5 supervisor, sonnet workers in Herdr tabs) passed
+TC-D2, TC-D6 and TC-D3: one change done with the `reviewer` sub-agent
+finding four defects the supervisor's round check had missed, one change
+`blocked` on the missing toolchain after the worker reported `stuck`. It
+showed three faults, fixed here:
+- The supervisor wrote a `Supervisor round 1` line on a round it
+  accepted. That form is the correction a later worker acts on, so an
+  accepted round now writes `Supervisor check: round <n> accepted` instead.
+- Done-when boxes were ticked by a script replacing every `- [ ]` at once,
+  in all three live runs (it predates 11.0). `tasks.py tick <id>
+  done|steps <n>...` now ticks named items only, prints each with its text,
+  and has no "all"; `do.md` and `work.md` route every tick through it, the
+  worker only `steps`.
+- In the runbook's Herdr driving, `enter` on a question form's "Type
+  something" closes the form unanswered; the appendix says how to answer.
+
+**Files.** `templates/tools/delegate.py` (`plan`, `launch`, `close`),
+`templates/task/work.md` (the worker's body), the supervision block in
+`templates/task/do.md` between steps 1 and 2, `inline` in the `/task`
+dispatcher, permissions for `delegate.py plan` and the read-only
+`herdr agent wait|get|read`. Tests: `tests/test_delegate.py`; runbook
+TC-D6 and TC-D7.
+
+## 51. Parallel tasks in one working tree (2026-11-01, v11.1)
+
+**What blocked it.** Until 11.0, Part I said parallel work "is an intent
+that was never built". Four things made two `/task` sessions in one
+project unsafe:
+1. One resume pointer: a second `tasks.py start` replaced the first
+   task's `.ai/.current`, and with it the `modified:` list.
+2. `git -C .ai add -A`, in AGENTS.md, Create, Do, the worker body, the
+   turn-end hook and the commit `tasks.py` prints. It sweeps a parallel
+   session's half-written task file into the other session's commit.
+3. One host working tree: both tasks' edits land in one diff, which the
+   review gate reads as scope creep, and nothing stops both from editing
+   the same file.
+4. The turn-end hook blocked on any dirty `.ai` and suggested `add -A`.
+
+**Why not git worktrees.** A worktree per task is the physical answer and
+was considered first. It fails three ways today. A new worktree path is
+a folder the harness has never trusted, so a Herdr worker started there
+stops at the trust dialog (section 50), and parallel work would lose the
+worker tab. The scaffold's entry files (`.claude/`, `AGENTS.md`) are often
+untracked in the host repo, so a fresh worktree has no skills, hooks or
+instructions. And `.ai` is its own repository, so a worktree needs a
+second worktree of `.ai` and a merge back that `/task list` cannot see
+until it happens. Cooperative isolation in one tree needs none of that.
+
+**The design.**
+- Pointers: `tasks.py start` writes `.ai/.current` when it is free or
+  names a task that is not `in-progress` (a blocked or finished task's
+  pointer is replaced, as before), and `.ai/.current-<id>` otherwise
+  (gitignored with `.current-*`). It prints each other running task with
+  its claims (`PARALLEL`). `finish done` deletes the task's own pointer;
+  `finish blocked` keeps it. `/task list` and `/task tree` mark every
+  running task. `/task do` without an id resumes `.ai/.current`, or the
+  only running pointer, and asks when there are several.
+- Claims: `tasks.py claim <id> <path>...` appends to the task's
+  `modified:` list and refuses, exit 1, a file another running task
+  listed. A refused claim writes nothing. Do and the worker body claim a
+  file before editing it; a worker that needs a claimed file reports
+  `needs-user`.
+- Commits: every documented and printed `.ai` commit names its paths.
+  The turn-end hook lists the dirty paths and tells the session to
+  commit only its own.
+- Review scope: the task's diff is `git diff --` its claims.
+
+**What is not isolated.** The test suite runs in the shared tree and sees
+the other task's unfinished edits: a failure in a file another running
+task claimed is recorded in Findings and rerun later, not fixed.
+`notes.md` is shared and appended by both. Claims are cooperative: an
+agent that edits without claiming is not stopped by a hook.
+
+**Live test, 2026-11-01** (satty `f578432`, one Herdr workspace, two
+Opus 5.5 supervisors side by side, sonnet workers):
+- Both Creates ran at once: two `.ai` commits, each holding only its own
+  task file (plus `notes.md` for the one that changed it).
+- Both Dos ran at once: `readme-keybindings` held `.ai/.current`,
+  `config-errors-no-abort` got `.ai/.current-config-errors-no-abort` and
+  saw `PARALLEL readme-keybindings is running`. Two worker tabs ran
+  together.
+- The claim refusal fired for real: the second worker tried to claim
+  `README.md`, got `CLAIMED README.md by running task
+  readme-keybindings`, dropped it and went on.
+- Supervisor A wrote a correction, the first live second round:
+  `CLOSED previous worker` then `LAUNCHED ... round 2` in a new tab;
+  round 2 was accepted. Its Findings name the other task's files as the
+  parallel task's, not scope creep.
+- End state: one task `done` (its pointer deleted), one `blocked` on the
+  missing toolchain (its parallel pointer kept, marked in `/task list`).
+  Ten `.ai` commits, none holding another task's files.
+
+**Stops wait for the user (same version).** A report from work: the
+worker stopped where intervention was needed, the supervisor said so,
+then went on with the task itself and closed the worker's tab. The satty
+transcripts show the same in all three `config-errors-no-abort` runs:
+after the worker's `stuck` (no toolchain) the supervisor edited
+`src/configuration.rs` itself (a line wrap, an unused import) before
+asking, then closed the tab. 11.0's Do text allowed it: `stuck` meant
+"work the rest yourself, ask the user, or finish blocked", in no order,
+and the tab closed "after the last round". 11.1 orders it: a stop is a
+question first. On `needs-user`, or `stuck` on something outside reach,
+the supervisor asks, edits nothing and keeps the tab open until the
+answer; on `stuck` on the work it asks how to go on and takes over only
+with agreement, announcing it. Its own host-code edits are otherwise
+limited to review-gate fixes. The worker body now files "outside your
+reach" (a toolchain, access, hardware) under `needs-user`, not `stuck`.
+
+**Files.** `templates/tools/tasks.py` (`pointers`, `claim`,
+path-scoped commit lines), `templates/hooks/ai_repo_clean.py`, the
+commit rule in `templates/instructions/agents.md`, `task/create.md`,
+`task/do.md` (pointer, claims, suite and review scope), `task/work.md`,
+the `.current-*` gitignore entry in `agentgen/scaffold.py`. Tests:
+`test_tasks_table.py` (pointers, claims, resume, list marks: 144 checks).
+Runbook: TC-P1.
+
+## 52. The worker is the harness's own sub-agent (2026-11-03, v11.2)
+
+**Source.** The owner's call after 11.1: `/task do` should use what the
+coding agent does on its own, a sub-agent, and carry no steering for where
+the worker runs. A Herdr tab stays possible when the user asks for it,
+through the agent's own Herdr knowledge, not through the framework.
+
+**Change.**
+
+- `delegate.py` is gone, and with it `plan`, `launch`, `close`, the folder
+  trust check, the round counter, the model table and the variables
+  `LLM_AGENT_WORKER_MODEL`, `LLM_AGENT_WORKER_PERMISSION` and
+  `LLM_AGENT_ROLE`. `/framework-update` deletes the file from existing
+  projects through the recorded file list.
+- Do states the dispatch in prose: a fresh general-purpose sub-agent,
+  never a fork, on a cheaper model than the session's where the harness
+  lets the agent pick one, with a fixed one-line prompt naming the task,
+  the round (one more than the `Worker round` lines) and `work.md`.
+  Inline when the user says `inline`, when two or fewer steps are open in
+  the first round, or when no sub-agent can be spawned, which also covers
+  a worker that would delegate again.
+- Every Herdr paragraph of Do goes: launch, the 9-minute wait, a
+  `blocked` dialog in the worker tab, keeping the tab open for the user,
+  closing it. The `Delegation:` line loses its mode and kind.
+- The permission allowlist loses `delegate.py plan` and `herdr agent
+  wait|get|read`.
+
+**Kept.** The supervisor and everything section 50 built around it: the
+task file as the whole brief, `work.md` as the worker's contract, the
+`Worker round` report, judgment from the files and a rerun of the suite,
+`Supervisor round` corrections, three rounds, a stopped worker as a
+question for the user, takeover only with agreement, and the review gate,
+Outcome, notes and `finish` on the supervisor. Parallel tasks (section 51)
+are untouched; each session has its own worker sub-agent.
+
+**What this gives up.** The tab the user could watch and answer a
+permission prompt in, and a model choice per task type. The tier gap that
+section 50 required before delegating is now a request, not a check: a
+harness that cannot pick the sub-agent's model runs the worker on the
+session's tier, the +35% case of section 23. Part I says so under what the
+framework does not claim.
+
+**Why.** Section 50's dispatch was 330 lines of script, 234 of tests and
+about 25 lines of Do for one terminal multiplexer, and its live runs
+already fell back to the sub-agent once (folder trust). The sub-agent path
+exists on both harnesses with no setup, which is property 3; the removed
+script shrinks the footprint, property 4, and a removal needs no further
+argument.
+
+**Live test, 2026-11-03** (claude, Opus 5.5 supervisor via `claude -p`,
+a scratch stdlib-Python repo, two 4-step `change` tasks written by hand in
+Create's format):
+
+- TC-D6, `/task do add-median-mode`: "Four steps open in round 1, so I'm
+  delegating to a worker sub-agent on Sonnet", then one general-purpose
+  sub-agent, `model: sonnet`, the fixed one-line prompt. No `delegate.py`,
+  no `herdr` call. The worker ticked steps only and committed `worker
+  round 1`; the supervisor read the diff, reran tests and lint itself,
+  wrote `Supervisor check: round 1 accepted`, sent the 50-line diff to
+  the `reviewer`, ticked each criterion with `tick`, and `finish done`
+  passed. Cost: Opus $0.388, Sonnet $0.106.
+- TC-D7, `/task do add-char-stats inline`: one line "Working inline",
+  no worker, no `Worker round` or `Delegation:` line, the 35-line diff
+  to the `reviewer`, `done`. Opus $0.301.
+
+Tests: `check_templates` (no orphan, permissions render), the delegate
+test file removed. Runbook: TC-D6 (worker sub-agent, no `delegate.py`, no
+`herdr` call) and TC-D7 (`inline`) rewritten; TC-D3 loses the tab check;
+TC-P1 counts worker sub-agents instead of tabs.
+
+## 53. The worker does the whole job (2026-11-03, v11.3)
+
+**Source.** The first 11.2 run on a real task (DART 1196, Opus 5.5
+supervisor, Sonnet 5.5 worker, in Herdr). The worker did the code and
+tests of steps 1 to 4 on Sonnet: 28 turns, 14.6k output tokens. Then it
+reported `needs-user`, because `work.md` barred it from committing and
+pushing, and steps 5 to 8 were a branch, a commit, a pull request, a CI
+wait, a dev run, a prod check after the user's merge, and an issue
+comment. Nothing was left for the user to decide: `needs-user` was the
+only stop that fit a worker that had reached the edge of its rules. The
+supervisor accepted the round and did steps 5 to 8 itself (`step 5+
+supervisor`): 46 more Opus turns, 19.4k output tokens and 3.3M cache
+reads, more than the worker. The owner's call: the supervisor acts like
+the user's stand-in, a lead with a junior; the junior does nearly
+everything, the lead does not open the junior's pull request.
+
+**Change.**
+
+- The worker works every step the task names, through to the pull
+  request: commit, push, CI wait, dev run, tracker comment. The ban on
+  host commits and pushes is gone; what limits every agent still limits
+  it: the git guard hook blocks a merge into the default branch, and
+  `AGENTS.md` stops at the branch or pull request and asks before
+  anything destructive or outside the repository. A step that needs one
+  of these and does not name it is a `question`.
+- Code ships through the review gate. The worker reports `review` before
+  its first host commit, and before a push of code changed since the
+  last review; the supervisor runs the gate on the uncommitted diff and
+  answers with a `Supervisor check: round <n> accepted` line or a
+  `Supervisor round <n>` correction.
+- Reports: `review`, `question`, `stuck`, `done`. `needs-user` is gone:
+  the worker never addresses the user. The supervisor answers a
+  `question` as the user would from the Goal, the Notes and the criteria,
+  and asks the user only what it cannot decide for them: a changed Goal
+  or criterion, a merge, production, deleting data, an open choice it
+  cannot settle.
+- The supervisor does none of the work. It makes no host edit, commit or
+  push, not even to fix a review finding; the finding goes back to the
+  worker. It takes over only when the user says so. Section 50's rule
+  that two or fewer open steps stay inline is gone; `inline` and a
+  harness with no sub-agent remain.
+- After a report the supervisor continues the same worker with its
+  context where the harness can resume a sub-agent (Claude Code sends it
+  a message), and spawns a fresh worker that reads the file otherwise.
+  This gives up a little of the goldfish property: a resumed worker
+  remembers its own earlier rounds. The file still carries every answer
+  and correction, so a fresh worker or a later session loses nothing.
+- The supervisor trusts recorded evidence: a CI result on the pull
+  request, or a command and its output in Findings. It reruns the tests
+  only when there is no CI result and the recorded output is missing,
+  partial or doubtful. Section 50 made it rerun the full suite after
+  every round, which on Opus is the expensive half of a check that CI
+  repeats anyway.
+
+**Kept.** The task file as the brief, fresh-context spawning, the review
+gate and its sizing, the `reviewer` on the session's model, the Outcome,
+notes, Done-when ticks and `finish` on the supervisor, three tries at the
+same correction before the user is asked.
+
+**What this risks.** A cheaper model now pushes and runs things in shared
+environments. The review before the first commit, the hook, and the
+`question` stop for anything unnamed bound that; a task file that names a
+risky step authorizes it, which is the user's call at create time.
+
+**Live test, 2026-11-03** (claude, Opus 5.5 supervisor via `claude -p`, a
+scratch stdlib-Python repo with a bare local `origin` standing in for the
+pull request, a 5-step `change` whose last step is branch, commit, push):
+
+- Run 1: one Sonnet worker reported `review` with the code uncommitted;
+  the supervisor sent the 50-line diff to the `reviewer`, wrote
+  `Supervisor check: round 1 accepted`, and continued the same worker with
+  `SendMessage`, no second spawn. The worker branched, committed with no
+  co-author line, pushed, and reported `done`; the supervisor checked
+  `git ls-remote` (branch pushed, `main` untouched), ticked, and finished.
+  No host edit, commit or push by the supervisor. One fault: it reran the
+  tests twice, calling the worker's `9 tests OK` "only a summary". Opus
+  $0.53, Sonnet $0.15.
+- Fix: `work.md` records each check with its result line verbatim, and
+  `do.md` names that as enough evidence, not to be rerun.
+- Run 2, same task on a fresh copy: the same flow, the worker's Findings
+  carry `Ran 9 tests in 0.000s OK`, and the supervisor ran no test at all.
+  Opus $0.40, Sonnet $0.10.
+
+## 54. An archived dependency is a cleared blocker (2026-11-05, v11.4)
+
+**Source.** `/task tree` in a real project (DART, 13 live tasks, 28
+archived) printed 13 ❗ lines, `depends on <id>, which is not a live task
+(unknown or archived)`. All 13 named one of four tasks done and archived
+weeks earlier, still listed in the `depends:` lines of eight live tasks.
+The agent asked by the user called every warning noise and offered to edit
+the eight `depends:` lines. A warning that fires on the normal life of a
+task trains the user to skip the ❗ block, and a real typo in an id hides
+among them.
+
+**Change.** `tree` reads the status of the archived tasks too and sorts an
+unresolved `depends:` id three ways:
+
+- archived with `status: done`: the blocker cleared; the id is dropped
+  without a word, as it already was from the nesting;
+- archived in any other status: flagged, `depends on <id>, archived as
+  <status>, not done.`;
+- naming no task, live or archived: flagged, `depends on <id>, which names
+  no task.`
+
+The tree itself is unchanged: only edges between live tasks nest, as
+before.
+
+**Rejected.** Removing an id from every `depends:` line when its task is
+archived. It edits several task files on each archive, loses the record of
+what a task waited on, and adds a rule to `AGENTS.md`; reading the line
+right costs a status lookup over the archive.
+
+**Test.** `tests/test_tasks_table.py`: a live task depending on a task
+archived as done gets no warning, one depending on a task archived as
+`planned` gets the new flag, the unknown id the new wording.

@@ -45,7 +45,9 @@ Where things live:
   `render_prompt_files` (copilot)
 - Embedded tool scripts: `render_tool_probe` (`templates/tools/probe.py`),
   `render_tool_tasks` (`templates/tools/tasks.py`, the `/task list` table
-  and the `/task` create-or-do resolver)
+  and the `/task` create-or-do resolver). `/task do`'s worker is a
+  harness sub-agent with no script behind it; it reads
+  `templates/task/work.md` (CONCEPT.md sections 50 and 52)
 - Hooks: `templates/hooks/`; permissions: `render_settings_json` over
   `templates/config/permissions.txt`
 - Adding or removing a command: the roster in `const.SKILLS`, plus its

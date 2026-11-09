@@ -60,14 +60,14 @@ def rendered_artifacts():
             out.append((f"{harness} skill:{name} desc", desc))
         out.append((f"{harness} AGENTS.md",
                     content.render_agents_md("p", "d", harness)))
-    for part in ("create", "do"):
+    for part in ("create", "do", "work"):
         out.append((f"task part:{part}", content.render_task_part(part)))
     out.append(("reviewer", content.render_reviewer_agent()))
     out.append(("settings.json", content.render_settings_json()))
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
     for fn in ("render_tool_probe", "render_tool_tasks",
-               "render_hook_ai_repo_clean",
-               "render_hook_git_guard", "render_notes_stub"):
+               "render_hook_ai_repo_clean", "render_hook_git_guard",
+               "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
     return out
 

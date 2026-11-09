@@ -201,7 +201,10 @@ is missing.
 Run each in a fresh session (`/clear`, then `/task do <id>`).
 
 In every do case (10.1): the transcript shows `tasks.py start <id>` at the
-start and `tasks.py finish <id> done|blocked` at the end, no shell write to
+start and `tasks.py finish <id> done|blocked` at the end, every ticked box
+ticked by `tasks.py tick <id> done|steps <n>...` naming its numbers (11.0;
+a script or `replace("- [ ] ", "- [x] ")` that ticks every box at once is a
+fail), no shell write to
 `.ai/.current` or to a task's frontmatter (`printf >`, `sed -i`, `rm`, a
 heredoc), and every `.ai` commit as `git -C .ai`, never an absolute path. A
 headless run with the scaffold allowlist ends with `.ai` committed.
@@ -258,9 +261,13 @@ Pass when all hold:
 - The table shows the task with ⛔, the flag `❗ <id>: blocked: <reason>`,
   and the 👉 pointer on it; `.ai/.current` still exists.
 - Findings record what was done and what is missing.
+- With a worker (11.1, 11.3): its report says `question` (a missing
+  toolchain is outside its reach, not `stuck`). Between that report and the user's
+  answer the supervisor runs no host-code edit (no `Edit`/`Write` outside
+  `.ai`, no `sed -i` or script on `src/`).
 
-Note: the review gate runs only before `done`, so a task that blocks at the
-test step may have no review line. That is correct.
+Note: the review gate runs before code ships and before `done`, so a task
+that blocks at the test step may have no review line. That is correct.
 
 **TC-D4: small diff, inline review** (8.6)
 
@@ -288,6 +295,75 @@ Findings line reads `Review: inline (mechanical: ...)` naming why, no
 sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
+
+**TC-D6: the worker ships, the supervisor reviews** (11.0, 11.3)
+
+On a session model above the cheapest tier (claude: Opus or Fable). A
+`change` with three or more code steps, then a step "commit on branch
+`<branch>`, push, open the pull request" (a scratch repo with a bare
+local `origin` stands in for the pull request with a pushed branch).
+`/task do <id>`.
+
+Pass when all hold:
+- One fresh general-purpose sub-agent (not a fork) runs on a cheaper
+  model than the session's (claude: `"model":"haiku"` or `"sonnet"`), its
+  whole prompt naming the task and `.ai/agent/task/work.md`. No
+  `delegate.py` and no `herdr` call.
+- The worker reports `review` before any host commit: the `.ai` log has
+  `worker round 1` before the host branch has a commit. The supervisor's
+  review leaves a `Review:` line and a `Supervisor check: round 1
+  accepted` line; a finding instead leaves a `Supervisor round 1`
+  correction that the worker fixes.
+- The worker then commits, pushes and records the evidence. Where the
+  harness can resume a sub-agent, the transcript shows the supervisor
+  continuing the same worker (claude: `SendMessage` to its id), not a
+  second spawn.
+- The supervisor made no host edit, commit or push (no `Edit`/`Write`
+  outside `.ai`, no `git commit` or `git push` in the host repo) and
+  changed no file while the worker ran.
+- The supervisor reran no test when Findings hold the worker's commands
+  and results; it read the evidence instead.
+- The worker ticked steps only: no done-when box, no Outcome, no
+  `notes.md` change in its round commits (`git -C .ai show <commit>`).
+- Findings end with a `Delegation: <model> ...` line; the supervisor
+  ticked each criterion with `tasks.py tick`, wrote the Outcome, and
+  `finish done` passed. Nothing merged into the default branch.
+
+**TC-D7: inline when asked** (11.0, 11.2)
+
+`/task do <id> inline` on a task with three or more open steps.
+
+Pass when the supervisor says in one line that it works inline, no
+sub-agent runs before the review gate, no `Worker round` or `Delegation:`
+line is written, and the task still ends with a `Review:` line.
+
+### Parallel (11.1)
+
+**TC-P1: two tasks planned and worked side by side**
+
+Two supervisor sessions in the same project (two Herdr panes when one
+agent drives the run), each on a model above the cheapest tier. Send
+both Create prompts at once (TC-D2's
+`readme-keybindings` and TC-C1's `config-errors-no-abort`), answer both,
+then `/clear` both and send both `/task do` at once.
+
+Pass when all hold:
+- Every `.ai` commit holds only its own task's paths (plus `notes.md`
+  when that session changed it): `git -C .ai log --name-only`. No
+  transcript shows `git -C .ai add -A`.
+- The second `start` printed `parallel` and `PARALLEL <other> is running`,
+  and wrote `.ai/.current-<id>`; `.ai/.current` still names the first.
+- Both worker sub-agents ran at the same time, and every host file a task
+  edited is in its pointer's `modified:` list, claimed before the edit.
+  If either side tried a file the other claimed, the transcript shows the
+  `CLAIMED ... by running task` refusal and the file was left alone.
+- Each review judges its own claimed files; Findings name the other
+  task's files as the parallel task's, not as scope creep.
+- At the end a `done` task's pointer is gone and a `blocked` one's kept;
+  `/task list` marks the running one.
+
+Fail: one task's file in the other's commit, a replaced pointer while its
+task was in progress, an edit to a file the other task claimed.
 
 ### Direct path (9.1)
 
@@ -450,6 +526,14 @@ Useful when one agent runs the cases on another. Load the herdr skill
   and the arrow keys to reach "Next"; `enter` alone toggles.
 - Never press `enter` on a folder-trust or permission prompt without reading
   which option is selected.
+- To give a free-text answer to a question form, do not press `enter` on its
+  "Type something" option: that closes the form with no answer, and text
+  sent afterwards lands in the main input box instead. Either select the
+  option and type the text before any `enter`, or let the form close and
+  submit the answer as an ordinary message (`herdr pane send-text`, then
+  `enter`); the agent reads it either way. Record which in the result.
+- `herdr agent wait` right after a form was answered can return the stale
+  `blocked` state at once; wait again before reading the screen.
 - `/model` inside a session also saves the model as the global default in
   `~/.claude/settings.json`; restore it afterwards.
 - Wait for completion with `herdr agent wait <name> --until idle` (one state

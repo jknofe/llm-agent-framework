@@ -22,7 +22,9 @@ themselves.
    The last one checks everything `tasks.py` promises, without an agent: the
    `/task list` table (live tasks only, sort order, emoji and legend, the
    flags, the resume pointer, no ANSI through a pipe) and the `/task`
-   create-or-do resolver (every verdict, near-duplicates). Agent behavior of
+   create-or-do resolver (every verdict, near-duplicates), `tick`
+   (named items only, refuses a missing number, no "all"), and parallel
+   tasks (own pointers, `claim` refusals, resume, the list marks). Agent behavior of
    `/task` is covered by [tests/task-commands.md](tests/task-commands.md),
    run after changing it.
    The third scaffolds one harness, switches to another, and checks that the
