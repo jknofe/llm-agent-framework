@@ -44,7 +44,7 @@ only the files, so anything the user told you that the work depends on
 goes into the task's Notes before it starts. Spawn it with this whole
 prompt: `You are the worker for task <id>. Read ${task_dir}/work.md and
 follow it.` If its agent file has a `model:` line, the user chose that
-model (`/agent-models`): pass none at spawn. Otherwise pick a cheaper model
+model: pass none at spawn. Otherwise pick a cheaper model
 than yours where the harness lets you. Without a `worker` agent, use a
 fresh general-purpose sub-agent the same way.
 Work steps 2 to 5 yourself instead when the user asked for `inline`, when

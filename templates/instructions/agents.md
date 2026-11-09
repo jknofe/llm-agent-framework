@@ -48,7 +48,6 @@ yourself.
 |---|---|
 | `/explore` | Ask what the code cannot tell you; record commands and rules below. |
 | `/task create\|do\|list <id>` | Opt-in: plan, work, or list tasks (change, bug, investigation, test). |
-| `/agent-models` | Show or set the worker and reviewer sub-agent models. |
 | `/framework-update` | Move this scaffold to the current framework version. |
 
 ## Tasks layout

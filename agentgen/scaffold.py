@@ -476,8 +476,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_opencode_config(), force, created, skipped)
     else:
         for fname, content in render_prompt_files(
-                command_specs(harness, "${input:focus}", "${input:ticket}",
-                              "${input:models}")).items():
+                command_specs(harness, "${input:focus}", "${input:ticket}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
         for which in ("worker", "reviewer"):

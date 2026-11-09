@@ -67,7 +67,7 @@ covers ${owned}.
      changes, keep every user addition, and state in the report what
      you kept. The cases that actually come up:
 ${merge_cases}     - a `model:` line in the `worker` or `reviewer` agent file: the
-       user's choice from `/agent-models`. Keep it in the merged file.
+       user's own choice. Keep it in the merged file.
    - Retired (in the recorded `framework_files`, absent from the
      reference): delete it, then grep the whole scaffold for its name
      and remove the instructions that still point at it. A retired file

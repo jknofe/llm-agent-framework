@@ -227,7 +227,6 @@ Every harness invokes them the same way, under the same names:
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
-| `/agent-models [worker=<model>] [reviewer=<model>]` | Shows or sets the model of the `worker` and `reviewer` sub-agents for this project: the `model:` line of their agent files, the same way on every harness. No argument: shows both and the accepted names, and asks. See [Sub-agent models](#sub-agent-models). |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
@@ -327,7 +326,7 @@ opencode the git guard does run inside a sub-agent.
 whole job; the session you talk to is its lead and stands in for you.
 
 - **The worker** is the `worker` sub-agent, on the model its agent file
-  pins (see [Sub-agent models](#sub-agent-models)), else on a cheaper model
+  pins (a `model:` line you add by hand), else on a cheaper model
   than the session's where the harness lets the agent pick one. A small
   task, where at most one step edits a file, gets no worker: the
   session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
@@ -390,7 +389,7 @@ Code:
 - hooks: `.github/hooks/llm-agent.json` plus the two scripts (see
   [Deterministic tools and hooks](#deterministic-tools-and-hooks))
 - `reviewer` and `worker` as custom agents in `.github/agents/` (Copilot CLI
-  honors their `model:` line, set with `/agent-models`)
+  honors their `model:` line)
 - no `.claude/settings.json` (no equivalent); Copilot CLI asks before each
   command and file edit unless you allow tools
 
@@ -417,39 +416,9 @@ Claude Code's slash commands:
   `.opencode/plugins/llm-agent.js` (needs `python3`)
 
 Two differences from Claude Code: OpenCode has no per-command `effort`, and a
-sub-agent cannot be given a model when it is spawned, so set the worker's with
-[`/agent-models`](#sub-agent-models). The turn-end `.ai` check uses a hook
+sub-agent cannot be given a model when it is spawned, so the worker runs on
+the session's model unless you add a `model:` line to its agent file. The turn-end `.ai` check uses a hook
 OpenCode marks experimental.
-
-## Sub-agent models
-
-`/agent-models` sets which model the `worker` and `reviewer` sub-agents run
-on in this project. It writes one `model:` line into their agent files, the
-one mechanism every harness shares:
-
-```
-/agent-models worker=haiku reviewer=sonnet                              # Claude Code
-/agent-models worker=claude-agent/haiku reviewer=claude-agent/sonnet    # OpenCode
-Run agent-models worker=<id> reviewer=<id>: read .github/prompts/agent-models.prompt.md and follow it.   # Copilot CLI
-```
-
-- Without an argument it shows both, says what an unset line means on this
-  harness, lists the names it accepts, and asks. `default` removes the line.
-- Model names are the harness's own: Claude Code aliases (`sonnet`, `haiku`,
-  ...) or full IDs, `opencode models` output for OpenCode, the IDs of
-  Copilot's model picker.
-- Without a `model:` line the worker runs on a cheaper model where the
-  harness can pick one at spawn (Claude Code), else on the session's model
-  (OpenCode, Copilot); the reviewer runs on the session's model.
-- Keep the reviewer at least as strong as the worker: it is the gate that
-  catches what a cheaper worker gets wrong, and a cheaper worker can need
-  more rounds.
-- Effort is inherited: both sub-agents think at the session's effort
-  level. On OpenCode the model is written with the session's variant
-  (`claude-agent/haiku#medium`), because a pinned model without one runs at
-  OpenCode's default variant.
-- The agent files belong to the framework; `/framework-update` keeps your
-  `model:` line. On OpenCode, `opencode debug agents` shows what applies.
 
 ## Hermes (dropped in 10.0)
 

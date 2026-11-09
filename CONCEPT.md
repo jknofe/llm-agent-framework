@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.6.** The framework rests on four premises, stated in
+**State: 2026-11-09, v11.8.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -36,7 +36,7 @@ done-when criteria. A task is a code change, a bug, an investigation or a
 test; what counts as done depends on which. The user starts it. By default
 the agent just does the task.
 
-**Property 3. One command set on three harnesses.** Four commands, identical
+**Property 3. One command set on three harnesses.** Three commands, identical
 names and bodies on Claude Code, Copilot and OpenCode. No command's name depends
 on where it is typed.
 
@@ -150,7 +150,7 @@ Since 11.0 `/task do` splits into two roles, after Google's
 Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
 job and the supervisor none of it (section 53). The worker is the
 framework's `worker` sub-agent, defined beside `reviewer` on every harness
-(section 55): on the model its agent file pins (`/agent-models`), else on
+(section 55): on the model its agent file pins (a `model:` line the user adds), else on
 a cheaper model than the session's where the harness lets the agent pick
 one at spawn, and it knows
 only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
@@ -240,8 +240,8 @@ that one task waits on another; it schedules nothing.
 
 ## Property 3: one command set
 
-Four commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
-`/agent-models`, `/framework-update`. Same names,
+Three commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
+`/framework-update`. Same names,
 same bodies, on every harness; only the entry files differ (Agent Skills
 under `.claude/skills/`, prompt files under `.github/prompts/`, commands under
 `.opencode/commands/`). `AGENTS.md` is the one instructions file and every
@@ -269,8 +269,8 @@ project's version and cannot know what the new version changed.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 527 words on claude, 525 on
-  opencode, 643 on copilot, where the balance is that harness's own CLI note.
+- `AGENTS.md` before the generated section: 514 words on claude, 512 on
+  opencode, 630 on copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
@@ -278,8 +278,8 @@ project's version and cannot know what the new version changed.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: 929 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 16 framework files, a copilot one 16, an opencode
-  one 17 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 15 framework files, a copilot one 15, an opencode
+  one 16 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -457,6 +457,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.8 (2026-11-09, `/agent-models` removed, section 58. The command, its
+skill body and its per-harness fragments are gone; the `worker` agent and a
+hand-written `model:` line in an agent file stay. The feature is to be
+rethought.)
 
 v11.7 (2026-11-09, OpenCode gets the `worker` agent and `/agent-models`,
 section 57. The OpenCode harness follows the 11.5 change: a `worker` agent
@@ -4098,3 +4103,27 @@ the decision line comes first, before any other tool call. Cost per run,
 list-price estimate: Claude Code $2.18 (2.02 to 2.30), OpenCode $1.23
 (1.21 to 1.36); wall time per run overlapped (Claude Code 514 to 750 s,
 OpenCode 552 to 609 s), so the earlier time difference did not hold.
+
+## 58. `/agent-models` removed (2026-11-09, v11.8)
+
+**Source.** The owner's call: the feature needs to be rethought from the
+start, so it leaves every harness now rather than ship half-considered.
+
+**Change.** The command is gone from the roster (`const.SKILLS`,
+`ARG_HINTS`, `SKILL_EFFORT`), with its skill body `templates/skills/
+agent-models.md`, the three `skills/fragments/<harness>/models.md` files, the
+`AGENT_FILES`, `MODEL_UNSET` and `MODEL_VERIFY` tables and the slots that fed
+them, its row in `AGENTS.md`, its README section and test cases (TC-M1).
+Property 3 reads three commands again; `AGENTS.md` before the generated
+section is 514 words on claude, 512 on opencode, 630 on copilot; a claude and
+a copilot scaffold record 15 framework files, an opencode one 16.
+
+**Kept.** The `worker` agent beside `reviewer` (sections 55 and 57), the
+small-task inline rule, and the rule that a `model:` line in either agent
+file is the user's choice: Do passes no model at spawn when one is there, and
+`/framework-update` keeps it in the merge. Nothing writes that line any more;
+a user can add it by hand. Sections 55 to 57 stay as the record of what was
+built and measured.
+
+**Existing scaffolds.** `/framework-update` retires the `agent-models`
+command file through the recorded file list and removes the `AGENTS.md` row.

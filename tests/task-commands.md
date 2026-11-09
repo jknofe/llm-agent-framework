@@ -353,21 +353,6 @@ Pass when the supervisor says in one line that it works inline and names
 the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
 line, and no `Worker round` line is written.
 
-### /agent-models (11.5)
-
-**TC-M1: show, then set**
-
-`/agent-models` with no argument, then `/agent-models worker=<cheap>
-reviewer=<strong>` with names the harness accepts.
-
-Pass when the first shows both agents as not set with what that means on
-the harness, lists accepted names and changes no file; the second adds
-exactly one `model:` line to each agent file and nothing else (`git diff`
-of the two files); and a following `/task do` on a task over ~30 lines
-spawns `worker` on the pinned model with no model passed at spawn (claude:
-the `Agent` call has no `model`; the worker's transcript shows the model)
-and `reviewer` on its pinned model.
-
 ### Parallel (11.1)
 
 **TC-P1: two tasks planned and worked side by side**

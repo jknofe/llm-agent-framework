@@ -26,7 +26,7 @@ cp -R "$HERE"/tasks/* .ai/tasks/
 git -C .ai add -A
 git -C .ai commit -q -m "bench: canonical tasks"
 
-# The profile's worker and reviewer, written exactly as /agent-models
+# The profile's worker and reviewer, written exactly as the former /agent-models
 # writes them: one model: line after description: in each agent file.
 # Effort: every role inherits the supervisor's. Claude Code sub-agents
 # follow the session when their agent file has no effort: line; OpenCode
