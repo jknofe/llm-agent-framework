@@ -50,10 +50,9 @@ python3 <framework-checkout>/init_agent.py --harness claude -y --name satty
   requires. The task file is the handoff, not the conversation.
 - **Answering Q&A:** pick the option the agent marks as recommended, unless
   the case says otherwise. Note every question it asked.
-- **Copilot:** the same cases apply, with one difference: it has no
-  `reviewer` sub-agent, so TC-D2 expects the
-  documented fallback (a fresh general-purpose sub-agent, or a clean-context
-  self-review that says the `reviewer` was unavailable).
+- **Copilot:** the same cases apply. Its `reviewer` and `worker` are custom
+  agents in `.github/agents/`; with no model set `/task do` refuses there as
+  everywhere (TC-M1).
 
 Driving the agent from another agent with herdr is optional; see the appendix.
 
@@ -352,6 +351,31 @@ without `inline`.
 Pass when the supervisor says in one line that it works inline and names
 the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
 line, and no `Worker round` line is written.
+
+### Sub-agent models (11.9)
+
+Every `/task do` case above needs both models set first (`init-agent
+--models --worker <m> --reviewer <m>` in the scratch repo).
+
+**TC-M1: no model, no work**
+
+On a fresh scaffold with no `model:` line, `/task do <id>` on any task.
+
+Pass when the agent runs `tasks.py models`, prints which file needs which
+line, and stops: `tasks.py resolve`'s task is still `planned`, no `.ai/.current`
+exists, no file changed, and it picked no model itself. Repeat with `model:
+inherit` in the worker file: the same refusal.
+
+**TC-M2: set, test, work**
+
+`init-agent --models --worker <cheap> --reviewer <strong>` (claude: run it
+with `!` from the session), then restart the session and `/task do` on a task
+over ~30 lines.
+
+Pass when the setup tool reports each role OK, a model that does not exist
+is reported FAILED and leaves its file unchanged, and `/task do` spawns
+`worker` and `reviewer` with no model passed at spawn (the `Agent` call has no
+`model`); the `Delegation:` line names the model from the worker's file.
 
 ### Parallel (11.1)
 

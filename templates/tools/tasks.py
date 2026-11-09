@@ -93,8 +93,19 @@ deletes the task's own pointer, whichever it is. Every printed commit is
 path-scoped (`git -C .ai add tasks/<id>`), never `add -A`: a parallel
 session may be mid-edit.
 
-list, tree, resolve and trackers are read-only; start, finish, tick and
-claim write only the task file and the pointers. Stdlib only.
+`tasks.py models` checks that the two sub-agents of /task do, `worker` and
+`reviewer`, each have a model chosen for this project (CONCEPT.md section
+58). The choice is the `model:` line of the agent file, nowhere else, and
+the script reads every harness's agent file that exists. A role counts as
+set only when that line holds a concrete name: a missing agent file, a
+missing or empty line and `inherit` all count as unset. The name itself is
+not checked (a proxy may serve names the framework cannot know). First
+line `MODELS OK` or `MODELS MISSING`; a missing role gets a line naming
+the file and how to set it (`init-agent --models`, which also tests the
+name as a sub-agent). Exit 1 when anything is missing. Read-only.
+
+list, tree, resolve, trackers and models are read-only; start, finish, tick
+and claim write only the task file and the pointers. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -676,11 +687,55 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py start <id> | "
+         "| tasks.py trackers | tasks.py models | tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
          "tasks.py tick <id> done|steps <n> [<n>...] | "
          "tasks.py claim <id> <path> [<path>...]")
 TICK_SECTIONS = {"done": "Done when", "steps": "Steps"}
+# Where each harness keeps the agent file of a role. A project has the files
+# of the harness it was scaffolded for; every one that exists is checked.
+AGENT_FILES = {
+    "worker": (".claude/agents/worker.md",
+               ".github/agents/worker.agent.md",
+               ".opencode/agents/worker.md"),
+    "reviewer": (".claude/agents/reviewer.md",
+                 ".github/agents/reviewer.agent.md",
+                 ".opencode/agents/reviewer.md"),
+}
+
+
+def models():
+    root = AI.parent
+    problems, found = [], []
+    for role, candidates in AGENT_FILES.items():
+        files = [c for c in candidates if (root / c).is_file()]
+        if not files:
+            problems.append(f"{role}: no agent file (looked for "
+                            f"{', '.join(candidates)}); run "
+                            "/framework-update to restore it")
+        for rel in files:
+            text = (root / rel).read_text(encoding="utf-8")
+            value = frontmatter(text).get("model", "").strip()
+            if not value or value.lower() == "inherit":
+                problems.append(
+                    f"{role}: {rel} has no model (`inherit` does not "
+                    "count). Set one with `init-agent --models --worker "
+                    "<name> --reviewer <name>`, which tests each as a "
+                    "sub-agent, or add a line `model: <name>` after the "
+                    "file's `description:` line")
+            else:
+                found.append(f"{role}: {rel} {value}")
+    if problems:
+        print("MODELS MISSING")
+        print("\n".join(problems))
+        print("Do not start the task and do not pick a model yourself: "
+              "tell the user which file needs which line.")
+        return 1
+    print("MODELS OK")
+    print("\n".join(found))
+    return 0
+
+
 def commit_line(tid, message):
     """The path-scoped `.ai` commit to run: never `add -A`, which would
     sweep a parallel session's half-written files into this commit."""
@@ -877,6 +932,8 @@ def main():
         return tree()
     if args and args[0] == "trackers":
         return trackers()
+    if args and args[0] == "models":
+        return models()
     if args and args[0] != "list":
         print(f"Unknown argument {args[0]!r}. {USAGE}")
         return 2

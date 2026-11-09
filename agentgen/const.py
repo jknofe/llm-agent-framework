@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "11.8"
+FRAMEWORK_VERSION = "11.9"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -68,6 +68,20 @@ HARNESS_ENTRY_PATHS = {
                  f"{OPENCODE_DIR}/opencode.json"],
     # Retired in 10.0, kept so a switch away from it reports leftovers.
     "hermes": [".agents/skills", ".agents/hooks"],
+}
+
+# The two sub-agents of /task do and where each harness keeps their agent
+# files. The model of a role is the `model:` line of its file and nothing
+# else (CONCEPT.md section 59); `tasks.py models` carries a copy of these
+# paths, and a test keeps the two equal.
+ROLES = ("worker", "reviewer")
+AGENT_FILES = {
+    "claude": {"worker": ".claude/agents/worker.md",
+               "reviewer": ".claude/agents/reviewer.md"},
+    "copilot": {"worker": ".github/agents/worker.agent.md",
+                "reviewer": ".github/agents/reviewer.agent.md"},
+    "opencode": {"worker": f"{OPENCODE_DIR}/agents/worker.md",
+                 "reviewer": f"{OPENCODE_DIR}/agents/reviewer.md"},
 }
 
 # A command name that collides with a harness built-in is renamed on every

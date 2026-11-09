@@ -136,7 +136,7 @@ file list retires nothing and prints what to remove by hand.
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
-   The work itself, through to the pull request, goes to a cheaper-model
+   The work itself, through to the pull request, goes to a
    worker, a sub-agent of the harness that starts fresh from the task
    file; the session you talk to reviews, answers and decides for you (see
    [Supervised workers](#supervised-workers)). `/task do BUG-7 inline`
@@ -164,11 +164,12 @@ What counts as done, by type:
 | `investigation` | the question answered with every claim citing evidence, or "inconclusive" naming what was ruled out; covers research |
 | `test` | every named scenario run and its result recorded; new tests pass with the full suite |
 
-The framework is model-agnostic: it never tells the harness which model to
-run, you decide via the harness (for example `/model opusplan` in Claude
-Code to plan on Opus and implement on Sonnet). The self-contained task file
-and the fresh-context review gate are what keep cheap execution safe. If you
-do split models, keep the direction: `/task create` on the strong one.
+The framework is model-agnostic: it never picks a model. The session runs on
+the model you chose in the harness. The two sub-agents of `/task do` run on
+the models you set per project (see [Sub-agent models](#sub-agent-models)); a
+project that has not set them cannot run `/task do`. The self-contained task
+file and the fresh-context review gate are what keep cheap execution safe.
+If you do split models, keep the direction: `/task create` on the strong one.
 
 ## One profile
 
@@ -223,7 +224,7 @@ Every harness invokes them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent on a cheaper model works the steps under the session's supervision; a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision; a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
@@ -308,9 +309,8 @@ stdout; only where they live and how they are registered differs:
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
-gate. Where the `reviewer` cannot be spawned, `/task do` hands a large result
-to a fresh general-purpose sub-agent, and only otherwise reviews it itself,
-saying why.
+gate. Where the `reviewer` cannot be spawned, `/task do` stops and asks you:
+there is no fallback to another agent.
 
 Hooks only fire when the scaffolded repo is the session's working directory
 (on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
@@ -326,8 +326,7 @@ opencode the git guard does run inside a sub-agent.
 whole job; the session you talk to is its lead and stands in for you.
 
 - **The worker** is the `worker` sub-agent, on the model its agent file
-  pins (a `model:` line you add by hand), else on a cheaper model
-  than the session's where the harness lets the agent pick one. A small
+  names (see [Sub-agent models](#sub-agent-models)). A small
   task, where at most one step edits a file, gets no worker: the
   session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
   `.ai/agent/task/work.md`. It does every step the task names: the code,
@@ -416,9 +415,39 @@ Claude Code's slash commands:
   `.opencode/plugins/llm-agent.js` (needs `python3`)
 
 Two differences from Claude Code: OpenCode has no per-command `effort`, and a
-sub-agent cannot be given a model when it is spawned, so the worker runs on
-the session's model unless you add a `model:` line to its agent file. The turn-end `.ai` check uses a hook
+sub-agent cannot be given a model when it is spawned, so both sub-agents take
+theirs from the `model:` line of their agent files. The turn-end `.ai` check uses a hook
 OpenCode marks experimental.
+
+## Sub-agent models
+
+`/task do` has two sub-agents, `worker` and `reviewer`, and runs only when
+both have a model set for this project. The framework picks nothing and
+assumes nothing: no tier, no default, no inheriting the session's model.
+
+- **Set them:** in the project, `init-agent --models --worker <name>
+  --reviewer <name>`, or `init-agent --models` in a terminal to be asked.
+  From a coding-agent session type it with `!` in front, then restart the
+  session: it read the agent files when it started. Names are written as
+  your harness or provider uses them, so a model served through a proxy
+  (`gpt-6.1-sol`) works; `inherit` is not a model.
+- **The test:** on Claude Code the tool starts a fresh headless session that
+  spawns each role as a sub-agent and expects "hello" back. A name that
+  fails is not saved. On Copilot and OpenCode the line is written without a
+  test for now; check it with a small `/task do`.
+- **The check:** `/task do` first runs `python3 .ai/agent/tools/tasks.py
+  models`. If either role has no model it refuses, changes nothing and says
+  which file needs which line. Run the script yourself to see the same.
+- **Where it lives:** the `model:` line of the agent files
+  (`.claude/agents/{worker,reviewer}.md`,
+  `.github/agents/{worker,reviewer}.agent.md` or
+  `.opencode/agents/{worker,reviewer}.md`). Nothing else sets a model, and
+  the session never passes one when it spawns a sub-agent.
+- Keep the reviewer at least as strong as the worker: it is the gate that
+  catches what a cheaper worker gets wrong.
+- `/framework-update` keeps your `model:` lines.
+- On Claude Code, `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` in your environment
+  overrides the files; the framework cannot see it.
 
 ## Hermes (dropped in 10.0)
 

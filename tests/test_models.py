@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""`init-agent --models` (CONCEPT.md section 59), offline: the frontmatter
+rewrite, what counts as a usable name, that the paths in agentgen.const and
+the copy inside tasks.py agree, and the rollback when the sub-agent test
+fails. The real sub-agent call needs a harness and a model; the scaffold
+runbook (tests/task-commands.md, TC-M1) covers it."""
+import argparse
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from agentgen import const, content, models  # noqa: E402
+
+FAILS = []
+N = [0]
+
+
+def check(cond, msg):
+    N[0] += 1
+    if not cond:
+        FAILS.append(msg)
+
+
+AGENT = ("---\nname: worker\ndescription: Works.\n---\nBody\n")
+
+
+def project(harness="claude", model_lines=None):
+    root = Path(tempfile.mkdtemp())
+    (root / ".ai/agent/tools").mkdir(parents=True)
+    (root / ".ai/agent/tools/tasks.py").write_text(
+        content.render_tool_tasks(), encoding="utf-8")
+    (root / ".ai/agent").joinpath("framework.json").write_text(
+        json.dumps({"harness": harness}), encoding="utf-8")
+    for role, rel in const.AGENT_FILES[harness].items():
+        f = root / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(AGENT.replace("worker", role), encoding="utf-8")
+    return root
+
+
+def args(**kw):
+    base = dict(worker=None, reviewer=None, no_test=False)
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+def gate(root):
+    return subprocess.run(
+        [sys.executable, str(root / ".ai/agent/tools/tasks.py"), "models"],
+        capture_output=True, text=True)
+
+
+def main():
+    # Name rules.
+    check(models.usable("gpt-6.1-sol") and models.usable("a/b#medium"),
+          "any concrete name is usable")
+    check(not models.usable("") and not models.usable("  ") and
+          not models.usable("Inherit"), "empty and inherit are not")
+
+    # Frontmatter rewrite: one model line after description, nothing else.
+    out = models.with_model(AGENT, "haiku")
+    check(out == "---\nname: worker\ndescription: Works.\nmodel: haiku\n---\n"
+                 "Body\n", f"insert after description: {out!r}")
+    twice = models.with_model(out, "sonnet")
+    check(twice.count("model:") == 1 and "model: sonnet" in twice and
+          twice.endswith("Body\n"), "a second call replaces, never adds")
+    check(models.with_model(AGENT.replace("description: Works.\n", ""), "m")
+          == "---\nname: worker\nmodel: m\n---\nBody\n",
+          "no description line: model goes last in the frontmatter")
+
+    # tasks.py's own copy of the paths equals const's, for every harness.
+    for harness, paths in const.AGENT_FILES.items():
+        root = project(harness)
+        for rel in paths.values():
+            f = root / rel
+            f.write_text(models.with_model(f.read_text(encoding="utf-8"),
+                                           "m1"), encoding="utf-8")
+        r = gate(root)
+        check(r.returncode == 0 and r.stdout.startswith("MODELS OK"),
+              f"{harness}: paths agree with tasks.py: {r.stdout!r}")
+
+    # cmd_models: a passing test saves, a failing one rolls back.
+    root = project()
+    with mock.patch.object(models, "headless_test",
+                           return_value=(True, "replied hello")):
+        rc = models.cmd_models(root, args(worker="w1", reviewer="r1"))
+    check(rc == 0 and gate(root).returncode == 0, "both saved when tests pass")
+    wfile = root / const.AGENT_FILES["claude"]["worker"]
+    before = wfile.read_text(encoding="utf-8")
+    with mock.patch.object(models, "headless_test",
+                           return_value=(False, "model_not_found")):
+        rc = models.cmd_models(root, args(worker="bad"))
+    check(rc == 1 and wfile.read_text(encoding="utf-8") == before,
+          "a failed test restores the file byte for byte")
+    check(models.cmd_models(root, args(worker="inherit")) == 2 and
+          wfile.read_text(encoding="utf-8") == before,
+          "inherit is refused before anything is written")
+    with mock.patch.object(models, "headless_test") as ht:
+        models.cmd_models(root, args(worker="w2", no_test=True))
+    check(not ht.called and "model: w2" in wfile.read_text(encoding="utf-8"),
+          "--no-test saves without calling the test")
+
+    # Other harnesses: saved with a note, never a fake pass.
+    root = project("copilot")
+    with mock.patch.object(models, "headless_test") as ht:
+        rc = models.cmd_models(root, args(worker="gpt-6.1-sol",
+                                          reviewer="gpt-6-luna"))
+    check(rc == 0 and not ht.called and gate(root).returncode == 0,
+          "copilot: lines written, no test claimed")
+
+    # A missing agent file is an error, not a silent create.
+    root = project()
+    (root / const.AGENT_FILES["claude"]["reviewer"]).unlink()
+    check(models.cmd_models(root, args(worker="w")) == 1, "missing file")
+
+    if FAILS:
+        for f in FAILS:
+            print(f"FAIL {f}")
+        return 1
+    print(f"ok: models, {N[0]} checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

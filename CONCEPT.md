@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.8.** The framework rests on four premises, stated in
+**State: 2026-11-09, v11.9.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -150,9 +150,9 @@ Since 11.0 `/task do` splits into two roles, after Google's
 Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
 job and the supervisor none of it (section 53). The worker is the
 framework's `worker` sub-agent, defined beside `reviewer` on every harness
-(section 55): on the model its agent file pins (a `model:` line the user adds), else on
-a cheaper model than the session's where the harness lets the agent pick
-one at spawn, and it knows
+(section 55): on the model its agent file names, which the user sets per
+project (`init-agent --models`, section 59) and which `/task do` refuses to
+work without, never a default and never the session's, and it knows
 only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
 every step the task names: the code, the tests, then the branch, commit,
 push, pull request, the wait for CI, a dev run, a tracker comment. Before
@@ -457,6 +457,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.9 (2026-11-09, sub-agent models are explicit, section 59. `/task do`
+refuses unless the `worker` and the `reviewer` each have a model in their
+agent file; `tasks.py models` is the gate, `init-agent --models` sets and
+tests them; no model is ever picked, inherited or passed at spawn.)
 
 v11.8 (2026-11-09, `/agent-models` removed, section 58. The command, its
 skill body and its per-harness fragments are gone; the `worker` agent and a
@@ -4127,3 +4132,67 @@ built and measured.
 
 **Existing scaffolds.** `/framework-update` retires the `agent-models`
 command file through the recorded file list and removes the `AGENTS.md` row.
+
+## 59. Sub-agent models are explicit (2026-11-09, v11.9)
+
+**Source.** The owner's call after removing `/agent-models` (section 58):
+model selection must be explicit per project. If no model is set, do not
+assume or inherit one, refuse. The owner also runs Claude Code through a
+Copilot proxy whose model names (`gpt-6.1-sol`) are not tiers, so the
+framework can know no names. Settings the owner chose: both roles required,
+`inherit` is not a model, a setup tool that tests each name as a sub-agent
+call, run from a project session.
+
+**Finding that shaped it.** A spawn-time model can only be a tier alias on
+Claude Code and beats the agent file; the file's `model:` line takes any
+name the provider serves and is the one mechanism all three harnesses honor.
+So the file is the single source and the spawn passes nothing.
+
+**Change.**
+
+- `tasks.py models` is the gate: it reads the agent file of each role on
+  every harness that has one and prints `MODELS OK` or `MODELS MISSING`
+  (exit 1). A missing file, a missing or empty line and `inherit` are all
+  unset; the name is not validated. `/task do` runs it as step 0, before
+  `start`, so a refusal changes no task state, and the agent may not pick a
+  model to get past it.
+- `do.md` lost every model guess: no cheaper model picked at spawn, no
+  `session model` in `Delegation:`, no general-purpose fallback for the
+  worker or the reviewer, no self-review of a result that needs a fresh
+  context. A reviewer that cannot be spawned stops the task and asks the
+  user.
+- `init-agent --models [--worker M] [--reviewer M] [--no-test]`
+  (`agentgen/models.py`): writes the `model:` line after `description:`,
+  then tests each role. In a terminal it asks for missing names; under `!`
+  from a session it takes flags. A name that fails the test is not saved: the
+  file is restored byte for byte. The tool ends by running the gate and
+  prints a restart hint, because a running session read the agent files at
+  start.
+- The test (Claude Code): a fresh `claude -p` session is told to spawn the
+  role with the Agent tool and prompt "Reply with the single word hello",
+  then print `SUBAGENT_REPLY: <reply>`. The verdict is that exact line, not
+  the exit status, since a failed spawn still ends the parent's turn
+  cleanly with `is_error: false`. The JSON `modelUsage` is shown as
+  evidence. A fresh process sees the new files at once, so the test needs no
+  restart.
+- Copilot and OpenCode get the line and a note that no automatic test
+  exists yet. Copilot's headless call needs `--allow-all-tools` with a
+  custom agent, which was not run; OpenCode's was not installed on the
+  machine of this revision. Neither is encoded until verified.
+
+**Seen, 2026-11-09 (Claude Code 2.1.319, a scratch project).** Worker
+`haiku` and reviewer `sonnet`: both replied, `modelUsage` showed
+`claude-haiku-5-5` beside the Sonnet parent for the worker; about $0.06 per
+role, mostly the parent session's cache. A nonexistent name: the sub-agent
+failed with `model_not_found` (HTTP 404), stderr carried
+`[claude-code:unrecognized_model]`, the parent said so in prose with
+`is_error: false`, and the tool refused to save it. `inherit`: refused
+before anything is written. Not run: the Copilot and OpenCode tests, and a
+proxy-served name.
+
+**Limits.** The test proves the name resolves and a sub-agent answers on
+it, not that the model is good enough. A parent that invented the reply
+without spawning would pass; the evidence line makes that visible, not
+impossible. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` overrides the files and the
+framework cannot see it. Layer 2: TC-M1 and TC-M2 in
+`tests/task-commands.md` are written, not yet run on a live repo.

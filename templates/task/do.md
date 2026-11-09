@@ -16,6 +16,13 @@ the project root with the relative form and only your own paths,
 never an absolute path: another task may be running in parallel, and
 those are the forms the permission allowlist matches.
 
+0. Before anything else, run `python3 ${tools_dir}/tasks.py models`. It
+   checks that the `worker` and the `reviewer` each have a model chosen for
+   this project, the `model:` line of their agent files. If its first line
+   is `MODELS MISSING`, refuse: do not start the task, change no file, pick
+   no model yourself, and tell the user which file needs which line, as the
+   script prints it. The choice is the user's alone; a session's own model,
+   a tier name or a default is never a substitute.
 1. Run `python3 ${tools_dir}/tasks.py start <id>`: it sets
    `status: in-progress` and `updated:`, clears a `blocked:` line, and
    writes the task's pointer (gitignored): `.ai/.current`, the resume
@@ -43,10 +50,8 @@ beside `reviewer`, never one that inherits this conversation: it knows
 only the files, so anything the user told you that the work depends on
 goes into the task's Notes before it starts. Spawn it with this whole
 prompt: `You are the worker for task <id>. Read ${task_dir}/work.md and
-follow it.` If its agent file has a `model:` line, the user chose that
-model: pass none at spawn. Otherwise pick a cheaper model
-than yours where the harness lets you. Without a `worker` agent, use a
-fresh general-purpose sub-agent the same way.
+follow it.` Its model is the `model:` line of its agent file, which
+`tasks.py models` checked: pass no model at spawn, ever.
 Work steps 2 to 5 yourself instead when the user asked for `inline`, when
 no sub-agent can be spawned (you are one yourself, or the harness has
 none), or when the task is small: at most one of its open steps changes
@@ -90,8 +95,7 @@ read Findings and go on. Otherwise spawn a fresh worker with the same
 prompt: the file holds everything it needs. When the worker reports
 `done` and you accept it, append `- <today> Delegation: <model>,
 <reports> report(s), <done|taken over|blocked>` to Findings, where
-`<model>` is the worker's model: its agent file's `model:` line, the one
-you passed, or `session model`. Then go on at step 7. The Outcome, the notes, the Done-when ticks and `finish` are
+`<model>` is the `model:` line of the worker's agent file. Then go on at step 7. The Outcome, the notes, the Done-when ticks and `finish` are
 yours.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
@@ -147,22 +151,18 @@ yours.
      mechanical: a rename, a move, a reformat, or a regenerated file,
      with no logic changed. Otherwise the review goes to a fresh context,
      however simple it looks.
-     A fresh context means, in this order: the `reviewer` sub-agent;
-     where the harness has none, or it cannot be spawned (e.g. you are
-     yourself a sub-agent), a fresh general-purpose sub-agent given only
-     the task file and the diff. Try the sub-agent before falling back.
-     Only when no sub-agent can be spawned at all, do a self-review, and
-     say in the Findings line which option was unavailable and why. A
-     self-review is the weakest check: work through the citations one by
-     one instead of re-reading your own conclusion.
+     A fresh context means the `reviewer` sub-agent, whose model is the
+     `model:` line of its agent file: pass no model at spawn. If it cannot
+     be spawned (you are yourself a sub-agent, or the harness has none),
+     stop and ask the user: there is no fallback to another agent and no
+     self-review of a result that needs a fresh context.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Gaps that affect
    correctness or the stated criteria get fixed, by the worker when one
    works the task; ignore style-only findings.
    Append one line to Findings, `- <today> Review: <kind>: <result>`,
-   where kind is inline, `reviewer` sub-agent, fresh sub-agent, or
-   self-review; an inline review of a diff over ~30 lines names why it
+   where kind is inline or `reviewer` sub-agent; an inline review of a diff over ~30 lines names why it
    is mechanical (`inline (mechanical: rename)`). Sizing down the gate is allowed; skipping it silently is
    not, and `/task list` flags a done task without this line.
 7. Record.

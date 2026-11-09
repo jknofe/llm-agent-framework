@@ -21,6 +21,14 @@ the agent through skills and folder conventions:
   archive                no command: ask the agent to archive a finished
                          task; the rules live in AGENTS.md
 
+init-agent --models [--worker M] [--reviewer M]
+                         set the models of the worker and reviewer
+                         sub-agents of this project (their `model:` line)
+                         and test each by spawning it as a sub-agent.
+                         /task do refuses until both are set. Run it in
+                         the project, from a session with `!`; restart the
+                         session afterwards to use the new models
+
 Prompts: project name, one-line description, harness
 (claude/copilot/opencode).
 Enter accepts the default; on an existing scaffold the defaults are what the
@@ -230,6 +238,9 @@ def cmd_init(args=None) -> int:
         return cmd_emit_reference(args.emit_reference, args)
     if args and getattr(args, "bootstrap_update", False):
         return bootstrap_update(root)
+    if args and getattr(args, "models", False):
+        from agentgen.models import cmd_models
+        return cmd_models(root, args)
 
     marker = root / "AGENTS.md"
 
@@ -346,6 +357,20 @@ def main() -> int:
                          "init overwrites whole files and would discard rules "
                          "appended to AGENTS.md and permissions added to "
                          "settings.json. Afterwards run /framework-update in the project")
+    ap.add_argument("--models", action="store_true",
+                    help="set the model of the worker and reviewer "
+                         "sub-agents of this project (their `model:` line) "
+                         "and test each as a sub-agent; needed before "
+                         "/task do runs. With --worker and --reviewer, or "
+                         "asked for in a terminal. A model that fails the "
+                         "test is not saved")
+    ap.add_argument("--worker", metavar="MODEL",
+                    help="with --models: the worker's model, as your "
+                         "harness or provider names it")
+    ap.add_argument("--reviewer", metavar="MODEL",
+                    help="with --models: the reviewer's model")
+    ap.add_argument("--no-test", action="store_true",
+                    help="with --models: save without the sub-agent test")
     ap.add_argument("--debug-probe", action="store_true",
                     help="after scaffolding, run the generated probe.py and "
                          "write its report to PROBE.md in the current "

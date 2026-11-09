@@ -618,6 +618,47 @@ def main():
               (root / ".ai/.current").read_text(encoding="utf-8")
               .startswith("task: qa"), f"non-running pointer replaced: {out!r}")
 
+        # Sub-agent models (CONCEPT.md section 59): each of worker and
+        # reviewer needs a concrete `model:` line; nothing else counts.
+        def agent(rel, model_line):
+            f = mroot / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(f"---\nname: x\ndescription: d\n{model_line}---\nb\n",
+                         encoding="utf-8")
+        mroot = root / "mproj"
+        mtool = mroot / ".ai/agent/tools/tasks.py"
+        mtool.parent.mkdir(parents=True)
+        mtool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        r = attempt(mroot, "models")
+        check(r.returncode == 1 and r.stdout.startswith("MODELS MISSING") and
+              "worker: no agent file" in r.stdout, "models: no agent files")
+        for role in ("worker", "reviewer"):
+            agent(f".claude/agents/{role}.md", "")
+        r = attempt(mroot, "models")
+        check(r.returncode == 1 and r.stdout.count("has no model") == 2 and
+              ".claude/agents/worker.md" in r.stdout, "models: no lines")
+        agent(".claude/agents/worker.md", "model: inherit\n")
+        agent(".claude/agents/reviewer.md", "model:\n")
+        r = attempt(mroot, "models")
+        check(r.returncode == 1 and r.stdout.count("has no model") == 2,
+              "models: inherit and empty count as unset")
+        agent(".claude/agents/worker.md", "model: gpt-6.1-sol\n")
+        r = attempt(mroot, "models")
+        check(r.returncode == 1 and "reviewer:" in r.stdout and
+              "worker: .claude" not in r.stdout.split("MODELS MISSING")[1],
+              "models: one role set, the other still refused")
+        agent(".claude/agents/reviewer.md", 'model: "claude-agent/sonnet#medium"\n')
+        r = attempt(mroot, "models")
+        check(r.returncode == 0 and r.stdout.startswith("MODELS OK") and
+              "gpt-6.1-sol" in r.stdout and
+              "claude-agent/sonnet#medium" in r.stdout,
+              f"models: both set, any name accepted: {r.stdout!r}")
+        for role in ("worker", "reviewer"):
+            agent(f".github/agents/{role}.agent.md", "")
+        r = attempt(mroot, "models")
+        check(r.returncode == 1 and ".github/agents/worker.agent.md" in r.stdout,
+              "models: a second harness's files are checked too")
+
     if FAILS:
         for f in FAILS:
             print(f"FAIL {f}")

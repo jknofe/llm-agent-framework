@@ -15,6 +15,7 @@ themselves.
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
    python3 tests/test_git_guard.py
+   python3 tests/test_models.py
    python3 tests/test_opencode_plugin.py
    ```
    The last runs the rendered OpenCode plugin under node against a fake host:
