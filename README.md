@@ -222,10 +222,11 @@ Both harnesses invoke them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>] [inline]` | Opt-in. A cheaper-model worker works the steps under the session's supervision (`inline`: the session works them itself). Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent on a cheaper model works the steps under the session's supervision; a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
+| `/agent-models [worker=<model>] [reviewer=<model>]` | Shows or sets the model of the `worker` and `reviewer` sub-agents for this project: the `model:` line of their agent files, the same way on every harness. No argument: shows both and the accepted names, and asks. See [Sub-agent models](#sub-agent-models). |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
@@ -298,14 +299,16 @@ stdout; only where they live and how they are registered differs:
 | claude | `.claude/hooks/` | `.claude/settings.json` (`PreToolUse` on `Bash`, `Stop`) |
 | copilot | `.github/hooks/` | `.github/hooks/llm-agent.json` (`preToolUse`, `agentStop`); Copilot CLI, VS Code and the cloud agent read it, the cloud agent from the default branch. Loaded only from a trusted folder: the CLI asks on first interactive start in the repo, and a non-interactive run needs `COPILOT_ALLOW_ALL=true` (exactly `true`) to trust its working directory |
 
-- `.claude/agents/reviewer.md` defines the fresh-context adversarial
-  reviewer used by `/task do`'s review gate.
+- `reviewer` and `worker` are the two sub-agents of `/task do`: the
+  fresh-context adversarial reviewer of its review gate, and the worker that
+  does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`
+  and `.github/agents/{reviewer,worker}.agent.md`.
 
 During `/explore` the agent additionally offers a project-specific turn-end
 hook that runs your lint/tests, turning "done = checks pass" into a hard
-gate. The reviewer subagent is claude-only; on Copilot
-`/task do` hands a large result to a fresh general-purpose sub-agent where
-the harness can spawn one, and only otherwise reviews it itself, saying why.
+gate. Where the `reviewer` cannot be spawned, `/task do` hands a large result
+to a fresh general-purpose sub-agent, and only otherwise reviews it itself,
+saying why.
 
 Hooks only fire when the scaffolded repo is the session's working directory
 (on claude: the active project directory, `$CLAUDE_PROJECT_DIR`). Driving
@@ -319,9 +322,11 @@ only guarantee, so commit `.ai` by hand and do not assume a hook ran.
 (CONCEPT.md sections 50 and 53). The worker is a junior who does the
 whole job; the session you talk to is its lead and stands in for you.
 
-- **The worker** is the harness's own general-purpose sub-agent, spawned
-  on a cheaper model than the session's where the harness lets the agent
-  pick one. It starts fresh and knows only `notes.md`, the task file and
+- **The worker** is the `worker` sub-agent, on the model its agent file
+  pins (see [Sub-agent models](#sub-agent-models)), else on a cheaper model
+  than the session's where the harness lets the agent pick one. A small
+  task, where at most one step edits a file, gets no worker: the
+  session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
   `.ai/agent/task/work.md`. It does every step the task names: the code,
   the tests, and after them the branch, commit, push, pull request,
   waiting for CI, dev runs, a tracker comment. Before code ships it asks
@@ -380,13 +385,42 @@ Code:
   `/task: ticket=do FEAT-42`
 - hooks: `.github/hooks/llm-agent.json` plus the two scripts (see
   [Deterministic tools and hooks](#deterministic-tools-and-hooks))
-- no `.claude/settings.json` or reviewer subagent (no equivalent)
+- `reviewer` and `worker` as custom agents in `.github/agents/` (Copilot CLI
+  honors their `model:` line, set with `/agent-models`)
+- no `.claude/settings.json` (no equivalent); Copilot CLI asks before each
+  command and file edit unless you allow tools
 
 Prompt files require VS Code with the `chat.promptFiles` setting enabled.
 Copilot CLI does not load prompt files; it does read `AGENTS.md`, which
 therefore contains the kickoff lines to type instead (also printed at the end
 of `init`), e.g.
 `Run task do FEAT-42: read .github/prompts/task.prompt.md and follow it.`
+
+## Sub-agent models
+
+`/agent-models` sets which model the `worker` and `reviewer` sub-agents run
+on in this project. It writes one `model:` line into their agent files, the
+one mechanism both harnesses share:
+
+```
+/agent-models worker=haiku reviewer=sonnet                              # Claude Code
+Run agent-models worker=<id> reviewer=<id>: read .github/prompts/agent-models.prompt.md and follow it.   # Copilot CLI
+```
+
+- Without an argument it shows both, says what an unset line means on this
+  harness, lists the names it accepts, and asks. `default` removes the line.
+- Model names are the harness's own: Claude Code aliases (`sonnet`, `haiku`,
+  ...) or full IDs, the IDs of Copilot's model picker.
+- Without a `model:` line the worker runs on a cheaper model where the
+  harness can pick one at spawn (Claude Code), else on the session's model
+  (Copilot); the reviewer runs on the session's model.
+- Keep the reviewer at least as strong as the worker: it is the gate that
+  catches what a cheaper worker gets wrong, and a cheaper worker can need
+  more rounds.
+- Effort is inherited: both sub-agents think at the session's effort
+  level.
+- The agent files belong to the framework; `/framework-update` keeps your
+  `model:` line.
 
 ## Hermes (dropped in 10.0)
 

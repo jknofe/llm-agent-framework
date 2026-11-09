@@ -176,7 +176,8 @@ def render_update_body(harness: str, arg: str) -> str:
                        verify_tools=(f"`{TOOLS_DIR}/probe.py` and "
                                      f"`{TOOLS_DIR}/tasks.py`"))
 
-def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
+def command_specs(harness: str, arg_focus: str, arg_ticket: str,
+                  arg_models: str = None) -> list:
     """(name, description, body) for each command, in roster order.
 
     Each name resolves either to a template under templates/skills/ or to a
@@ -186,6 +187,16 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     drift.
     """
     hook_offer = render.load(f"skills/fragments/{harness}/hook-offer.md")
+    worker_file, reviewer_file = AGENT_FILES[harness]
+    models = {
+        "arg_models": arg_ticket if arg_models is None else arg_models,
+        "worker_file": worker_file,
+        "reviewer_file": reviewer_file,
+        "unset_note": MODEL_UNSET[harness],
+        "verify_note": MODEL_VERIFY[harness],
+        "model_names": render.load(
+            f"skills/fragments/{harness}/models.md").rstrip("\n"),
+    }
     specs = []
     for name in SKILLS:
         if name in COMPOSED_BODIES:
@@ -196,7 +207,7 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
             desc, body = _split_frontmatter(raw)
             body = render.render(body, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                                  arg_focus=arg_focus, arg_ticket=arg_ticket,
-                                 hook_offer=hook_offer)
+                                 hook_offer=hook_offer, **models)
         specs.append((name, desc, body))
     return specs
 
@@ -275,6 +286,29 @@ def render_reviewer_agent() -> str:
         input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
                      "Done when, Findings,\nOutcome) plus the code diff, "
                      "if the task changed code."))
+
+def render_worker_agent() -> str:
+    """The worker sub-agent of /task do (CONCEPT.md section 55). It carries no
+    `model:` line: /agent-models adds one when the user picks a model, and
+    without one the harness default applies. Its body only points at
+    work.md, the worker's contract, which stays harness-neutral."""
+    return render.fill(
+        "agents/worker.md",
+        desc=("Works the steps of a task for /task do, which supervises it. "
+              "Spawned by /task do only."),
+        task_dir=TASK_DIR)
+
+def render_copilot_agent(which: str) -> str:
+    """worker or reviewer as a Copilot custom agent (.github/agents/
+    <name>.agent.md). `description` is the one required key; the reviewer
+    gets the read-only tool aliases plus the shell, its tools on claude."""
+    source = (render_worker_agent() if which == "worker"
+              else render_reviewer_agent())
+    desc, body = _split_frontmatter(source)
+    tools = ('tools: ["read", "search", "execute"]\n'
+             if which == "reviewer" else "")
+    return (f'---\nname: {which}\ndescription: "{desc}"\n{tools}---\n'
+            f"{body}")
 
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")

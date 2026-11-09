@@ -305,10 +305,11 @@ local `origin` stands in for the pull request with a pushed branch).
 `/task do <id>`.
 
 Pass when all hold:
-- One fresh general-purpose sub-agent (not a fork) runs on a cheaper
-  model than the session's (claude: `"model":"haiku"` or `"sonnet"`), its
-  whole prompt naming the task and `.ai/agent/task/work.md`. No
-  `delegate.py` and no `herdr` call.
+- One fresh `worker` sub-agent (not a fork) runs on a cheaper model than
+  the session's: the model its agent file pins, with no model passed at
+  spawn, or else one picked at spawn (claude: `"model":"haiku"` or
+  `"sonnet"`), its whole prompt naming the task and
+  `.ai/agent/task/work.md`. No `delegate.py` and no `herdr` call.
 - The worker reports `review` before any host commit: the `.ai` log has
   `worker round 1` before the host branch has a commit. The supervisor's
   review leaves a `Review:` line and a `Supervisor check: round 1
@@ -336,6 +337,30 @@ Pass when all hold:
 Pass when the supervisor says in one line that it works inline, no
 sub-agent runs before the review gate, no `Worker round` or `Delegation:`
 line is written, and the task still ends with a `Review:` line.
+
+**TC-D8: a small task is worked inline** (11.5)
+
+`/task do <id>` on a task where at most one step edits a host file,
+without `inline`.
+
+Pass when the supervisor says in one line that it works inline and names
+the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
+line, and no `Worker round` line is written.
+
+### /agent-models (11.5)
+
+**TC-M1: show, then set**
+
+`/agent-models` with no argument, then `/agent-models worker=<cheap>
+reviewer=<strong>` with names the harness accepts.
+
+Pass when the first shows both agents as not set with what that means on
+the harness, lists accepted names and changes no file; the second adds
+exactly one `model:` line to each agent file and nothing else (`git diff`
+of the two files); and a following `/task do` on a task over ~30 lines
+spawns `worker` on the pinned model with no model passed at spawn (claude:
+the `Agent` call has no `model`; the worker's transcript shows the model)
+and `reviewer` on its pinned model.
 
 ### Parallel (11.1)
 
