@@ -464,7 +464,8 @@ generalized; their evidence carries over unchanged.
 
 v11.11 (2026-11-09, no commit on the default branch unasked, section 61.
 Rule 5 and the worker's contract now name committing, not only merging;
-protocol only, no hook, so the user can still ask for it.)
+protocol only, no hook, so the user can still ask for it. Force-pushing is
+asked about only for the default branch.)
 
 v11.10 (2026-11-09, OpenCode model test, section 60. `init-agent --models`
 tests an OpenCode name the way it tests a Claude Code one, and also checks
@@ -4306,6 +4307,10 @@ that request too, since it cannot tell an asked commit from an unasked one.
   is asked only through its task: a step that names a commit on the
   default branch is the ask; one that needs it without naming it is a
   `question`, as for every rule there.
+- Force-pushing is scoped the same way. `AGENTS.md` listed "force-pushing"
+  among the destructive acts to ask about first, and `work.md` said "never
+  force-push", which read as any branch; rewriting a feature branch is
+  ordinary work. Both now name the default branch only.
 - Part I's enforcement paragraph states the exception to "a checkable rule
   gets a hook". The git guard is unchanged.
 - TC-D6 checks that the host repo's default branch got no commit.
