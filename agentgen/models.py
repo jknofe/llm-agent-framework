@@ -7,10 +7,11 @@ nowhere else. The framework knows no model names: whatever the user types is
 written as given, so a name served through a proxy works. The test is the
 real thing, a fresh headless session that spawns the role as a sub-agent and
 must get "hello" back; a model that cannot be used that way is not saved.
-Only Claude Code has the test so far: the other harnesses get the line and a
-note, until their headless sub-agent call is verified."""
+Claude Code and OpenCode have the test (sections 59 and 60); Copilot gets the
+line and a note until its headless sub-agent call is verified."""
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -22,9 +23,11 @@ TEST_TIMEOUT = 240
 # The parent session's whole job. The sub-agent is spawned by the harness
 # itself, so this exercises the path /task do uses; the exact reply line is
 # the verdict, because a failed spawn still ends the parent's turn cleanly.
-TEST_PROMPT = ("Use the Agent tool with subagent_type {role} and the prompt "
+TEST_PROMPT = ("Use the {tool} tool with {param} {role} and the prompt "
                "'Reply with the single word hello'. Then print one line: "
                "SUBAGENT_REPLY: followed by its reply, nothing else.")
+TOOL_WORDS = {"claude": ("Agent", "subagent_type"),
+              "opencode": ("subagent", "agent")}
 REPLY = re.compile(r"^SUBAGENT_REPLY:\s*\W*hello\W*$", re.I | re.M)
 
 
@@ -62,11 +65,22 @@ def with_model(text: str, value: str) -> str:
     return "---\n" + "\n".join(head) + text[end:]
 
 
-def headless_test(root: Path, role: str) -> tuple:
-    """(ok, detail) for one role on Claude Code."""
+def prompt(harness: str, role: str) -> str:
+    tool, param = TOOL_WORDS[harness]
+    return TEST_PROMPT.format(tool=tool, param=param, role=role)
+
+
+def headless_test(root: Path, role: str, harness: str, value: str) -> tuple:
+    """(ok, detail) for one role on a harness in TOOL_WORDS."""
+    if harness == "opencode":
+        return opencode_test(root, role, value)
+    return claude_test(root, role)
+
+
+def claude_test(root: Path, role: str) -> tuple:
     try:
         run = subprocess.run(
-            ["claude", "-p", TEST_PROMPT.format(role=role),
+            ["claude", "-p", prompt("claude", role),
              "--output-format", "json", "--no-session-persistence"],
             cwd=root, capture_output=True, text=True, timeout=TEST_TIMEOUT)
     except FileNotFoundError:
@@ -84,6 +98,101 @@ def headless_test(root: Path, role: str) -> tuple:
         return True, f"replied hello; models seen: {models}"
     why = result or run.stderr.strip() or "no reply"
     return False, why[:400]
+
+
+def opencode_bin():
+    """`opencode` on PATH, else where its installer puts it."""
+    home = Path.home() / ".opencode" / "bin" / "opencode"
+    return shutil.which("opencode") or (str(home) if home.is_file() else None)
+
+
+def ran_on(export: dict) -> str:
+    """`provider/model[#variant]` from an exported session: `info.model`, or
+    where that is missing the model of its messages (both shapes were
+    seen). The variant OpenCode calls `default` is the bare name, which is
+    what a file without a variant runs on."""
+    m = (export.get("info") or {}).get("model") or next(
+        (msg["model"] for msg in export.get("messages") or []
+         if isinstance(msg.get("model"), dict)), {})
+    name = f"{m.get('providerID', '?')}/{m.get('id', '?')}"
+    variant = m.get("variant")
+    return f"{name}#{variant}" if variant and variant != "default" else name
+
+
+def opencode_test(root: Path, role: str, value: str) -> tuple:
+    """`opencode run` spawns the role through its `subagent` tool. The verdict
+    is the reply line plus the sub-agent's exported session: it records the
+    model the sub-agent ran on, which must be the one the file names. Both
+    sessions are deleted afterwards (the parent's deletes its children).
+
+    `--standalone`: the background service keeps the agent files it read
+    first and ran the sub-agent on the old model; a private server reads
+    them now. stdin closed: with it open, `opencode run` waits on it."""
+    oc = opencode_bin()
+    if not oc:
+        return False, "the `opencode` command is not on PATH"
+    quiet = dict(cwd=root, capture_output=True, text=True,
+                 stdin=subprocess.DEVNULL)
+    try:
+        run = subprocess.run([oc, "run", "--standalone", "--format", "json",
+                              prompt("opencode", role)],
+                             timeout=TEST_TIMEOUT, **quiet)
+    except subprocess.TimeoutExpired:
+        return False, f"no answer within {TEST_TIMEOUT} s"
+    texts, child, parent, error = [], None, None, ""
+    for line in run.stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        parent = parent or event.get("sessionID")
+        part = event.get("part") or {}
+        if event.get("type") == "text":
+            texts.append(part.get("text", ""))
+        elif (event.get("type") == "tool_use"
+              and part.get("tool") == "subagent"):
+            state = part.get("state") or {}
+            found = re.search(r'sessionID[=:]\s*"?([\w-]+)',
+                              str(state.get("output") or state.get("error")))
+            child = child or (state.get("metadata") or {}).get("sessionID") \
+                or (found.group(1) if found else None)
+            if state.get("status") == "error":
+                error = str(state.get("error") or "")
+    ran = ""
+    if child:
+        export = subprocess.run([oc, "session", "export", child], **quiet)
+        try:
+            ran = ran_on(json.loads(export.stdout))
+        except ValueError:
+            pass
+    if parent:
+        subprocess.run([oc, "session", "delete", parent], **quiet)
+    reply = "\n".join(texts)
+    if not REPLY.search(reply):
+        why = error or reply.strip() or run.stderr.strip() or "no reply"
+        return False, why[:400]
+    if not ran:
+        return False, "replied hello, but the sub-agent's model could not " \
+                      "be read back from its session"
+    if value.strip() != ran:
+        return False, f"the sub-agent ran on {ran}, not {value}: the agent " \
+                      "file was not honored"
+    return True, f"replied hello; sub-agent ran on {ran}"
+
+
+def reload_opencode(root: Path):
+    """OpenCode's background server keeps the agent files it read first and
+    does not notice an edit; `opencode reload` makes it read them again
+    (CONCEPT.md section 60)."""
+    oc = opencode_bin()
+    run = subprocess.run([oc, "reload"], cwd=root, capture_output=True,
+                         text=True, stdin=subprocess.DEVNULL) if oc else None
+    if run and run.returncode == 0:
+        print("OpenCode's background server reloaded the agent files "
+              "(`opencode reload`); `opencode debug agents` shows them.")
+    else:
+        print("OpenCode's background server keeps the agent files it read "
+              "first: run `opencode reload` before the next /task do.")
 
 
 def cmd_models(root: Path, args) -> int:
@@ -130,14 +239,14 @@ def cmd_models(root: Path, args) -> int:
             saved.append(role)
             print(f"{role}: {value} saved, not tested.")
             continue
-        if harness != "claude":
+        if harness not in TOOL_WORDS:
             saved.append(role)
             print(f"{role}: {value} saved. No automatic test on {harness} "
                   "yet: run `/task do` on a small task and check the "
                   "worker's report.")
             continue
         print(f"{role}: testing {value} as a sub-agent ...", flush=True)
-        ok, detail = headless_test(root, role)
+        ok, detail = headless_test(root, role, harness, value)
         if ok:
             saved.append(role)
             print(f"{role}: {value} OK ({detail})")
@@ -148,6 +257,8 @@ def cmd_models(root: Path, args) -> int:
     if saved:
         print("A running session read the agent files when it started: "
               "restart it to use the new models.")
+        if harness == "opencode":
+            reload_opencode(root)
     # The exit status is the gate's: a run that leaves a role unset, even
     # one that set nothing at all, did not do its job.
     gate = root / TOOLS_DIR / "tasks.py"

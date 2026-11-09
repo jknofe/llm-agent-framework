@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.9.** The framework rests on four premises, stated in
+**State: 2026-11-09, v11.10.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -457,6 +457,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.10 (2026-11-09, OpenCode model test, section 60. `init-agent --models`
+tests an OpenCode name the way it tests a Claude Code one, and also checks
+that the sub-agent ran on the model the file names.)
 
 v11.9 (2026-11-09, sub-agent models are explicit, section 59. `/task do`
 refuses unless the `worker` and the `reviewer` each have a model in their
@@ -4196,3 +4200,76 @@ without spawning would pass; the evidence line makes that visible, not
 impossible. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` overrides the files and the
 framework cannot see it. Layer 2: TC-M1 and TC-M2 in
 `tests/task-commands.md` are written, not yet run on a live repo.
+
+## 60. OpenCode model test (2026-11-09, v11.10)
+
+**Source.** Section 59 shipped `init-agent --models` with a sub-agent test on
+Claude Code only; OpenCode got the line and a note. The owner asked for full
+OpenCode support. The branch that held the retired `/agent-models` (section
+58) was rebased onto 11.9 and dropped; its OpenCode know-how was checked
+again and carried over.
+
+**Seen, 2026-11-09 (OpenCode 2.2.5, a scratch opencode scaffold,
+`claude-agent` provider).**
+
+- `opencode run --format json "<prompt>"` from the project spawns a
+  sub-agent through the `subagent` tool (`input.agent` is the role). Its
+  JSON lines carry the reply as `text` events and the call as a `tool_use`
+  event whose output names the child session (`<subagent
+  sessionID="...">`); `state.metadata.sessionID` held it in one run and was
+  missing in another, so the output is the fallback.
+- `opencode session export <child>` records the model the sub-agent ran on:
+  `info.model = {providerID, id, variant}`. A `model:` line without a
+  variant ran as `variant: default`; `claude-agent/sonnet#medium` ran as
+  `variant: medium`. So the `#<variant>` suffix in the agent file is
+  honored, and a pinned model without one gets the default variant, not
+  the session's.
+- A nonexistent name: the tool call ends `error`, "Model unavailable:
+  claude-agent/nonexistent-9", and the parent reports it in its reply line,
+  exit status 0. As on Claude Code, the reply line is the verdict.
+- `opencode debug agents` shows each agent's parsed model, including the
+  variant. `opencode` was not on PATH; its installer puts it in
+  `~/.opencode/bin`.
+- The background server (`opencode serve --service`) keeps the agent files
+  it read first for a directory. After the `model:` line was added it
+  still listed the worker without a model for 50 s and after a config
+  touch, and a spawn through it ran on the user's default model
+  (`opencode/iceman-free`), replying hello all the same. The first draft of
+  the test passed a nonexistent name that way; the model check is what
+  caught it. `opencode reload` made the server read the files at once and
+  ended no session; `opencode run --standalone` reads them fresh.
+- `opencode run` with stdin left open waited on it until the 240 s timeout;
+  with stdin closed the same run took about 12 s.
+- The export held the model in `info.model` in some runs and only in
+  `messages[].model` in another.
+
+**Change.**
+
+- The OpenCode test runs `opencode run` with the same prompt as the Claude
+  Code one, naming the `subagent` tool, and passes only when the reply line
+  says hello and the exported child session ran on exactly the name in the
+  file (`provider/model`, plus `#variant` when one is given). Claude Code's
+  test can only show `modelUsage`; OpenCode's can check, so it does. Both
+  test sessions are deleted afterwards. The binary is looked up on PATH,
+  then in `~/.opencode/bin`. The test runs `--standalone` with stdin
+  closed, and reads the model from `info.model` or else the messages.
+- After saving on OpenCode the tool runs `opencode reload`, so the next
+  `/task do` through the background server spawns on the new models; if
+  that fails it says to run it by hand.
+- README: OpenCode names are written as `opencode models` prints them,
+  `<provider>/<model>`, with an optional `#<variant>`.
+- Copilot still gets the line without a test.
+
+**Run, 2026-11-09.** Switcher on OpenCode: both roles OK with the model
+read back, a nonexistent name FAILED with the file unchanged, `inherit`
+refused, a re-init kept both lines, no test session left behind; on Claude
+Code again after the prompt refactor: OK and FAILED as before. TC-M1 on
+OpenCode (TUI, Sonnet 5.5 via `claude-agent`): refused at `tasks.py models`
+with no `start` and no spawn, also with `model: inherit`. TC-M2 on OpenCode:
+models set with `!` from the TUI, then `/new` and `/task do` with no TUI
+restart; the worker's and the reviewer's sessions ran on
+`claude-agent/haiku` and `claude-agent/sonnet#medium`, no spawn passed a
+model, `Delegation: claude-agent/haiku`. The reload alone was enough. Seen
+beside it, not part of this change: the OpenCode worker committed on the
+default branch, which TC-D6 does not allow.
+

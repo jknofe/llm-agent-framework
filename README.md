@@ -431,10 +431,18 @@ assumes nothing: no tier, no default, no inheriting the session's model.
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
   (`gpt-6.1-sol`) works; `inherit` is not a model.
-- **The test:** on Claude Code the tool starts a fresh headless session that
-  spawns each role as a sub-agent and expects "hello" back. A name that
-  fails is not saved. On Copilot and OpenCode the line is written without a
-  test for now; check it with a small `/task do`.
+- **OpenCode names** are written as `opencode models` prints them,
+  `<provider>/<model>`, optionally with a variant: `claude-agent/sonnet#medium`.
+  Without one the sub-agent runs on the model's default variant, not the
+  session's. OpenCode's background server does not notice an edited agent
+  file; the tool runs `opencode reload` after saving, and `opencode debug
+  agents` shows what each agent resolved to.
+- **The test:** on Claude Code and OpenCode the tool starts a fresh headless
+  session (`claude -p`, `opencode run`) that spawns each role as a
+  sub-agent and expects "hello" back. On OpenCode it also reads the
+  sub-agent's session back and fails unless it ran on exactly the name in
+  the file. A name that fails is not saved. On Copilot the line is written
+  without a test for now; check it with a small `/task do`.
 - **The check:** `/task do` first runs `python3 .ai/agent/tools/tasks.py
   models`. If either role has no model it refuses, changes nothing and says
   which file needs which line. Run the script yourself to see the same.

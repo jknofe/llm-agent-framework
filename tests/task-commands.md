@@ -24,9 +24,10 @@ agent follows the skill text, not whether the framework makes it faster.
 
 On OpenCode (`--harness opencode`) the same cases apply, typed as the same
 slash commands: `reviewer` and the worker show as sub-agents in the TUI,
-`opencode session export <id>` is the transcript, and `Delegation:` names
-the `general` sub-agent, since a sub-agent's model cannot be picked at spawn.
-CONCEPT.md section 55 records the first run.
+`opencode session export <id>` is the transcript (the sub-agent's own
+session records the model it ran on as `info.model`), and `Delegation:`
+names the model from the worker's agent file. CONCEPT.md section 55 records
+the first run.
 
 ## Part B setup
 
@@ -376,6 +377,12 @@ Pass when the setup tool reports each role OK, a model that does not exist
 is reported FAILED and leaves its file unchanged, and `/task do` spawns
 `worker` and `reviewer` with no model passed at spawn (the `Agent` call has no
 `model`); the `Delegation:` line names the model from the worker's file.
+
+On OpenCode (section 60) the same, with names as `opencode models` prints
+them (`init-agent --models --worker claude-agent/haiku --reviewer
+claude-agent/sonnet#medium`), each reported `OK` with "sub-agent ran on" the
+same name. The model check: `opencode session export <child>` of the worker
+and the reviewer show that provider, id and variant.
 
 ### Parallel (11.1)
 
