@@ -552,7 +552,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               "default branch). Copilot loads them only from a\ntrusted folder: "
               "accept the trust prompt on first start, or COPILOT_ALLOW_ALL=true "
               "for -p runs.")
-        print("\nPrompt files (/explore, /task, /framework-update)"
+        print(f"\nPrompt files ({', '.join('/' + n for n in SKILLS)})"
               " work in VS Code only.")
         print("Copilot CLI reads AGENTS.md; state the workflow intent directly:")
         print("  Explore the project and fill the Project Context + .ai/notes.md.")

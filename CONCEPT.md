@@ -240,8 +240,8 @@ that one task waits on another; it schedules nothing.
 
 ## Property 3: one command set
 
-Three commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
-`/framework-update`. Same names,
+Four commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
+`/framework-models`, `/framework-update`. Same names,
 same bodies, on every harness; only the entry files differ (Agent Skills
 under `.claude/skills/`, prompt files under `.github/prompts/`, commands under
 `.opencode/commands/`). `AGENTS.md` is the one instructions file and every
@@ -464,13 +464,15 @@ generalized; their evidence carries over unchanged.
 
 ## Version log
 
-v12.0 (2026-11-09, OpenCode model test and default-branch rules, sections
-60 and 61. `init-agent --models` tests an OpenCode name the way it tests a
+v12.0 (2026-11-09, OpenCode model test, default-branch rules and
+`/framework-models`, sections 60 to 62. `init-agent --models` tests an OpenCode name the way it tests a
 Claude Code one, and also checks that the sub-agent ran on the model the
 file names. Rule 5 and the worker's contract name committing on the default
 branch, not only merging into it; protocol only, no hook, so the user can
 still ask for it. Force-pushing is asked about only for the default branch,
-and destructive work only when nobody asked for it.)
+and destructive work only when nobody asked for it. `/framework-models`
+shows the worker and reviewer models and prints the command that sets
+them, section 62.)
 
 v11.9 (2026-11-09, sub-agent models are explicit, section 59. `/task do`
 refuses unless the `worker` and the `reviewer` each have a model in their
@@ -4332,4 +4334,41 @@ that request too, since it cannot tell an asked commit from an unasked one.
 
 **Not run.** No Layer 2 case was rerun for this; it is a text change to a
 rule the agents already read. TC-D6's new check covers it on the next run.
+
+## 62. `/framework-models` (2026-11-09, v12.0)
+
+**Source.** Since 11.9 the models of `/task do`'s worker and reviewer are
+set with `init-agent --models`, a shell command. The owner asked for a slash
+command that at least prints what to run. Section 58 removed
+`/agent-models`, which set the models itself; this one only shows them.
+
+**Name.** `/framework-models`, the owner's pick, beside `/framework-update`.
+Avoided: `/model` (Claude Code, Copilot), `/models` (OpenCode), `/agents`
+(Claude Code), `/subagents` (Copilot).
+
+**Change.**
+
+- `tasks.py models [worker=<m>] [reviewer=<m>]` (also the two names bare,
+  in that order) prints, after `MODELS OK` or `MODELS MISSING`, the setup
+  command for the stamp's harness. Names come from the arguments, else the
+  current `model:` lines, else placeholders. The command is `python3
+  "$LLM_AGENT_HOME/init_agent.py"` with the absolute path when that
+  checkout exists, else the `init-agent` shell function.
+- Per harness: Claude Code, a `! ` line in the session and a restart (run
+  that way on 2026-11-09); OpenCode, a `!` line and no restart, since the
+  tool reloads the server (TC-M2 of section 60); Copilot, a terminal,
+  because Copilot CLI 1.0.107's help documents no `!` prefix, and the note
+  that Copilot gets no test.
+- The skill runs that script with the arguments and replies with its
+  output verbatim. It never runs the printed command, edits an agent file
+  or suggests a name: the choice stays the user's, and `init-agent` tests
+  it.
+- The `/task do` gate prints the same command, so a refusal ends with the
+  line to type.
+- `AGENTS.md`'s command table has no row for it: the copilot file stood at
+  648 of its 650 words. Every harness lists the command itself.
+
+**Not run.** The command was rendered on all three harnesses and the
+script's output checked there and in `test_tasks_table.py`; no live
+session typed `/framework-models` yet.
 
