@@ -67,7 +67,7 @@ covers ${owned}.
      changes, keep every user addition, and state in the report what
      you kept. The cases that actually come up:
 ${merge_cases}     - a `model:` line in the `worker` or `reviewer` agent file: the
-       the project's model choice (`init-agent --models`). Keep it in the
+       project's model choice (`init-agent --models`). Keep it in the
        merged file; the reference has none, and a missing line is a
        refusal for `/task do`, not a default.
    - Retired (in the recorded `framework_files`, absent from the

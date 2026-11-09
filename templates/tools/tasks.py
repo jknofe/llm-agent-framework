@@ -95,7 +95,7 @@ session may be mid-edit.
 
 `tasks.py models` checks that the two sub-agents of /task do, `worker` and
 `reviewer`, each have a model chosen for this project (CONCEPT.md section
-58). The choice is the `model:` line of the agent file, nowhere else, and
+59). The choice is the `model:` line of the agent file, nowhere else, and
 the script reads every harness's agent file that exists. A role counts as
 set only when that line holds a concrete name: a missing agent file, a
 missing or empty line and `inherit` all count as unset. The name itself is

@@ -112,6 +112,32 @@ def main():
     check(rc == 0 and not ht.called and gate(root).returncode == 0,
           "copilot: lines written, no test claimed")
 
+    # Nothing to set and no terminal to ask in: says so, exits non-zero.
+    root = project()
+    with mock.patch.object(sys.stdin, "isatty", return_value=False):
+        rc = models.cmd_models(root, args())
+    check(rc == 1, f"no flags, no terminal: exit 1, got {rc}")
+
+    # A forced re-init regenerates the agent files but keeps their model
+    # line, on every harness; a fresh file still gets none.
+    init = Path(__file__).resolve().parents[1] / "init_agent.py"
+    for harness in const.HARNESSES:
+        root = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        cmd = [sys.executable, str(init), "--harness", harness, "-y",
+               "--name", "p"]
+        subprocess.run(cmd, cwd=root, capture_output=True, check=True)
+        check(gate(root).returncode == 1, f"{harness}: fresh scaffold unset")
+        models.cmd_models(root, args(worker="w9", reviewer="r9",
+                                     no_test=True))
+        subprocess.run(cmd, cwd=root, capture_output=True, check=True)
+        r = gate(root)
+        check(r.returncode == 0 and "w9" in r.stdout and "r9" in r.stdout,
+              f"{harness}: re-init keeps the model lines: {r.stdout!r}")
+        wfile = root / const.AGENT_FILES[harness]["worker"]
+        check(wfile.read_text(encoding="utf-8").count("model:") == 1,
+              f"{harness}: exactly one model line after re-init")
+
     # A missing agent file is an error, not a silent create.
     root = project()
     (root / const.AGENT_FILES["claude"]["reviewer"]).unlink()

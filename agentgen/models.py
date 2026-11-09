@@ -109,6 +109,9 @@ def cmd_models(root: Path, args) -> int:
             have = current(files[role])
             answer = input(f"{role} model [{have or 'not set'}]: ").strip()
             wanted[role] = answer or None
+    elif not any(wanted.values()):
+        print("Nothing to set: pass --worker and/or --reviewer (no terminal "
+              "to ask in, e.g. under `!` from a session).", file=sys.stderr)
     for role, value in wanted.items():
         if value is not None and not usable(value):
             print(f"{role}: {value!r} is not a model name (`inherit` is the "
@@ -145,8 +148,13 @@ def cmd_models(root: Path, args) -> int:
     if saved:
         print("A running session read the agent files when it started: "
               "restart it to use the new models.")
+    # The exit status is the gate's: a run that leaves a role unset, even
+    # one that set nothing at all, did not do its job.
     gate = root / TOOLS_DIR / "tasks.py"
+    gate_rc = 0
     if gate.is_file():
-        print(subprocess.run([sys.executable, str(gate), "models"],
-                             capture_output=True, text=True).stdout.rstrip())
-    return 1 if failed else 0
+        run = subprocess.run([sys.executable, str(gate), "models"],
+                             capture_output=True, text=True)
+        print(run.stdout.rstrip())
+        gate_rc = run.returncode
+    return 1 if failed or gate_rc else 0

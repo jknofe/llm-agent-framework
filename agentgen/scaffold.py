@@ -29,6 +29,17 @@ def write(path: Path, content: str, force: bool, created: list, skipped: list):
     path.write_text(content, encoding="utf-8")
     created.append(path)
 
+def write_agent(path: Path, content: str, force: bool, created: list,
+                skipped: list):
+    """A `worker` or `reviewer` agent file: framework-owned like any other,
+    except its `model:` line, which is the project's choice (`init-agent
+    --models`, CONCEPT.md section 59) and survives a regeneration. Without
+    it /task do refuses, so a re-init must never drop it."""
+    from agentgen.models import current, with_model
+    kept = current(path) if path.is_file() else ""
+    write(path, with_model(content, kept) if kept else content,
+          force, created, skipped)
+
 def render_framework_json(root: Path, name: str, harness: str,
                           desc: str = "") -> str:
     """The scaffold's version stamp: which framework revision built it, under
@@ -446,9 +457,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                 command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
             write(root / ".claude" / "skills" / rel, content,
                   force, created, skipped)
-        write(root / ".claude" / "agents" / "reviewer.md",
+        write_agent(root / ".claude" / "agents" / "reviewer.md",
               render_reviewer_agent(), force, created, skipped)
-        write(root / ".claude" / "agents" / "worker.md",
+        write_agent(root / ".claude" / "agents" / "worker.md",
               render_worker_agent(), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
@@ -462,9 +473,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                 command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")).items():
             write(opencode / "commands" / fname, content,
                   force, created, skipped)
-        write(opencode / "agents" / "reviewer.md",
+        write_agent(opencode / "agents" / "reviewer.md",
               render_opencode_reviewer(), force, created, skipped)
-        write(opencode / "agents" / "worker.md",
+        write_agent(opencode / "agents" / "worker.md",
               render_opencode_worker(), force, created, skipped)
         write(opencode / "plugins" / "llm-agent.js",
               render_opencode_plugin(), force, created, skipped)
@@ -480,7 +491,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
         for which in ("worker", "reviewer"):
-            write(root / ".github" / "agents" / f"{which}.agent.md",
+            write_agent(root / ".github" / "agents" / f"{which}.agent.md",
                   render_copilot_agent(which), force, created, skipped)
         write(root / COPILOT_HOOKS_DIR / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
