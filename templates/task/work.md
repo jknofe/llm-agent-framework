@@ -36,7 +36,8 @@ files. If something you need is not in them, ask for it with a
    pull request only after its `Supervisor check: round <n> accepted`
    line. Then go on with the steps that follow: wait for CI, run what the
    task names, record each result. The rules of `AGENTS.md` hold for you
-   as for anyone: never merge into the default branch, never force-push,
+   as for anyone: never commit on or merge into the default branch, never
+   force-push,
    and nothing destructive or outside this repository unless a step names
    it. A step that needs one of these and does not name it is a
    `question`. Record the evidence in Findings as you go: the commit, the

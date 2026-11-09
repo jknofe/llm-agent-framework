@@ -352,7 +352,9 @@ take over. To have the worker run somewhere else, for example in a
 terminal pane you can watch, say so when you start `/task do`. The
 worker's commits, pushes and pull requests go through the same guards as
 yours: the git guard hook blocks a merge into the default branch, and
-`AGENTS.md` stops every agent at the branch or pull request. Delegation
+`AGENTS.md` keeps every agent off the default branch, committing on a
+feature branch and stopping at it or its pull request. A commit on the
+default branch is not blocked by a hook: ask for one and the agent makes it. Delegation
 is not claimed to be cheaper: reviews and decisions stay on your model.
 
 ## Parallel tasks

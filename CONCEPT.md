@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.10.** The framework rests on four premises, stated in
+**State: 2026-11-09, v11.11.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -176,7 +176,7 @@ a small task: at most one open step changes a host file, or none does
 (section 55). The
 Outcome, the notes, the Done-when ticks and `finish` are its own. The
 worker never ticks a done-when box, never writes Outcome, notes or the
-review line, and never merges into the default branch.
+review line, and never commits on or merges into the default branch.
 
 `/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
@@ -338,8 +338,9 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
    and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
    that makes a fresh session cheap.
-5. Never merge into the default branch unasked. Work on a branch and stop at
-   the pull request; merging is the user's action.
+5. Never commit on or merge into the default branch unasked. Work on a
+   feature branch and stop at it or its pull request; merging is the user's
+   action.
 6. Never add a co-author trailer to a commit message. Harnesses inject one by
    default; the scaffold overrides it.
 
@@ -348,7 +349,10 @@ while `.ai` is dirty, and a pre-tool hook blocks rules 5 and 6 at the shell
 (`git merge` on the default branch, `git push` targeting it, `gh pr merge`, a
 commit whose message carries a co-author line). A rule that can be checked
 deterministically gets a hook and stays in the protocol text as the backstop,
-because instructions are advisory and hooks are not.
+because instructions are advisory and hooks are not. One exception by the
+owner's choice: a commit on the default branch is rule 5 in the text only,
+with no hook, because the user may ask for one and a hook cannot tell asked
+from unasked (section 61).
 
 The two hook scripts are the same file on every harness. Claude Code and
 Copilot (CLI, VS Code, cloud agent) both pipe a JSON payload with `cwd`,
@@ -457,6 +461,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v11.11 (2026-11-09, no commit on the default branch unasked, section 61.
+Rule 5 and the worker's contract now name committing, not only merging;
+protocol only, no hook, so the user can still ask for it.)
 
 v11.10 (2026-11-09, OpenCode model test, section 60. `init-agent --models`
 tests an OpenCode name the way it tests a Claude Code one, and also checks
@@ -4271,5 +4279,37 @@ restart; the worker's and the reviewer's sessions ran on
 `claude-agent/haiku` and `claude-agent/sonnet#medium`, no spawn passed a
 model, `Delegation: claude-agent/haiku`. The reload alone was enough. Seen
 beside it, not part of this change: the OpenCode worker committed on the
-default branch, which TC-D6 does not allow.
+default branch. No rule forbade it then: rule 5 and the git guard cover
+merging and pushing, not a local commit (section 61).
+
+## 61. No commit on the default branch unasked (2026-11-09, v11.11)
+
+**Source.** In the OpenCode TC-M2 run of section 60 the worker committed
+`wordstat` straight onto `main`; the Claude Code worker of the same case
+had made a branch on its own. Nothing shipped forbade it: rule 5 said
+"never merge into the default branch unasked", the worker's contract said
+the same, and the git guard blocks `git merge` on the default branch, a
+`git push` to it and `gh pr merge`, not a local commit. The task named no
+branch and the scratch repo had no remote, so there was no push to block.
+Section 60 first called the commit a TC-D6 failure; TC-D6 checks merging,
+so that was corrected.
+
+**Owner's decision.** Add the rule, as protocol only. The owner sometimes
+wants a commit on the default branch and asks for it; a hook would block
+that request too, since it cannot tell an asked commit from an unasked one.
+
+**Change.**
+
+- `AGENTS.md` rule 5: "Never commit on or merge into the default branch
+  unasked. Work on a feature branch and stop at it or its pull request."
+- `work.md`: the worker's copy of the rule names committing too. A worker
+  is asked only through its task: a step that names a commit on the
+  default branch is the ask; one that needs it without naming it is a
+  `question`, as for every rule there.
+- Part I's enforcement paragraph states the exception to "a checkable rule
+  gets a hook". The git guard is unchanged.
+- TC-D6 checks that the host repo's default branch got no commit.
+
+**Not run.** No Layer 2 case was rerun for this; it is a text change to a
+rule the agents already read. TC-D6's new check covers it on the next run.
 
