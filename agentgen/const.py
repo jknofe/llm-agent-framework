@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "11.4"
+FRAMEWORK_VERSION = "11.5"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -32,14 +32,16 @@ GEN_END = "<!-- END GENERATED:project-context -->"
 # is investigating, bug hunting and testing, not only changing code. 9.0
 # folded /task-create, /task-do and /task-list-all into one /task whose
 # create-or-do decision is made by `tasks.py resolve`, not by the agent.
-SKILLS = ["explore", "task", "framework-update"]
+# 11.5 added /agent-models: the models of the worker and reviewer sub-agents,
+# set the same way on every harness (CONCEPT.md section 55).
+SKILLS = ["explore", "task", "agent-models", "framework-update"]
 
 # Claude Code `effort` frontmatter per skill (CONCEPT.md section 42). It
 # overrides the session level only for the turn that invokes the skill, so
 # the direct path keeps the user's own /effort default. Claude only: no
 # equivalent is documented for copilot.
 SKILL_EFFORT = {"explore": "medium", "task": "medium",
-                "framework-update": "high"}
+                "agent-models": "low", "framework-update": "high"}
 
 # The harnesses this generator renders. Hermes was the third until 10.0
 # (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized
@@ -59,7 +61,7 @@ HARNESS_BACKUP_DIR = ".ai/agent/.harness-backup"
 # the version stamp did not record is the user's own, not the framework's.
 HARNESS_ENTRY_PATHS = {
     "claude": [".claude", "CLAUDE.md"],
-    "copilot": [".github/prompts", COPILOT_HOOKS_DIR],
+    "copilot": [".github/prompts", ".github/agents", COPILOT_HOOKS_DIR],
     # Retired in 10.0, kept so a switch away from it reports leftovers.
     "hermes": [".agents/skills", ".agents/hooks"],
 }
@@ -83,5 +85,28 @@ _SKILL_DESCRIPTIONS = {
 ARG_HINTS = {
     "explore": "[focus]",
     "task": "[create|do|list|tree] <id> [title...|inline]",
+    "agent-models": "[worker=<model>] [reviewer=<model>]",
     "framework-update": "[dry-run]",
+}
+
+# The two sub-agents of /task do, per harness: where their agent files live
+# and what a missing `model:` line means there (CONCEPT.md section 55).
+AGENT_FILES = {
+    "claude": (".claude/agents/worker.md", ".claude/agents/reviewer.md"),
+    "copilot": (".github/agents/worker.agent.md",
+                ".github/agents/reviewer.agent.md"),
+}
+
+MODEL_UNSET = {
+    "claude": ("the worker runs on the model `/task do` passes when it "
+               "spawns it\n(a cheaper one where it can), and the reviewer "
+               "on the session's model."),
+    "copilot": "the sub-agent runs on the session's model.",
+}
+
+MODEL_VERIFY = {
+    "claude": "A session reads agent files when it starts; new sessions use "
+              "the change.",
+    "copilot": "A session reads agent files when it starts; new sessions "
+               "use the change.",
 }
