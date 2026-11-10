@@ -328,8 +328,9 @@ Pass when all hold:
 - The supervisor made no host edit, commit or push (no `Edit`/`Write`
   outside `.ai`, no `git commit` or `git push` in the host repo) and
   changed no file while the worker ran.
-- The supervisor reran no test when Findings hold the worker's commands
-  and results; it read the evidence instead.
+- The supervisor ran no test, lint or build (12.1): it read the worker's
+  recorded commands and results, and a missing or doubtful one went back
+  to the worker as a `Supervisor round` correction.
 - The full test and lint commands ran once, after the last code change
   (12.1): the worker's `review` round records only the covering tests and
   lint on the changed files, and the transcript holds one full-suite run,

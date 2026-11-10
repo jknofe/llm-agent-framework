@@ -66,10 +66,10 @@ round` line it ends with. Judge each report from the files, never from
 the worker's message: the report line and every new Finding (a step
 ticked without evidence is not done), `git status` and the diff. Trust
 recorded evidence: a CI result on the pull request, or a command with its
-result line in Findings (`Ran 9 tests ... OK`) is enough; do not rerun it
-to confirm it. Rerun a check yourself only when its command or result is
-missing from Findings, or contradicts the diff. Then answer by the
-report:
+result line in Findings (`Ran 9 tests ... OK`) is enough. Never run a
+check yourself: when a command or its result is missing from Findings,
+or contradicts the diff, send it back to the worker in a `Supervisor
+round <n>` correction. Then answer by the report:
 - `review`: run the review gate (step 6) on the uncommitted diff. If it
   holds, append `- <today> Supervisor check: round <n> accepted: <what
   you checked>`; the worker then commits, pushes and opens the pull

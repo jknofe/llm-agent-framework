@@ -347,8 +347,8 @@ whole job; the session you talk to is its lead and stands in for you.
   one), answers questions as you would from the task file, and asks you
   only what it cannot decide for you: a changed goal or criterion, a
   merge, production, deleting data. It trusts CI and the evidence in
-  Findings, and reruns the tests only when that evidence is missing or
-  doubtful. A review finding goes back to the worker as a `Supervisor
+  Findings and runs no check itself: missing or doubtful evidence goes
+  back to the worker. A review finding goes back to the worker as a `Supervisor
   round` line. The Outcome, `notes.md`, the done-when ticks and `finish`
   stay with the supervisor.
 

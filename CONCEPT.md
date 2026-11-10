@@ -164,8 +164,9 @@ uncommitted diff before it ships (the review gate), answers a question as
 the user would from the task file, and asks the user only what it cannot
 decide for them (a changed Goal or criterion, a merge, production,
 deleting data). It judges each report from the files and trusts recorded
-evidence, a CI result or a command with its output, rerunning the tests
-only when that evidence is missing or doubtful. A worker's `done` is a
+evidence, a CI result or a command with its output, and runs no check
+itself: missing or doubtful evidence goes back to the worker (section 63).
+A worker's `done` is a
 claim, not a gate result. Corrections and answers go into Findings as
 `Supervisor round <n>` lines, an accepted review as a `Supervisor check`
 line; then the supervisor continues the same worker where the harness can
@@ -474,7 +475,8 @@ v12.1 (2026-11-10, the full suite runs once per task, section 63. The
 worker iterates, and reports `review`, on the covering tests and lint of
 the changed files; the project's full test and lint commands run once on
 the final code, and a green CI run on the last push is that run. The
-review reads the diff and the recorded results and runs nothing.)
+review and the supervisor read the diff and the recorded results and run
+nothing; only the worker runs checks.)
 
 v12.0 (2026-11-09, OpenCode model test, default-branch rules and
 `/framework-models`, sections 60 to 62. `init-agent --models` tests an OpenCode name the way it tests a
@@ -4422,6 +4424,12 @@ run the tests again. CI then ran the same suite on the pull request.
   an uncommitted diff; its file says never to run tests, linters, builds or
   the code, and its checklist asks for a test in the diff or a recorded
   result instead of "tested".
+- The supervisor never runs a check either. 11.3 let it rerun one when the
+  command or result was missing from Findings or contradicted the diff;
+  that now goes back to the worker as a `Supervisor round` correction. Only
+  the worker runs tests, so each run is recorded where the next round reads
+  it. Working inline (`inline`, a small task), the supervisor is the
+  worker, and step 5 applies to it.
 - The full-suite Done-when criterion stays: `create.md` writes it as one
   run on the final code. `AGENTS.md` rule 2 says the same for the direct
   path, three words shorter elsewhere in the rule to stay under the
