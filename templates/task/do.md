@@ -83,7 +83,11 @@ round <n>` correction. Then answer by the report:
   you cannot. Write their answer into Notes and point the worker to it
   in the `Supervisor round <n>` line.
 - `done`: check the evidence for every step, and that the one full test
-  and lint run (step 5) is recorded and ran on the final code. If
+  and lint run (step 5) is recorded and ran on the final code. When it
+  was a CI run, read its status yourself (on GitHub `gh pr checks <n>`
+  or `gh run view <id>`): reading is not running, and a CI result is the
+  one claim you can check without a run. Without CI the worker's
+  recorded result line is the only record; take it as given. If
   something is missing or wrong, append a `Supervisor round <n>`
   correction. If code changed after the last accepted review, run the
   gate again first. A `review` report needs only the covering tests:

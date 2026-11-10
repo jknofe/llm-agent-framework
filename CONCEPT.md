@@ -4430,6 +4430,11 @@ run the tests again. CI then ran the same suite on the pull request.
   the worker runs tests, so each run is recorded where the next round reads
   it. Working inline (`inline`, a small task), the supervisor is the
   worker, and step 5 applies to it.
+- Reading a CI result is not running it. On `done` the supervisor reads
+  the status of a CI run Findings cite (on GitHub `gh pr checks`, `gh run
+  view`), and the reviewer may read it too; both commands joined the
+  read-only allowlist. A cited green run is the one claim about tests the
+  supervisor can check without a run, so it does.
 - The full-suite Done-when criterion stays: `create.md` writes it as one
   run on the final code. `AGENTS.md` rule 2 says the same for the direct
   path, three words shorter elsewhere in the rule to stay under the
@@ -4445,6 +4450,12 @@ more round. On the measured task that round costs one 4-minute run; the
 rules it replaces cost 44 full runs between worker and reviewer. A reviewer
 that cannot run anything can miss a failure a run would show; the worker's
 recorded results and the one full run at the end are the check for that.
+Without CI that one run is the worker's recorded result line and nothing
+else: no one reruns it, and the runbook records a worker reporting done
+with 0 of 4 criteria ticked (2026-09-29). With CI the supervisor reads the
+run's status, so a misreported green run is caught. A project without CI
+that needs more can take the turn-end check hook `/explore` offers, which
+runs its tests deterministically.
 
 **Not run.** Layer 1 only: the templates render on all three harnesses and
 `check_templates` holds the budget. TC-D6 gained the checks (one full run,

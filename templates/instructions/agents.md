@@ -29,8 +29,9 @@ yourself.
    moving on.
 2. Code changed: iterate on the covering tests; before done, the whole test
    and lint suite, not one named test, passes once on the final code
-   (green CI counts). Docs or comments only: no suite run. A question: done = an answer citing its evidence, or
-   "inconclusive" with what was ruled out.
+   (green CI counts). Docs or comments only: no suite run. A question:
+   done = an answer citing its evidence, or "inconclusive" with what was
+   ruled out.
 3. After changing `.ai/`, commit it in its own repo: `git -C .ai add <paths
    you changed> && git -C .ai commit -m "<summary>"`, never `add -A`. Never
    commit `.ai` content to the host repo.${hook_note}
