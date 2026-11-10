@@ -164,6 +164,12 @@ What counts as done, by type:
 | `investigation` | the question answered with every claim citing evidence, or "inconclusive" naming what was ruled out; covers research |
 | `test` | every named scenario run and its result recorded; new tests pass with the full suite |
 
+The full suite runs once per task, on the final code: a green CI run on the
+last push counts, otherwise the agent runs it locally before `done`. While
+working, and for each review round, only the tests that cover the change and
+lint on the changed files run, so a slow suite costs one run, not one per
+round.
+
 The framework is model-agnostic: it never picks a model. The session runs on
 the model you chose in the harness. The two sub-agents of `/task do` run on
 the models you set per project (see [Sub-agent models](#sub-agent-models)); a

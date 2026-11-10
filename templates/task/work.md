@@ -17,11 +17,15 @@ files. If something you need is not in them, ask for it with a
    your last report, then go on.
 2. Work the task by `${task_dir}/do.md` steps 2 to 5: the steps in order,
    findings recorded as they happen with their evidence, open re-planning
-   in `## Steps`, and the covering tests while you iterate. If code
-   changed, run the project's full test and lint commands before you
-   report, and record each command with its result line verbatim (`Ran
-   9 tests in 0.01s OK`): the supervisor trusts that record instead of
-   rerunning it. Ignore the rest of `do.md`: the supervisor owns it.
+   in `## Steps`. While you iterate, after a correction, and for a
+   `review` report, run only the tests that cover the change and lint on
+   the files you changed. Run the project's full test and lint commands
+   once, on the final code: where the task pushes to a branch with CI,
+   its result on the last push is that run; otherwise run them before
+   you report `done`. Record each command with its result line verbatim
+   (`Ran 9 tests in 0.01s OK`), and the CI run with its URL and result:
+   the supervisor trusts that record instead of rerunning it. Ignore the
+   rest of `do.md`: the supervisor owns it.
 3. Claim each host file before you edit it, `python3 ${tools_dir}/tasks.py
    claim <id> <path>...`; a `CLAIMED` refusal means a parallel task owns
    it: do not edit it, and report `question` if the step cannot go on

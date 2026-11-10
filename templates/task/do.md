@@ -82,9 +82,12 @@ report:
   production, delete data, or decide what the task file leaves open and
   you cannot. Write their answer into Notes and point the worker to it
   in the `Supervisor round <n>` line.
-- `done`: check the evidence for every step. If something is missing or
-  wrong, append a `Supervisor round <n>` correction. If code changed
-  after the last accepted review, run the gate again first.
+- `done`: check the evidence for every step, and that the one full test
+  and lint run (step 5) is recorded and ran on the final code. If
+  something is missing or wrong, append a `Supervisor round <n>`
+  correction. If code changed after the last accepted review, run the
+  gate again first. A `review` report needs only the covering tests:
+  do not ask for the full suite before then.
 - `stuck`, or the same correction needed a third time: ask the user how
   to go on: another round with a new direction, you taking over, or
   `blocked`. Take over only when they say so, and say so in one line
@@ -122,8 +125,11 @@ yours.
    line `/task list` shows, and keeps the pointer. `tasks.py start`
    clears the block when the task resumes.
 5. Whenever the task changes code, whatever its type: iterate with the
-   tests that cover the change, and have the project's full test and
-   lint commands green before the review gate. While a task runs in
+   tests that cover the change and lint on the changed files; that is
+   also all a review round needs. Run the project's full test and lint
+   commands once, on the final code, not after every change: a green CI
+   run on the last push is that run; without CI, run them locally after
+   the last code change, before `done`. While a task runs in
    parallel, the suite also sees its unfinished edits: a failure in a
    file that task claimed is not yours to fix; record it in Findings and
    rerun once that task finishes.

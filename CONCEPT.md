@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v12.0.** The framework rests on four premises, stated in
+**State: 2026-11-10, v12.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -130,7 +130,8 @@ The type decides what done means:
 | `test` | every named scenario run and its result recorded with evidence; new tests pass with the full suite |
 
 Any task that ends up changing code takes the full-suite criterion,
-whatever its type. For bugs and investigations the steps are hypotheses,
+whatever its type, met by one run on the final code: a green CI run on the
+last push, or one local run before `done` (section 63). For bugs and investigations the steps are hypotheses,
 each with how to confirm or rule it out, and the plan is expected to change.
 
 `/task do <id>` works the steps, appends each finding to the task file as it
@@ -203,7 +204,11 @@ Rules that came from failures, not from theory:
 - A code-changing task always includes a criterion that the project's full
   test and lint commands pass. A criterion naming a single test is what
   produced the one correctness loss the framework has ever caused (Part II,
-  sequence round).
+  sequence round). The full suite runs once per task, on the final code;
+  iterating and each review round take only the covering tests and lint
+  on the changed files. Running it every round put one worker at 52
+  minutes of test time on one task, a 4-minute suite run about six times
+  (section 63).
 - `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
@@ -328,8 +333,9 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
 2. When code changed, tests and lint must pass, the whole suite, not only the
-   test a task names. Done = checks green. While iterating, the covering
-   tests suffice; docs or comments only need no suite run. When the task is a question,
+   test a task names, once on the final code (a green CI run counts).
+   Done = checks green. While iterating, the covering tests suffice; docs
+   or comments only need no suite run. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
@@ -463,6 +469,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.1 (2026-11-10, the full suite runs once per task, section 63. The
+worker iterates, and reports `review`, on the covering tests and lint of
+the changed files; the project's full test and lint commands run once on
+the final code, and a green CI run on the last push is that run.)
 
 v12.0 (2026-11-09, OpenCode model test, default-branch rules and
 `/framework-models`, sections 60 to 62. `init-agent --models` tests an OpenCode name the way it tests a
@@ -4372,3 +4383,43 @@ Avoided: `/model` (Claude Code, Copilot), `/models` (OpenCode), `/agents`
 script's output checked there and in `test_tasks_table.py`; no live
 session typed `/framework-models` yet.
 
+## 63. The full suite runs once per task (2026-11-10, v12.1)
+
+**Source.** The owner saw `/task do` progress slowly on a real project
+(DART, `dart-data-pipelines`, a pytest suite of about 270 tests that takes 3
+to 4.5 minutes because of its Postgres tests). One worker's transcript of
+2026-11-09 and 10: 16 test or lint runs, 52 minutes of wall time in them,
+about six of them the full suite with ruff, and two that hit the 10-minute
+tool timeout and went to the background. `work.md` required the full test
+and lint commands before every report, and a worker reports every round
+(`review`, then `done`, then again after each correction); `do.md` step 5
+asked for them before every review gate. CI then ran the same suite on the
+pull request.
+
+**Change.**
+
+- The worker iterates, answers a correction, and reports `review` on the
+  tests that cover the change and lint on the changed files only.
+- The project's full test and lint commands run once, on the final code. A
+  green CI run on the last push is that run; without CI the worker runs
+  them locally after the last code change, before it reports `done`. It
+  records the command and its result line, or the CI run's URL and result.
+- The supervisor checks on `done` that the one full run is recorded and ran
+  on the final code, and does not ask for it before then.
+- The full-suite Done-when criterion stays: `create.md` writes it as one
+  run on the final code. `AGENTS.md` rule 2 says the same for the direct
+  path, three words shorter elsewhere in the rule to stay under the
+  copilot budget.
+
+**Kept.** The rule from the sequence round (Part II): never only the test
+a task names. A fix that passes its own test and breaks another still
+fails the criterion; it is caught once, at the end, not every round.
+
+**What this risks.** A break outside the covered tests now surfaces at the
+end instead of in the round that caused it, so a late failure can cost one
+more round. On the measured task that round costs one 4-minute run; the
+rule it replaces cost about six.
+
+**Not run.** Layer 1 only: the templates render on all three harnesses and
+`check_templates` holds the budget. TC-D6 gained the check (one full run, or
+none with a green CI run cited); no live run yet.

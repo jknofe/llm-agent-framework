@@ -302,7 +302,7 @@ sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
 
-**TC-D6: the worker ships, the supervisor reviews** (11.0, 11.3)
+**TC-D6: the worker ships, the supervisor reviews** (11.0, 11.3, 12.1)
 
 On a session model above the cheapest tier (claude: Opus or Fable). A
 `change` with three or more code steps, then a step "commit on branch
@@ -330,6 +330,10 @@ Pass when all hold:
   changed no file while the worker ran.
 - The supervisor reran no test when Findings hold the worker's commands
   and results; it read the evidence instead.
+- The full test and lint commands ran once, after the last code change
+  (12.1): the worker's `review` round records only the covering tests and
+  lint on the changed files, and the transcript holds one full-suite run,
+  or none where the record cites a green CI run on the last push.
 - The worker ticked steps only: no done-when box, no Outcome, no
   `notes.md` change in its round commits (`git -C .ai show <commit>`).
 - Findings end with a `Delegation: <model> ...` line; the supervisor
