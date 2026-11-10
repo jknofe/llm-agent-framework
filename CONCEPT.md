@@ -206,9 +206,9 @@ Rules that came from failures, not from theory:
   produced the one correctness loss the framework has ever caused (Part II,
   sequence round). The full suite runs once per task, on the final code;
   iterating and each review round take only the covering tests and lint
-  on the changed files. Running it every round put one worker at 52
-  minutes of test time on one task, a 4-minute suite run about six times
-  (section 63).
+  on the changed files, and a review reads and runs nothing. On one task
+  with a 4-minute suite the worker ran the full suite 34 times and the
+  reviewer 10 times, about an hour between them (section 63).
 - `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
@@ -473,7 +473,8 @@ generalized; their evidence carries over unchanged.
 v12.1 (2026-11-10, the full suite runs once per task, section 63. The
 worker iterates, and reports `review`, on the covering tests and lint of
 the changed files; the project's full test and lint commands run once on
-the final code, and a green CI run on the last push is that run.)
+the final code, and a green CI run on the last push is that run. The
+review reads the diff and the recorded results and runs nothing.)
 
 v12.0 (2026-11-09, OpenCode model test, default-branch rules and
 `/framework-models`, sections 60 to 62. `init-agent --models` tests an OpenCode name the way it tests a
@@ -4387,14 +4388,22 @@ session typed `/framework-models` yet.
 
 **Source.** The owner saw `/task do` progress slowly on a real project
 (DART, `dart-data-pipelines`, a pytest suite of about 270 tests that takes 3
-to 4.5 minutes because of its Postgres tests). One worker's transcript of
-2026-11-09 and 10: 16 test or lint runs, 52 minutes of wall time in them,
-about six of them the full suite with ruff, and two that hit the 10-minute
-tool timeout and went to the background. `work.md` required the full test
-and lint commands before every report, and a worker reports every round
-(`review`, then `done`, then again after each correction); `do.md` step 5
-asked for them before every review gate. CI then ran the same suite on the
-pull request.
+to 4.5 minutes because of its Postgres tests), and asked whether the
+reviewer ran tests too. The sub-agent transcripts of one task
+(`1221-prefect-chain`, 2026-11-09 and 10), split by their `agentType`:
+
+| Sub-agent | pytest/ruff runs | Time | Full-suite runs | Time |
+|---|---|---|---|---|
+| `worker` | 101 | 50 min | 34 | 19 min |
+| `reviewer`, one review | 17 | 58 min | 10 | 42 min |
+
+Two of the reviewer's runs hit the 10-minute tool timeout and went to the
+background. `work.md` required the full test and lint commands before every
+report, and a worker reports every round (`review`, then `done`, then again
+after each correction); `do.md` step 5 asked for them before every review
+gate. The reviewer had `Bash` and a checklist line, "every Done-when
+criterion is met and, where testable, tested", that read as an order to
+run the tests again. CI then ran the same suite on the pull request.
 
 **Change.**
 
@@ -4406,6 +4415,13 @@ pull request.
   records the command and its result line, or the CI run's URL and result.
 - The supervisor checks on `done` that the one full run is recorded and ran
   on the final code, and does not ask for it before then.
+- A review reads and runs nothing, inline or by the `reviewer`: it judges
+  the diff, the task file and the results in Findings, and a missing or
+  contradicted result is a finding for the worker. The `reviewer` keeps
+  `Bash` for `git diff`, `git show`, `git log` and `grep`, since it reviews
+  an uncommitted diff; its file says never to run tests, linters, builds or
+  the code, and its checklist asks for a test in the diff or a recorded
+  result instead of "tested".
 - The full-suite Done-when criterion stays: `create.md` writes it as one
   run on the final code. `AGENTS.md` rule 2 says the same for the direct
   path, three words shorter elsewhere in the rule to stay under the
@@ -4418,8 +4434,11 @@ fails the criterion; it is caught once, at the end, not every round.
 **What this risks.** A break outside the covered tests now surfaces at the
 end instead of in the round that caused it, so a late failure can cost one
 more round. On the measured task that round costs one 4-minute run; the
-rule it replaces cost about six.
+rules it replaces cost 44 full runs between worker and reviewer. A reviewer
+that cannot run anything can miss a failure a run would show; the worker's
+recorded results and the one full run at the end are the check for that.
 
 **Not run.** Layer 1 only: the templates render on all three harnesses and
-`check_templates` holds the budget. TC-D6 gained the check (one full run, or
-none with a green CI run cited); no live run yet.
+`check_templates` holds the budget. TC-D6 gained the checks (one full run,
+or none with a green CI run cited; no test or build in the reviewer's
+transcript); no live run yet.

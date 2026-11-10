@@ -292,7 +292,8 @@ def render_reviewer_agent() -> str:
     return render.fill(
         "agents/reviewer.md",
         coverage=("- Every Done-when criterion is met and, where testable, "
-                  "tested.\n"
+                  "covered by a test\n  in the diff or a result recorded "
+                  "in Findings.\n"
                   "- Every claim in Outcome cites evidence in Findings, the "
                   "evidence was\n  produced in this task rather than "
                   "inferred, and the answer fits the\n  question in Goal. "

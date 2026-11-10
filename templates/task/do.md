@@ -162,6 +162,10 @@ yours.
      be spawned (you are yourself a sub-agent, or the harness has none),
      stop and ask the user: there is no fallback to another agent and no
      self-review of a result that needs a fresh context.
+   - A review reads and runs nothing: no test, lint, build or run of the
+     code. It judges the diff, the task file and the results recorded in
+     Findings; a missing or contradicted result is a finding for the
+     worker, and the full suite runs once by step 5.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Gaps that affect

@@ -334,6 +334,9 @@ Pass when all hold:
   (12.1): the worker's `review` round records only the covering tests and
   lint on the changed files, and the transcript holds one full-suite run,
   or none where the record cites a green CI run on the last push.
+- The `reviewer` ran no test, lint or build (12.1): its transcript holds
+  only reads (`git diff`, `git show`, `grep`, file reads), and a missing
+  result shows up as a finding, not as a run.
 - The worker ticked steps only: no done-when box, no Outcome, no
   `notes.md` change in its round commits (`git -C .ai show <commit>`).
 - Findings end with a `Delegation: <model> ...` line; the supervisor
