@@ -373,7 +373,9 @@ it already met, the supervisor first offers to ship what is done and open
 a follow-up task; it folds the ask in only when you say so, and logs it as
 a `User round` line. While the task waits on CI or a merge, the worker
 reports `waiting` and the supervisor tells you what it waits for and stops,
-instead of watching. Findings stay one line each.
+instead of watching. A finding is one short line, a claim and a pointer
+(at most ~200 characters); long evidence goes to the task's `evidence.md`,
+and `/task list` flags any Findings line over 300 characters.
 
 The supervisor is the session you type `/task do` in, the one that planned
 the task included: no fresh session needed, the worker is the fresh one.

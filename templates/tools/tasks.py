@@ -10,8 +10,9 @@ leaves the working view. The task the resume pointer `.ai/.current` names is
 marked. Below the table it flags what needs a look: an `in-progress` task not
 updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
 frontmatter line, a `done` task with unchecked done-when criteria or with no
-review line in Findings. Only the task files are read: frontmatter,
-checkboxes, and whether Findings names a review. The output is the whole
+review line in Findings, and any task whose Findings hold lines over
+LONG_FINDING characters. Only the task files are read: frontmatter,
+checkboxes, whether Findings names a review, and its line lengths. The output is the whole
 answer, so no agent has to open a task file to add to it. Status and
 type show as emoji only, explained by a legend line under the table. The id
 is colored by status, but only when a person runs the script in a terminal
@@ -165,6 +166,9 @@ def paint(text, code):
 
 # An in-progress task untouched this long is flagged as stale.
 STALE_DAYS = 14
+# A Findings line is a claim and a pointer (CONCEPT.md section 69); longer
+# ones are flagged so a model that writes paragraphs on one line is seen.
+LONG_FINDING = 300
 
 
 def frontmatter(text):
@@ -269,6 +273,8 @@ def load(path):
                     if d.strip()],
         # /task do ends its review gate with a Findings line naming the
         # review; a done task without one skipped the gate.
+        # Findings lines over LONG_FINDING characters: (count, longest).
+        "long": long_findings(section(text, "Findings")),
         "reviewed": bool(re.search(r"^\s*[-*].*\breview",
                                    section(text, "Findings"), re.M | re.I)),
     }
@@ -283,10 +289,24 @@ def age_days(value):
     return (datetime.date.today() - day).days
 
 
+def long_findings(findings):
+    """(count, longest) of the Findings lines over LONG_FINDING
+    characters."""
+    sizes = [len(ln) for ln in findings.splitlines()
+             if len(ln) > LONG_FINDING]
+    return len(sizes), max(sizes, default=0)
+
+
 def flags(rows):
     """One line per task that needs a look, in table order."""
     out = []
     for r in rows:
+        count, longest = r["long"]
+        if count:
+            out.append(f"- {FLAG} {r['id']}: {count} Findings line(s) over "
+                       f"{LONG_FINDING} characters (longest {longest}); "
+                       "keep each to a claim and a pointer, long evidence "
+                       "in evidence.md.")
         if r["status"] == "in-progress":
             age = age_days(r["updated"])
             if age is not None and age > STALE_DAYS:

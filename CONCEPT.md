@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.6.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.7.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -302,7 +302,7 @@ default, a Herdr tab only when asked.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 1178 lines: the task table, the dependency tree, the
+  `tasks.py`: 1198 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, and
   `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 17 framework files, a copilot one 17, an opencode
@@ -492,6 +492,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.7 (2026-11-11, a finding is a claim and a pointer, section 69. At
+most ~200 characters, checks of a kind grouped in one line, long evidence
+in `.ai/tasks/<id>/evidence.md`; "verbatim" only for the one full run;
+`tasks.py` flags Findings lines over 300 characters. The update deletes
+its old backup by literal path.)
 
 v12.6 (2026-11-11, Herdr only when asked, on every harness, section 68.
 The `/task do` worker and the `/framework-update` updater are the
@@ -4850,3 +4856,42 @@ fresh-session advice; `Worker round 1: review`, `Supervisor check: round 1
 accepted`, an inline review, `finish done`, 5 tests OK. The `herdr` path on
 Claude Code is the one section 67 ran. Not run: the `herdr` path on Copilot
 and OpenCode, whose start lines are unverified live.
+
+## 69. A finding is a claim and a pointer (2026-11-11, v12.7)
+
+**Source.** In the tfa-rpu-ws workspace, a task started under 12.6
+(`BEGLRV-11591-mpc3-event-logger-poc`, Claude Code, worker `sonnet`) had 12
+Findings after three worker rounds: median 601 characters, longest 1039,
+7.5k in all. Each was one line, as 12.4 asked: a paragraph without a line
+break, every check with its full command and result ("S3 ROS-less checks":
+yamllint, xmllint, `bash -n`, shellcheck, `ast.parse`, `git diff --check`,
+601 characters), a retold CI workflow contract ("S3 CI evidence", 781). The
+owner asked why the framework logs so much.
+
+**Why 12.4 did not hold.** "One line" carries no length, and two rules
+pulled the other way: `do.md` step 3 listed the evidence to give (file and
+line, command and result line, log excerpt, doc URL), read as a list to
+fill; `work.md` said to record each command with its result line
+verbatim. Nothing measured it: TC-D9's check counted lines.
+
+**Change.**
+
+- `do.md` step 3: one line of at most ~200 characters, the claim and one
+  pointer, never the evidence itself; checks of a kind in one grouped
+  line; longer evidence in `.ai/tasks/<id>/evidence.md` or nowhere.
+- `work.md`: verbatim only for the one full test and lint run (or the CI
+  run) the supervisor trusts; intermediate checks one grouped line; a
+  `Worker round` line at most ~300 characters; shipping evidence as
+  pointers, no log lines.
+- `tasks.py` (`list` and `tree`) flags a task whose Findings hold lines
+  over 300 characters (`LONG_FINDING`), with the count and the longest:
+  the prose can be ignored, the flag cannot.
+- The update body deletes an older backup by its literal path (`rm -rf
+  .ai/agent/.update-backup`). Its "replacing any older backup" had Haiku
+  write `rm -rf .ai/agent/.update-backup/*`, which Claude Code's safety
+  check held for confirmation in the 12.6 rollout (cleaning-dev-ops).
+
+**Not run.** Layer 1: `test_tasks_table.py` covers the flag (two lines
+over, one at 298, a terse task unflagged). The running tfa-rpu-ws task read
+its rules at start and keeps them; its next task is the live check, with
+`tasks.py` showing whether any line goes over.

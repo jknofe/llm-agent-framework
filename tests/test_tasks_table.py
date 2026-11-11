@@ -780,6 +780,26 @@ def main():
               "list: the /task do gate never lists or calls out")
         srv.shutdown()
 
+    # Findings lines over LONG_FINDING (300) characters are flagged
+    # (CONCEPT.md section 69): a paragraph on one line is still too long.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        long_line = "- 2026-11-11 S3 checks: " + "x" * 576 + "\n"
+        edge = "- " + "y" * 298 + "\n"
+        task(root, "wordy", "wordy", "Wordy", "change", "in-progress", NEW,
+             findings=long_line + long_line[:-200] + "\n" + edge)
+        task(root, "terse", "terse", "Terse", "change", "in-progress", NEW,
+             findings="- 2026-11-11 checks: yamllint, xmllint OK\n" + edge)
+        out = run(root)
+        check("- ❗ wordy: 2 Findings line(s) over 300 characters (longest "
+              "600)" in out and "evidence.md" in out,
+              f"long findings flagged with count and longest: {out!r}")
+        check("terse:" not in out.split("Legend")[-1],
+              f"short findings and a 300-character line not flagged: {out!r}")
+
     if FAILS:
         for f in FAILS:
             print(f"FAIL {f}")

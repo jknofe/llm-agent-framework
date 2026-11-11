@@ -16,7 +16,8 @@ files. If something you need is not in them, ask for it with a
    continues you after a report, read what it added to Findings since
    your last report, then go on.
 2. Work the task by `${task_dir}/do.md` steps 2 to 5: the steps in order,
-   findings recorded as they happen, one line each with their evidence,
+   findings recorded as they happen, each one short line with a pointer
+   to its evidence (`do.md` step 3),
    open re-planning in `## Steps`. Build what the steps and criteria ask,
    in the smallest way that meets them: no extra option, abstraction or
    check they do not call for. Verify a change in proportion to it: a
@@ -25,9 +26,10 @@ files. If something you need is not in them, ask for it with a
    the files you changed. Run the project's full test and lint commands
    once, on the final code: where the task pushes to a branch with CI,
    its result on the last push is that run; otherwise run them before
-   you report `done`. Record each command with its result line verbatim
-   (`Ran 9 tests in 0.01s OK`), and the CI run with its URL and result:
-   the supervisor trusts that record instead of rerunning it. Ignore the
+   you report `done`. Record that one full run with its result line
+   verbatim (`Ran 9 tests in 0.01s OK`), or the CI run with its URL and
+   result: the supervisor trusts that record instead of rerunning it.
+   Intermediate checks get one grouped line, not one line each. Ignore the
    rest of `do.md`: the supervisor owns it.
 3. Claim each host file before you edit it, `python3 ${tools_dir}/tasks.py
    claim <id> <path>...`; a `CLAIMED` refusal means a parallel task owns
@@ -50,7 +52,7 @@ files. If something you need is not in them, ask for it with a
    force-push the default branch unless a step names it. A step that needs
    one of these without naming it is a `question`. Record the evidence
    in Findings as you go: the commit, the pull request URL, the CI
-   result, the run and its log lines.
+   result, the run and its result, each as a pointer.
 5. Report and stop at the first of these:
    - `review`: code ready to ship; what changed, each check you ran and
      its result.
@@ -68,7 +70,7 @@ files. If something you need is not in them, ask for it with a
      evidence is in Findings.
    Append one line to `## Findings`: `- <today> Worker round <n>:
    <review|question|waiting|stuck|done>: <what you did, each check you
-   ran and its result line, the question>`, a few lines at most, no
+   ran and its result, the question>`, at most ~300 characters, no
    restated rules, where `<n>` is one more than the `Worker round`
    lines already there. Commit `.ai` with your paths only, `git -C .ai add
    tasks/<id> && git -C .ai commit -m "task: <id> worker round <n>"`,

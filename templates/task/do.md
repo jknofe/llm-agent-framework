@@ -138,11 +138,16 @@ from corrections.
    changed since the last review, step 6 runs on the uncommitted diff (a
    worker asks for it with a `review` report).
 3. Record findings as they happen, not at the end: append each to
-   `## Findings`, dated, telegraphic, one line, with its evidence as a
-   pointer (file and line, the command and its result line, a log
-   excerpt of a line or two, doc URL), not the output itself. Do not
-   restate a rule, or what you did not do (`no merge, no push`): the
-   rules hold without it. A finding the file does not hold is lost at
+   `## Findings`, dated, telegraphic, one line of at most ~200
+   characters: the claim and one pointer to its evidence (file and line,
+   a command and its result line, a URL), never the evidence itself.
+   Group checks of the same kind in one line (`checks: yamllint,
+   xmllint, bash -n OK`). Evidence too long for that (a list of
+   commands, a log, a summary of a document read) goes into
+   `.ai/tasks/<id>/evidence.md`, and the finding points at it; often it
+   is not worth keeping at all. Do not restate a rule, or what you did
+   not do (`no merge, no push`): the rules hold without it.
+   `tasks.py` flags a Findings line over 300 characters. A finding the file does not hold is lost at
    the next session. Commit `.ai` after each finding that changes the
    direction of the task.
 4. Re-plan openly. When a result invalidates the plan (a hypothesis is

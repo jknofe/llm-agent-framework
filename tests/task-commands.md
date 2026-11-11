@@ -384,8 +384,10 @@ Pass when all hold:
 - (d) The worker reports `waiting` with the command that shows the end;
   the supervisor ends its turn with one line on what the task waits for,
   and runs no CI polling, merge or deploy of its own.
-- Findings lines are one line each (`awk` over the section: none longer
-  than ~3 lines), with no "no merge / no push" restatements.
+- Findings lines are short: `python3 .ai/agent/tools/tasks.py` flags no
+  line over 300 characters for the task (12.7), long evidence sits in
+  `.ai/tasks/<id>/evidence.md`, and there are no "no merge / no push"
+  restatements.
 
 **TC-D10: the session supervises; the worker is a sub-agent, or a Herdr tab when asked** (12.5, 12.6)
 

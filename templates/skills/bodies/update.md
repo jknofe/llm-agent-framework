@@ -53,9 +53,11 @@ ${handoff}   - Wait for its last line. `UPDATE QUESTION`: put the question to th
      diff: `git -C .ai add -A && git -C .ai commit -m "pre-update
      snapshot"`.
    - The `.ai` repo does not cover the framework files that live in the
-     host repo, and those are the ones an update overwrites. Copy
-     ${backup_paths} into `.ai/agent/.update-backup/`, replacing any
-     older backup. Older scaffolds do not ignore that path yet, so make
+     host repo, and those are the ones an update overwrites. Delete
+     an older backup by its literal path, `rm -rf
+     .ai/agent/.update-backup` (never a glob or a variable: Claude Code
+     holds those for confirmation), then copy ${backup_paths} into a
+     fresh `.ai/agent/.update-backup/`. Older scaffolds do not ignore that path yet, so make
      sure `.ai/.gitignore` contains `agent/.update-backup/` first; a
      backup committed into the KB history is not a backup.
    - Report `git status` for those paths. Untracked is the normal state
