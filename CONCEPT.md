@@ -4843,5 +4843,10 @@ there for the role, because whether OpenCode starts a `mode: subagent`
 agent as the session's agent is unverified; `--model` with the file's line
 keeps section 59's rule that the file is the only source.
 
-**Not run.** Layer 1 only. The Copilot and OpenCode tab starts are
-unverified live; TC-D10 and TC-U2 now name `herdr`.
+**Live, 2026-11-11 (TC-D10, plain call, Claude Code inside Herdr).** A
+Sonnet supervisor ran `/task do calc-ops2` without `herdr`: one `worker`
+sub-agent (on `haiku` from `worker.md`), no herdr command, no tab, no
+fresh-session advice; `Worker round 1: review`, `Supervisor check: round 1
+accepted`, an inline review, `finish done`, 5 tests OK. The `herdr` path on
+Claude Code is the one section 67 ran. Not run: the `herdr` path on Copilot
+and OpenCode, whose start lines are unverified live.
