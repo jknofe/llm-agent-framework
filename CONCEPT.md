@@ -4788,4 +4788,17 @@ reviews and decisions, and the task file still carries everything a later
 session needs. A worker tab outlives a closed supervisor session, which
 lets the next session continue it.
 
-**Not run.** Layer 1 only. TC-D10 is the live check.
+**Live test, 2026-11-11 (TC-D10)** (Claude Code 2.1.311 inside Herdr, a
+scratch stdlib-Python project at 12.5, supervisor Sonnet 5.5 in the
+session that had run the earlier tests, `worker.md` set to `haiku` after
+that session started, a 4-step `change` with 3 host-editing steps):
+`/task do calc-ops` gave no fresh-session advice and spawned no sub-agent
+(zero `Agent` calls). It opened tab `worker-calc-ops`, `herdr agent start
+... -- --agent worker`, the fixed prompt, `herdr agent wait`; the tab's
+status line read Claude Haiku 5.5, so the new session took the model from
+the file the supervisor's own session had read before the change. One
+round, `Worker round 1: done` with `Ran 3 tests ... OK`, an inline review
+of the 8-line diff, `Delegation: haiku, 1 report(s), done`, `finish done`;
+the tab stayed open. It left out `--permission-mode`, as the rule allows
+when the mode is unknown. Not run: a multi-round task continued through
+`herdr agent prompt`, and the outside-Herdr path after this change.
