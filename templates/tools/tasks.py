@@ -109,7 +109,11 @@ fail. Then the command that sets them, written for this scaffold's harness
 `models worker=<m> reviewer=<m> updater=<m>` fills in those names, else
 the current ones, else placeholders. /framework-models shows this output
 (CONCEPT.md section 62). Exit 1 when worker or reviewer is missing.
-Read-only.
+With `--list` (what /framework-models passes, never the /task do gate) it
+then lists the models this harness or its backend can name, to choose
+from (CONCEPT.md section 65): `opencode models` on OpenCode, the backend's
+`/v1/models` on Claude Code where it answers, and on Copilot, which has no
+list command, a pointer to its picker. It never picks one. Read-only.
 
 list, tree, resolve, trackers and models are read-only; start, finish, tick
 and claim write only the task file and the pointers. Stdlib only.
@@ -124,6 +128,8 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 AI = Path(__file__).resolve().parents[2]  # the .ai/ directory
@@ -694,8 +700,8 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py models [worker=<m>] [reviewer=<m>] "
-         "[updater=<m>] | "
+         "| tasks.py trackers | tasks.py models [--list] [worker=<m>] "
+         "[reviewer=<m>] [updater=<m>] | "
          "tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
          "tasks.py tick <id> done|steps <n> [<n>...] | "
@@ -756,6 +762,8 @@ def models_args(args):
 
 def models(args=()):
     root = AI.parent
+    listing = "--list" in args
+    args = [a for a in args if a != "--list"]
     wanted = models_args(args)
     if wanted is None:
         print(f"Unknown argument in {' '.join(args)!r}. {USAGE}")
@@ -793,19 +801,111 @@ def models(args=()):
     print("\n".join(optional))
     print()
     print("\n".join(run_lines({**current, **wanted})))
+    if listing:
+        print()
+        print("\n".join(available(stamp_harness())))
     return 1 if problems else 0
+
+
+def stamp_harness():
+    try:
+        stamp = json.loads((AI / "agent" / "framework.json")
+                           .read_text(encoding="utf-8"))
+        return stamp.get("harness")
+    except (OSError, ValueError):
+        return None
+
+
+LIST_TIMEOUT = 10
+CHOOSE = ("Choose the names yourself: the list says what can be named, not "
+          "what fits a role, and the setup command tests each name before "
+          "it saves it.")
+
+
+def available(harness):
+    """Lines naming the models to choose from (CONCEPT.md section 65). Only
+    a list: the framework knows no names and picks none (section 59)."""
+    if harness == "opencode":
+        oc = shutil.which("opencode") or str(Path.home() / ".opencode" /
+                                             "bin" / "opencode")
+        try:
+            run = subprocess.run([oc, "models"], capture_output=True,
+                                 text=True, timeout=30,
+                                 stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            return ["Available models: `opencode` is not on PATH, so they "
+                    "cannot be listed here. Run `opencode models`."]
+        names = [ln.strip() for ln in run.stdout.splitlines() if ln.strip()]
+        return (["Available models (`opencode models`), written as the "
+                 "`model:` line takes them:"] + [f"  {n}" for n in names]
+                + [CHOOSE])
+    if harness == "claude":
+        return backend_models()
+    return ["Available models: Copilot CLI has no command that lists them. "
+            "Its model picker (`/model` in a session) shows the names; "
+            "write them exactly as it shows them.", CHOOSE]
+
+
+def backend_models():
+    """The backend's `GET /v1/models`, which the Anthropic API serves and a
+    proxy may. The key Claude Code uses from the environment goes only to
+    the same base URL Claude Code sends it to. A login made inside Claude
+    Code is not readable from here."""
+    base = os.environ.get("ANTHROPIC_BASE_URL", "").rstrip("/")
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    picker = ("use the names Claude Code's model picker (`/model`) shows, "
+              "or an alias such as `haiku`.")
+    if not base and not key and not token:
+        return ["Available models: no API key in the environment (Claude "
+                "Code's own login is not readable from a script), so the "
+                "list cannot be fetched; " + picker, CHOOSE]
+    url = (base or "https://api.anthropic.com") + "/v1/models?limit=100"
+    headers = {"anthropic-version": "2023-06-01"}
+    if key:
+        headers["x-api-key"] = key
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    host = (base or "https://api.anthropic.com").split("//")[-1].split("/")[0]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url,
+                                    headers=headers),
+                                    timeout=LIST_TIMEOUT) as resp:
+            data = json.load(resp).get("data") or []
+    except urllib.error.HTTPError as e:
+        return [f"Available models: the backend at {host} does not list "
+                f"them (HTTP {e.code}); " + picker, CHOOSE]
+    except (OSError, ValueError) as e:
+        return [f"Available models: no answer from {host} ({e}); " + picker,
+                CHOOSE]
+    rows = []
+    for m in data:
+        if not isinstance(m, dict) or not m.get("id"):
+            continue
+        # Only models an agent can run on: a proxy also lists embedding and
+        # image models, marked by these two fields where it sets them.
+        kind = (m.get("capabilities") or {}).get("type")
+        if m.get("type", "model") != "model" or kind not in (None, "chat"):
+            continue
+        price = ((m.get("billing") or {}).get("token_prices") or {}) \
+            .get("default") or {}
+        cost = (f"  in/out {price.get('input_price', '?')}/"
+                f"{price.get('output_price', '?')}" if price else "")
+        label = m.get("display_name") or ""
+        rows.append(f"  {m['id']}" + (f"  ({label})" if label and
+                                       label != m["id"] else "") + cost)
+    if not rows:
+        return [f"Available models: the backend at {host} returned an empty "
+                "list; " + picker, CHOOSE]
+    return ([f"Available models (`/v1/models` at {host}), usable on the "
+             "`model:` line:"] + rows + [CHOOSE])
 
 
 def run_lines(names):
     """The setup command for this scaffold's harness. The framework's
     checkout from `$LLM_AGENT_HOME` when it holds init_agent.py, else the
     `init-agent` shell function that install.sh defines."""
-    try:
-        stamp = json.loads((AI / "agent" / "framework.json")
-                           .read_text(encoding="utf-8"))
-        harness = stamp.get("harness")
-    except (OSError, ValueError):
-        harness = None
+    harness = stamp_harness()
     where, prefix, after = RUN_FROM.get(harness, RUN_FROM["copilot"])
     home = os.environ.get("LLM_AGENT_HOME", "")
     tool = (f'python3 "{home}/init_agent.py"'

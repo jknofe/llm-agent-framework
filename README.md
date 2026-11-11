@@ -449,6 +449,11 @@ model is the right pick; without one the update runs in your session. The
 framework picks nothing and assumes nothing: no tier, no default, no
 inheriting the session's model.
 
+- **See what you can pick:** `/framework-models` also lists the models
+  your setup can name, where it can list them: `opencode models` on
+  OpenCode, your backend's `/v1/models` on Claude Code (a Copilot proxy
+  answers it, with prices; Azure Foundry does not), and a pointer to the
+  `/model` picker on Copilot. It shows; you choose.
 - **Set them:** `/framework-models` shows what is set and prints the exact
   line to type (`/framework-models worker=haiku reviewer=sonnet` fills the
   names in). The line is `init-agent --models --worker <name> --reviewer

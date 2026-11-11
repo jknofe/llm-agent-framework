@@ -709,6 +709,77 @@ def main():
               in r.stdout and "Replace <worker>" in r.stdout,
               f"models: placeholders when nothing is set: {r.stdout!r}")
 
+        # `--list` (/framework-models, CONCEPT.md section 65): the models the
+        # harness or its backend can name, never in the /task do gate.
+        import http.server
+        import threading
+        seen = {}
+
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen["key"] = self.headers.get("x-api-key")
+                if FAKE["status"] != 200:
+                    self.send_error(FAKE["status"])
+                    return
+                body = json.dumps({"data": [
+                    {"id": "small-1", "type": "model",
+                     "display_name": "Small One", "capabilities":
+                     {"type": "chat"}, "billing": {"token_prices": {
+                         "default": {"input_price": 10,
+                                     "output_price": 50}}}},
+                    {"id": "plain-2", "type": "model"},
+                    {"id": "embed-3", "type": "model",
+                     "capabilities": {"type": "embeddings"}},
+                    {"id": "img-4", "type": "image"}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        FAKE = {"status": 200}
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        fake_url = f"http://127.0.0.1:{srv.server_port}"
+
+        def listed(harness, **env_extra):
+            (mroot / ".ai/agent/framework.json").write_text(
+                json.dumps({"harness": harness}), encoding="utf-8")
+            env = {k: v for k, v in os.environ.items() if not
+                   k.startswith("ANTHROPIC_")}
+            env.update(env_extra)
+            return subprocess.run(
+                [sys.executable, str(mtool), "models", "--list"],
+                capture_output=True, text=True, env=env).stdout
+
+        out = listed("claude", ANTHROPIC_BASE_URL=fake_url,
+                     ANTHROPIC_API_KEY="k-test")
+        check("small-1  (Small One)  in/out 10/50" in out and
+              "  plain-2" in out and "embed-3" not in out and
+              "img-4" not in out and seen.get("key") == "k-test" and
+              "Choose the names yourself" in out,
+              f"list: backend models, chat only, key sent: {out!r}")
+        FAKE["status"] = 404
+        out = listed("claude", ANTHROPIC_BASE_URL=fake_url)
+        check("does not list them (HTTP 404)" in out and "`/model`" in out,
+              f"list: a backend without /v1/models: {out!r}")
+        out = listed("claude")
+        check("no API key in the environment" in out,
+              f"list: nothing to ask with: {out!r}")
+        out = listed("copilot")
+        check("Copilot CLI has no command that lists them" in out,
+              f"list: copilot points at its picker: {out!r}")
+        out = listed("opencode", PATH="/nonexistent",
+                     HOME=tempfile.mkdtemp())
+        check("`opencode` is not on PATH" in out,
+              f"list: opencode missing: {out!r}")
+        r = attempt(mroot, "models")
+        check("Available models" not in r.stdout,
+              "list: the /task do gate never lists or calls out")
+        srv.shutdown()
+
     if FAILS:
         for f in FAILS:
             print(f"FAIL {f}")

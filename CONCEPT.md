@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.2.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.3.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -294,7 +294,7 @@ This is the one place the framework steers Herdr; section 52 left the
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 1078 lines: the task table, the dependency tree, the
+  `tasks.py`: 1178 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, and
   `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 17 framework files, a copilot one 17, an opencode
@@ -483,6 +483,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.3 (2026-11-11, `/framework-models` lists what can be named, section
+65. `tasks.py models --list`: `opencode models` on OpenCode, the backend's
+`/v1/models` on Claude Code where it answers (chat models only, prices
+where the backend gives them), a pointer to the picker on Copilot. The
+user still chooses; the /task do gate never lists.)
 
 v12.2 (2026-11-11, the update runs on a small model, section 64.
 `/framework-update` hands the merge to a new `updater` sub-agent whose model
@@ -4590,3 +4596,54 @@ session Sonnet 5.5 in auto mode):
 Not run: TC-U1 on purpose (run 1 covers its path), Copilot and OpenCode,
 and an update with real merges under the hand-off (the 12.1 and 12.2 task
 files are identical, so only the stamp and file list moved).
+
+## 65. `/framework-models` lists what can be named (2026-11-11, v12.3)
+
+**Source.** After section 64 the owner asked whether a running session can
+find out by itself which models are available, so that picking a small
+updater (or worker) does not need the names from memory.
+
+**Finding.** It depends on the harness and the backend, not the session:
+
+- OpenCode: `opencode models` prints every name in the form the `model:`
+  line takes (section 60).
+- Claude Code: no list command (`claude --help` has `--model` only; `/model`
+  is the user's picker). The backend may answer `GET /v1/models`: the owner's
+  Copilot proxy (localhost:4140) did, 25 entries with `display_name`,
+  `capabilities.type` and GitHub's `billing.token_prices`, embedding and
+  image models among them. The owner's Azure Foundry endpoint did not: 401
+  without the key, 404 with it. The Anthropic API serves the same endpoint
+  with an API key; not run here, no such key in this environment.
+- Copilot CLI 1.0.105: no list command in `copilot --help`; its `/model`
+  picker shows the names.
+
+**Change.**
+
+- `tasks.py models --list` appends an `Available models` block after the
+  setup command: the output of `opencode models`; on Claude Code the
+  backend's `/v1/models` (`ANTHROPIC_BASE_URL`, else the Anthropic API),
+  with the environment's `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` sent
+  only to the base URL Claude Code sends it to, one line per chat model
+  with its display name and, where the backend gives one, the in/out price;
+  entries whose `type` is not `model` or whose `capabilities.type` is not
+  `chat` are left out. A backend that does not answer, or no key, gives a
+  line naming the reason and pointing at the picker. On Copilot, the
+  pointer to the picker. Every list ends by saying the user chooses and the
+  setup command tests the name.
+- `/framework-models` passes `--list`, and may still not suggest or pick a
+  name, from the list or otherwise. The `/task do` gate runs `models`
+  without it: no network call there.
+
+**Why still no pick.** Section 59 stands. A list says what can be named,
+not what fits a role: names like `gpt-6.1-sol` carry no size, and only some
+backends give prices. On the proxy's list the prices make the small ones
+plain (`claude-haiku-5-5` 10/50, `gpt-6-luna` 10/50, `gpt-5.6-luna`
+20/120), which is the user's information to act on.
+
+**Seen, 2026-11-11.** In the scratch claude project: the proxy listed 21
+chat models with prices and no embedding or image entry; the Foundry
+endpoint gave `does not list them (HTTP 404)`; `models` without `--list`
+printed no list. `test_tasks_table.py` runs the same against a local fake
+`/v1/models` (chat filter, key header, 404, no key, Copilot, OpenCode
+missing). Not run: a live `/framework-models` session, the Anthropic API
+direct, OpenCode.
