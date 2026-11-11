@@ -387,11 +387,14 @@ Pass when all hold:
 - Findings lines are one line each (`awk` over the section: none longer
   than ~3 lines), with no "no merge / no push" restatements.
 
-**TC-D10: the session supervises, the worker gets a Herdr tab** (12.5)
+**TC-D10: the session supervises; the worker is a sub-agent, or a Herdr tab when asked** (12.5, 12.6)
 
-Claude Code inside Herdr, worker and reviewer models set. In the session
-that ran `/task create`, `/task do <id>` on a task over the small-task
-threshold.
+Inside Herdr, worker and reviewer models set, on each harness. In the
+session that ran `/task create`: first `/task do <id>` on a task over the
+small-task threshold, then on another such task `/task do <id> herdr`.
+
+Pass for the plain call when the worker is the harness's sub-agent, no tab
+opens, and no fresh-session advice appears. Pass for `herdr` when all hold:
 
 Pass when all hold:
 - No advice to start a fresh session, before or after.
@@ -403,8 +406,11 @@ Pass when all hold:
   continues the same tab (`herdr agent prompt worker-<id>`), never a second
   tab or session for the same task. The reviewer is still a sub-agent.
 - The tab is open after `finish`.
-- Outside Herdr (no `HERDR_ENV`): the worker is a sub-agent, everything
-  else the same.
+- The tab starts the harness's CLI on the worker's model: `claude --agent
+  worker`, `copilot --agent worker --model <m>`, `opencode --model <m>`,
+  `<m>` the `model:` line of the worker file.
+- `herdr` outside Herdr (no `HERDR_ENV`): one line saying so, then the
+  sub-agent, everything else the same.
 
 ### Sub-agent models (11.9)
 
@@ -454,12 +460,14 @@ tab, and does the update itself (the stamp moves, one `update:` commit).
 **TC-U2: handed to the updater**
 
 `init-agent --models --updater <small>` (claude: `haiku`), restart, then
-`/framework-update`, once inside Herdr and once outside.
+`/framework-update`, and again with `/framework-update herdr` inside
+Herdr.
 
-Pass when, in Herdr (claude), a new tab labelled `update` appears, its
+Pass when the plain call spawns an `updater` sub-agent and opens no tab,
+and when, with `herdr`, a new tab `update-<hhmmss>` appears, its
 status line shows the updater's model, it receives `/framework-update
-inline`, and no existing tab got any input; outside Herdr, an `updater`
-sub-agent is spawned with no model passed. The updater ends with `UPDATE
+inline`, and no existing tab got any input. The sub-agent gets no model
+passed. The updater ends with `UPDATE
 DONE: <old> -> <new>`; the session then reports one line per check (stamp,
 files, retired files, `.ai` commit, `model:` lines, GENERATED section) from
 the files, and changed no file itself. The tab is still open. With

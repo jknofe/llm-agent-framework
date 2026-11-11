@@ -83,9 +83,9 @@ The merge itself runs on a small model when you set one for the `updater`
 [Sub-agent models](#sub-agent-models)). Your session then hands the update
 over and checks the result from the files: the new version stamp, every
 framework file present, retired ones gone, the `.ai` commit, your `model:`
-lines and your project section. On Claude Code inside
-[Herdr](https://herdr.dev) the updater gets a new tab labelled `update`,
-which stays open for you to review; otherwise it is a sub-agent. With no
+lines and your project section. The updater is your harness's
+sub-agent; `/framework-update herdr` runs it in a [Herdr](https://herdr.dev)
+tab instead, which stays open for you to review. With no
 updater model, or with `/framework-update inline`, the session does the
 update itself.
 
@@ -242,12 +242,12 @@ Every harness invokes them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision; a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline\|herdr]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision (`herdr`: in a Herdr tab instead); a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed. |
-| `/framework-update [dry-run] [inline]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. Hands the merge to the `updater` sub-agent when it has a model (a Herdr tab on Claude Code), then checks the result; `inline` keeps it in the session. |
+| `/framework-update [dry-run] [inline\|herdr]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. Hands the merge to the `updater` sub-agent when it has a model (a Herdr tab with `herdr`), then checks the result; `inline` keeps it in the session. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
 Archiving has no command: prompt the agent; the rules live in AGENTS.md.
@@ -377,9 +377,9 @@ instead of watching. Findings stay one line each.
 
 The supervisor is the session you type `/task do` in, the one that planned
 the task included: no fresh session needed, the worker is the fresh one.
-On Claude Code inside [Herdr](https://herdr.dev) the worker runs in a tab
-of its own, `worker-<id>`, which you can watch and which stays open;
-elsewhere it is the harness's sub-agent. After a report the supervisor
+The worker is the harness's sub-agent on Claude Code, Copilot and
+OpenCode alike; `/task do <id> herdr` runs it in a [Herdr](https://herdr.dev)
+tab of its own, `worker-<id>`, which you can watch and which stays open. After a report the supervisor
 continues the same worker (the tab, or a sub-agent the harness can
 resume), and spawns a fresh one that reads the task file otherwise. It
 works the steps itself only with `/task do <id> inline`, when it cannot

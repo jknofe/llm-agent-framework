@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.5"
+FRAMEWORK_VERSION = "12.6"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -118,8 +118,8 @@ _SKILL_DESCRIPTIONS = {
 
 ARG_HINTS = {
     "explore": "[focus]",
-    "task": "[create|do|list|tree] <id> [title...|inline]",
+    "task": "[create|do|list|tree] <id> [title...|inline|herdr]",
     "framework-models": "[worker=<model>] [reviewer=<model>] "
                         "[updater=<model>]",
-    "framework-update": "[dry-run] [inline]",
+    "framework-update": "[dry-run] [inline|herdr]",
 }

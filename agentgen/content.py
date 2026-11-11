@@ -121,45 +121,23 @@ def render_update_body(harness: str, arg: str) -> str:
             f"   - `{COPILOT_HOOKS_DIR}/llm-agent.json` parses as JSON and every\n"
             "     hook command it names points at a file that exists.\n")
 
-    # Step 0's hand-off (CONCEPT.md section 64). A Herdr tab only on claude,
-    # where `claude --agent updater` was seen to run the whole session on
-    # the agent file's model; the other harnesses use the sub-agent, whose
-    # `model:` line they honor (sections 56 and 60).
-    spawn = ("spawn a fresh `updater` sub-agent, passing\n"
-             "     no model (its file names one), with the prompt `Run the\n"
-             "     framework update inline.` (`Run the framework update\n"
-             "     inline, dry-run.` with `dry-run`).\n")
-    if harness == "claude":
-        handoff = (
-            "   - In Herdr (`HERDR_ENV` is 1 and `herdr` is on PATH), give it a\n"
-            "     new tab of its own and touch no existing tab or session:\n"
-            "\n"
-            "         herdr tab create --workspace \"$HERDR_WORKSPACE_ID\" \\\n"
-            "           --cwd \"$PWD\" --label update --no-focus \\\n"
-            "           | jq -r '.result.root_pane.pane_id'\n"
-            "         herdr agent start update-<hhmmss> --kind claude \\\n"
-            "           --pane <pane> -- --agent updater --permission-mode <mode>\n"
-            "         herdr agent prompt update-<hhmmss> \"/framework-update inline\"\n"
-            "         herdr agent wait update-<hhmmss> --timeout 540000\n"
-            "\n"
-            "     Write the values in literally, since no shell variable\n"
-            "     survives from one command to the next: `<pane>` is the id the\n"
-            "     first command prints, `<hhmmss>` the current time, one name\n"
-            "     throughout. `--agent updater` runs that session on the\n"
-            "     updater's model. `<mode>` is this session's permission mode\n"
-            "     (`auto`, `acceptEdits`, ...); leave the flag out when you\n"
-            "     cannot tell. Add `dry-run` to the prompt when the user gave\n"
-            "     it. Repeat the wait while the agent is `working`, then read\n"
-            "     its last line with `herdr agent read update-<hhmmss> --source\n"
-            "     recent-unwrapped --lines 80`. A `blocked` state is a question\n"
-            "     or a permission prompt: show the user and send their answer\n"
-            "     with `herdr agent prompt`; never answer a permission prompt\n"
-            "     yourself. Leave the tab open for the user to review.\n"
-            "   - Outside Herdr, " + spawn)
-    else:
-        handoff = ("   - Then " + spawn +
-                   f"     No Herdr tab on {harness}: starting a session there\n"
-                   "     on the updater's model is not verified yet.\n")
+    # Step 0's hand-off (CONCEPT.md sections 64 and 68): the harness's
+    # sub-agent by default, a Herdr tab when the user asks for `herdr`.
+    update_prompt = ("Run framework-update inline: read "
+                     f"{UPDATE_FILES[harness]} and follow it."
+                     if harness == "copilot" else "/framework-update inline")
+    handoff = (
+        "   - By default, spawn a fresh `updater` sub-agent, passing no\n"
+        "     model (its file names one), with the prompt `Run the framework\n"
+        "     update inline.` (`Run the framework update inline, dry-run.`\n"
+        "     with `dry-run`).\n"
+        + "\n".join("   " + ln if ln else ln for ln in herdr_tab(
+            harness, "updater", "update-<hhmmss>", update_prompt
+        ).split("\n")).rstrip(" ") +
+        "     `<hhmmss>` is the current time. Add `dry-run` to the prompt\n"
+        "     when the user gave it; read the updater's last line with\n"
+        "     `herdr agent read update-<hhmmss> --source recent-unwrapped\n"
+        "     --lines 80`.\n")
 
     owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, task files under\n"
              "`.ai/tasks/` (change specs under `.ai/changes/` before 8.0), and\n"
@@ -453,50 +431,73 @@ def render_tool_probe() -> str:
     templates/tools/."""
     return render.load("tools/probe.py")
 
+# Where a delegated role runs (CONCEPT.md section 68): the harness's own
+# sub-agent by default, a Herdr tab when the user asks for `herdr`. The tab
+# starts the harness's CLI on the role's model: `claude --agent <role>` was
+# seen to run on the agent file's model (section 64); Copilot and OpenCode
+# take the file's `model:` line through `--model`, the flag both CLIs have
+# (Copilot 1.0.105's help, the owner's OpenCode setup).
+HERDR_START = {
+    "claude": ("claude", "--agent {role} --permission-mode <mode>",
+               "`--agent {role}` runs that session on the {role}'s model;\n"
+               "  `<mode>` is your own permission mode, left out when you\n"
+               "  cannot tell."),
+    "copilot": ("copilot", "--agent {role} --model <model>",
+                "`<model>` is the `model:` line of `{file}`,\n"
+                "  as written."),
+    "opencode": ("opencode", "--model <model>",
+                 "`<model>` is the `model:` line of `{file}`,\n"
+                 "  as written; the prompt carries the {role}'s contract."),
+}
+
+def herdr_tab(harness: str, role: str, name: str, prompt: str) -> str:
+    """The Herdr-tab bullet for a role, indented as a list item."""
+    kind, args, note = HERDR_START[harness]
+    fmt = dict(role=role, file=AGENT_FILES[harness][role])
+    return (
+        "- When the user asked for `herdr`: if Herdr runs (`HERDR_ENV` is 1\n"
+        "  and `herdr` is on PATH), it gets a tab of its own and you touch\n"
+        "  no other tab; otherwise say so in one line and use the sub-agent.\n"
+        "\n"
+        "      herdr tab create --workspace \"$HERDR_WORKSPACE_ID\" \\\n"
+        "        --cwd \"$PWD\" --label " + name + " --no-focus \\\n"
+        "        | jq -r '.result.root_pane.pane_id'\n"
+        "      herdr agent start " + name + " --kind " + kind +
+        " --pane <pane> \\\n"
+        "        -- " + args.format(**fmt) + "\n"
+        "      herdr agent prompt " + name + " \"" + prompt + "\"\n"
+        "      herdr agent wait " + name + " --timeout 540000\n"
+        "\n"
+        "  " + note.format(**fmt) + "\n"
+        "  Write every value in literally: `<pane>` is the id the first\n"
+        "  command prints, and no shell variable survives from one command\n"
+        "  to the next. Repeat the wait while it is `working`. A `blocked`\n"
+        "  tab is a question or a permission prompt: show the user, and\n"
+        "  never answer a permission prompt yourself. Leave the tab open\n"
+        "  when it is done.\n")
+
 def render_task_part(part: str, harness: str = "claude") -> str:
     """`/task`'s Create, Do or Work body (`create`, `do`, `work`), written
     to TASK_DIR. Create and Do are read by the dispatching skill only when
     `tasks.py resolve` sends it there; Work is read by the worker Do hands
     its steps to (CONCEPT.md sections 50 and 52).
 
-    Do varies on harness in one place, where the worker runs (section 67):
-    on claude a Herdr tab when Herdr runs, since `claude --agent worker`
-    starts a session on the agent file's model (seen in section 64); a
-    sub-agent everywhere else."""
+    Do varies on harness in one place, the start of a worker tab when the
+    user asks for `herdr` (section 68); the default is the harness's
+    sub-agent everywhere."""
     rel = {"create": "task/create.md", "do": "task/do.md",
            "work": "task/work.md"}[part]
-    subagent = "spawn it as a sub-agent with that prompt, passing no model.\n"
-    if harness == "claude":
-        placement = (
-            "You are the supervisor in this\n"
-            "session either way; only where the worker runs varies:\n"
-            "- In Herdr (`HERDR_ENV` is 1 and `herdr` is on PATH), the worker\n"
-            "  gets a tab of its own and you touch no other tab:\n"
-            "\n"
-            "      herdr tab create --workspace \"$HERDR_WORKSPACE_ID\" \\\n"
-            "        --cwd \"$PWD\" --label <name> --no-focus \\\n"
-            "        | jq -r '.result.root_pane.pane_id'\n"
-            "      herdr agent start <name> --kind claude --pane <pane> \\\n"
-            "        -- --agent worker --permission-mode <mode>\n"
-            "      herdr agent prompt <name> \"<the prompt>\"\n"
-            "      herdr agent wait <name> --timeout 540000\n"
-            "\n"
-            "  `<name>` is `worker-` and the task id, lowercased, at most 32\n"
-            "  characters; `<pane>` the id the first command prints; `<mode>`\n"
-            "  your own permission mode, left out when you cannot tell. Write\n"
-            "  them in literally: no shell variable survives from one command\n"
-            "  to the next. `--agent worker` runs that session on the\n"
-            "  worker's model. If a tab of that name is still open from an\n"
-            "  earlier session, continue it instead of opening another.\n"
-            "  Repeat the wait while it is `working`; its report is the\n"
-            "  `Worker round` line in the task file. A `blocked` tab is a\n"
-            "  question or a permission prompt: show the user, and never\n"
-            "  answer a permission prompt yourself. Continue it with `herdr\n"
-            "  agent prompt <name> \"Read Findings and go on.\"`, and leave\n"
-            "  the tab open when the task ends.\n"
-            "- Otherwise " + subagent)
-    else:
-        placement = "You stay the supervisor in this\nsession: " + subagent
+    placement = (
+        "You are the supervisor in this\n"
+        "session either way; only where the worker runs varies:\n"
+        "- By default, spawn it as your harness's sub-agent with that\n"
+        "  prompt, passing no model.\n"
+        + herdr_tab(harness, "worker", "<name>", "<the prompt>") +
+        "  `<name>` is `worker-` and the task id, lowercased, at most 32\n"
+        "  characters. If a tab of that name is still open from an earlier\n"
+        "  session, continue it instead of opening another. Its report is\n"
+        "  the `Worker round` line in the task file; continue it with\n"
+        "  `herdr agent prompt <name> \"Read Findings and go on.\"`.\n")
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                        worker_placement=placement)
 

@@ -1,7 +1,7 @@
 Update this project's agent framework to the current version, in
 place, without losing what this project knows. Arguments (optional:
 `dry-run` reports the plan and changes nothing, `inline` does the update
-in this session): ${arg}
+in this session, `herdr` runs the updater in a Herdr tab): ${arg}
 
 The knowledge this project accumulated is the expensive artifact and
 the framework files are cheap. So: never re-run /explore as part of an

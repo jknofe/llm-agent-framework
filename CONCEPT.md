@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.5.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.6.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -153,8 +153,8 @@ Since 11.0 `/task do` splits into two roles, after Google's
 Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
 job and the supervisor none of it (section 53). The worker is the
 framework's `worker` agent, defined beside `reviewer` on every harness
-(section 55), run as a sub-agent or, on Claude Code inside Herdr, in a tab
-of its own (section 67): on the model its agent file names, which the user sets per
+(section 55), run as the harness's sub-agent, or in a Herdr tab of its
+own when the user asks for `herdr`, on every harness (section 68): on the model its agent file names, which the user sets per
 project (`init-agent --models`, section 59) and which `/task do` refuses to
 work without, never a default and never the session's, and it knows
 only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
@@ -286,12 +286,12 @@ itself: it hands the update to the `updater` sub-agent, on the small model
 the project chose for it (`init-agent --models --updater`, the same
 mechanism as the worker and reviewer, section 59), and checks the result
 from the files: stamp, file list, `.ai` commit, `model:` lines, the
-GENERATED section. Where Herdr runs, on Claude Code, the updater gets a tab
-of its own that stays open for the user; elsewhere it is an ordinary
-sub-agent. No updater model, or `inline`, means the update runs in the
-session as before; the framework never picks a model for it (section 64).
-This is the one place the framework steers Herdr; section 52 left the
-`/task do` worker's placement to the agent.
+GENERATED section. The updater is the harness's sub-agent; with
+`herdr` it gets a tab of its own that stays open for the user, on every
+harness. No updater model, or `inline`, means the update runs in the
+session as before; the framework never picks a model for it (sections 64
+and 68). The worker of `/task do` follows the same rule: a sub-agent by
+default, a Herdr tab only when asked.
 
 ## Property 4: bounded own footprint
 
@@ -492,6 +492,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.6 (2026-11-11, Herdr only when asked, on every harness, section 68.
+The `/task do` worker and the `/framework-update` updater are the
+harness's sub-agent by default on Claude Code, Copilot and OpenCode; with
+`herdr` in the call they get a Herdr tab, started per harness on the
+role's model.)
 
 v12.5 (2026-11-11, the session supervises, the worker runs in a sub-agent
 or a Herdr tab, section 67. On Claude Code inside Herdr the `/task do`
@@ -4802,3 +4808,40 @@ of the 8-line diff, `Delegation: haiku, 1 report(s), done`, `finish done`;
 the tab stayed open. It left out `--permission-mode`, as the rule allows
 when the mode is unknown. Not run: a multi-round task continued through
 `herdr agent prompt`, and the outside-Herdr path after this change.
+
+## 68. Herdr only when asked, on every harness (2026-11-11, v12.6)
+
+**Source.** The owner on 12.2 and 12.5: the default is the harness's own
+sub-agent flow, as long as the `/task do` call does not ask for Herdr, and
+it works the same way on Copilot, OpenCode and Claude Code. 12.2 and 12.5
+had put the role in a Herdr tab whenever Herdr ran, and on Claude Code
+only.
+
+**Change.**
+
+- Default on every harness: the worker of `/task do` and the updater of
+  `/framework-update` are the harness's sub-agent, no model passed.
+- `/task do <id> herdr` and `/framework-update herdr`: the role gets a
+  Herdr tab of its own when Herdr runs; without Herdr the session says so
+  and uses the sub-agent. The tab starts the harness's CLI on the role's
+  model, one line per harness, from one helper (`content.herdr_tab`):
+  Claude Code `claude --agent <role> --permission-mode <mode>`; Copilot
+  `copilot --agent <role> --model <the file's model: line>`; OpenCode
+  `opencode --model <the file's model: line>`, the prompt carrying the
+  contract. The rest (name, literal values, repeated wait, `blocked` to the
+  user, the tab left open, a still-open worker tab continued) is shared.
+- The `/task` dispatcher passes `herdr` like `inline`; the argument hints
+  and the update body's argument line name it.
+
+**Basis.** Claude Code's `--agent` was seen to run the session on the
+agent file's model (section 64, TC-D10 of section 67). Copilot CLI 1.0.105
+lists `--agent` and `--model` in its help. OpenCode is not installed here;
+its `--model` and `--agent` flags on the TUI are taken from the owner's
+own setup notes (`claude-and-bash/opencode-setup/set-me-up.md`, `opencode
+--agent aiq102 --model aiq102/claude-opus-5-5`). `--agent` is not used
+there for the role, because whether OpenCode starts a `mode: subagent`
+agent as the session's agent is unverified; `--model` with the file's line
+keeps section 59's rule that the file is the only source.
+
+**Not run.** Layer 1 only. The Copilot and OpenCode tab starts are
+unverified live; TC-D10 and TC-U2 now name `herdr`.
