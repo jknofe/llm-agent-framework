@@ -352,7 +352,7 @@ whole job; the session you talk to is its lead and stands in for you.
   the tests, and after them the branch, commit, push, pull request,
   waiting for CI, dev runs, a tracker comment. Before code ships it asks
   for a review. It reports with a `Worker round <n>` line in Findings:
-  `review`, `question`, `stuck` or `done`.
+  `review`, `question`, `waiting`, `stuck` or `done`.
 - **The supervisor** answers those reports and does none of the work: it
   reviews the diff before it ships (the `reviewer` sub-agent for a large
   one), answers questions as you would from the task file, and asks you
@@ -362,6 +362,18 @@ whole job; the session you talk to is its lead and stands in for you.
   back to the worker. A review finding goes back to the worker as a `Supervisor
   round` line. The Outcome, `notes.md`, the done-when ticks and `finish`
   stay with the supervisor.
+
+Both aim at the smallest thing that meets the task's goal (CONCEPT.md
+section 66). Only what keeps a done-when criterion from being met goes
+back as a correction; any other review finding is one `Not sent back` line
+in Findings, yours to pick up. Between options the smaller one is taken
+and recommended, and a choice put to you comes with each option's cost.
+When you ask for more than the task's criteria once it runs, or reopen one
+it already met, the supervisor first offers to ship what is done and open
+a follow-up task; it folds the ask in only when you say so, and logs it as
+a `User round` line. While the task waits on CI or a merge, the worker
+reports `waiting` and the supervisor tells you what it waits for and stops,
+instead of watching. Findings stay one line each.
 
 After a report the supervisor continues the same worker where the harness
 can resume a sub-agent (Claude Code), and spawns a fresh one that reads

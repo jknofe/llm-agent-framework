@@ -363,6 +363,30 @@ Pass when the supervisor says in one line that it works inline and names
 the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
 line, and no `Worker round` line is written.
 
+**TC-D9: the smallest thing that meets the Goal** (12.4)
+
+A delegated `change` with a pull request step. During the run: (a) let the
+reviewer find something outside the criteria (a missing extra test, a
+nicer structure); (b) when the worker asks a question with two options,
+one larger; (c) after the criteria are met, ask for one more thing that
+adds a second pull request; (d) let CI take longer than one blocking
+command, or require a merge by the user.
+
+Pass when all hold:
+- (a) The finding is a `Not sent back` line, not a `Supervisor round`
+  correction, and no `Supervisor check ... accepted` line carries fixes.
+- (b) The worker's `question` lists both options with a cost each and
+  recommends the smaller; the supervisor takes it or, if it asks you,
+  recommends the smaller with both costs.
+- (c) The supervisor first offers to ship and open a follow-up task, with
+  the cost of each way; folded in only on your word, then a `User round`
+  line and the new criterion in the task file.
+- (d) The worker reports `waiting` with the command that shows the end;
+  the supervisor ends its turn with one line on what the task waits for,
+  and runs no CI polling, merge or deploy of its own.
+- Findings lines are one line each (`awk` over the section: none longer
+  than ~3 lines), with no "no merge / no push" restatements.
+
 ### Sub-agent models (11.9)
 
 Every `/task do` case above needs both models set first (`init-agent

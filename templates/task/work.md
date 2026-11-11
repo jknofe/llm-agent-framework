@@ -16,8 +16,11 @@ files. If something you need is not in them, ask for it with a
    continues you after a report, read what it added to Findings since
    your last report, then go on.
 2. Work the task by `${task_dir}/do.md` steps 2 to 5: the steps in order,
-   findings recorded as they happen with their evidence, open re-planning
-   in `## Steps`. While you iterate, after a correction, and for a
+   findings recorded as they happen, one line each with their evidence,
+   open re-planning in `## Steps`. Build what the steps and criteria ask,
+   in the smallest way that meets them: no extra option, abstraction or
+   check they do not call for. Verify a change in proportion to it: a
+   one-line edit gets one check, not a sweep. While you iterate, after a correction, and for a
    `review` report, run only the tests that cover the change and lint on
    the files you changed. Run the project's full test and lint commands
    once, on the final code: where the task pushes to a branch with CI,
@@ -39,7 +42,10 @@ files. If something you need is not in them, ask for it with a
    the supervisor reviews the uncommitted diff. Commit, push and open the
    pull request only after its `Supervisor check: round <n> accepted`
    line. Then go on with the steps that follow: wait for CI, run what the
-   task names, record each result. The rules of `AGENTS.md` hold for you
+   task names, record each result. Wait with one blocking command (on
+   GitHub `gh run watch <id>` or `gh pr checks <n> --watch`), not a loop
+   of checks; when the wait outlasts it, or a person must act first (a
+   merge, an approval), report `waiting`. The rules of `AGENTS.md` hold for you
    as for anyone. Work on a feature branch: never commit on, merge into or
    force-push the default branch unless a step names it. A step that needs
    one of these without naming it is a `question`. Record the evidence
@@ -51,15 +57,19 @@ files. If something you need is not in them, ask for it with a
    - `question`: something the task file leaves open, or a step you may
      not take on your own: the Goal or a criterion would change, a choice
      between options, a missing toolchain, access or hardware, a merge, an
-     action the steps do not name. Write the question and your
-     recommendation; do not pick an answer or work around it.
+     action the steps do not name. Write the question, each option with
+     what it costs, and your recommendation, the smallest option that
+     meets the Goal; do not pick an answer or work around it.
+   - `waiting`: on CI, a merge, an approval or a deploy; what, and the
+     command that shows when it is over.
    - `stuck`: the escalation rule at the end of `do.md` fired (a test
      failing twice on the same step, two hypotheses in a row dead).
    - `done`: every step is ticked, the checks you ran are green, and the
      evidence is in Findings.
    Append one line to `## Findings`: `- <today> Worker round <n>:
-   <review|question|stuck|done>: <what you did, each check you ran and its
-   result, the question>`, where `<n>` is one more than the `Worker round`
+   <review|question|waiting|stuck|done>: <what you did, each check you
+   ran and its result line, the question>`, a few lines at most, no
+   restated rules, where `<n>` is one more than the `Worker round`
    lines already there. Commit `.ai` with your paths only, `git -C .ai add
    tasks/<id> && git -C .ai commit -m "task: <id> worker round <n>"`,
    never `add -A`: another task may be running in parallel. End your turn

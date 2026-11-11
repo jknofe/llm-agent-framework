@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.3.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.4.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -157,8 +157,8 @@ work without, never a default and never the session's, and it knows
 only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
 every step the task names: the code, the tests, then the branch, commit,
 push, pull request, the wait for CI, a dev run, a tracker comment. Before
-code ships it reports `review`; it also stops at `question`, `stuck` and
-`done`, each a `Worker round <n>` line in Findings. The session that ran
+code ships it reports `review`; it also stops at `question`, `waiting`,
+`stuck` and `done`, each a `Worker round <n>` line in Findings. The session that ran
 `/task do` is the supervisor and stands in for the user: it reviews the
 uncommitted diff before it ships (the review gate), answers a question as
 the user would from the task file, and asks the user only what it cannot
@@ -169,7 +169,12 @@ itself: missing or doubtful evidence goes back to the worker (section 63).
 A worker's `done` is a
 claim, not a gate result. Corrections and answers go into Findings as
 `Supervisor round <n>` lines, an accepted review as a `Supervisor check`
-line; then the supervisor continues the same worker where the harness can
+line. A correction is only what keeps a criterion from being met; any
+other finding stays a `Not sent back` line. Between options it takes, and
+recommends to the user, the smallest that meets the Goal. A wait on CI
+or a person (`waiting`) ends its turn instead of watching. A user ask
+beyond the written criteria is offered as a follow-up task first, and
+logged as a `User round` line when folded in (section 66); then the supervisor continues the same worker where the harness can
 resume a sub-agent, or spawns a fresh one that reads the file. The
 supervisor never edits host code, commits or pushes, not even to fix a
 review finding; it takes over only when the user says so, and works the
@@ -483,6 +488,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.4 (2026-11-11, the smallest thing that meets the Goal, section 66.
+Corrections only for unmet criteria, the rest `Not sent back`; the
+smallest option recommended, with its cost; asks beyond the criteria
+offered as a follow-up task first, logged as `User round`; one-line
+Findings without restated rules; a `waiting` report that ends the
+supervisor's turn instead of watching CI.)
 
 v12.3 (2026-11-11, `/framework-models` lists what can be named, section
 65. `tasks.py models --list`: `opencode models` on OpenCode, the backend's
@@ -4649,3 +4661,73 @@ missing). Live, a Claude Code session on Sonnet 5.5 typed
 `/framework-models` there (Foundry backend): it replied with the script's
 output verbatim, the 404 line included, and suggested no name. Not run: the
 Anthropic API direct, OpenCode.
+
+## 66. The smallest thing that meets the Goal (2026-11-11, v12.4)
+
+**Source.** The owner felt that agents overcomplicate their solutions and
+had four long tasks read against their transcripts and diffs: dart
+`1221-prefect-chain` (18 worker rounds, 12 corrections), dart
+`team-meeting-showcase` (16 rounds) and `1216-worker-image-pinning`,
+cleaning `BEGIFZ-6472-foss-doc` (a 1508-line task file) and
+`sbom-generator-rename`. Three read-only sub-agents each took one cluster;
+their key claims were spot-checked against the task files.
+
+**Finding.** The delivered code was mostly the right size for what was
+finally asked: the 1221 create plan was small, PR 2's first version met
+the original criteria at 362 + 534 lines, the rename was mechanical. The
+time went to, in order:
+
+- Scope growing inside the task. 1221's Done-when 4-9 were ticked on
+  2026-11-10 at 10:25 (`b1c0237`); the user's review reopened three, and
+  Notes 21 and 23-27 cost about six hours and four pushes and doubled the
+  flow (761 + 1032 lines). The FOSS task was reopened after `done` for a
+  review stage, a pin change, artifact renaming (five new criteria) and a
+  CI fix. The showcase's 16 rounds were 16 user design changes, logged
+  as Notes, so Findings showed "0 corrections".
+- The supervisor adding work. Each accepted 1221 round carried three
+  more fixes (task.md L108, L119, L125); one made tests flaky, the user
+  reversed another. Its option questions marked the larger option
+  "Recommended" each time. The one real overcomplication: a 209-line
+  scoped CI trust fix (FOSS, `f423512`) where a one-line `safe.directory`
+  would do, after a correction ruled the broad fix out. In both projects
+  the supervisor was the largest token consumer (about 340k and 238k
+  output tokens in the task windows) and watched CI in the session; on
+  1216 it did merges and production runs itself after round 5.
+- Verification volume: 31-34 full-suite runs per task, reviewers rerunning
+  the suite, Findings of 1123 lines with rules restated, five viewports
+  measured for one-line CSS edits. 12.1 (section 63) already cut the runs.
+- Waiting no rule removes: merges, CI at 11-12 minutes a push, provider
+  504s, nights, classifier-blocked steps.
+
+**Change.**
+
+- A correction is only what keeps a Done-when criterion from being met or
+  breaks something outside the task. Any other review finding is one
+  `Not sent back` line and stays there unless the user asks. An accepted
+  round carries no fixes.
+- Between options the supervisor takes, and recommends, the smallest that
+  meets the Goal; a choice put to the user gives each option's cost
+  (rounds, lines, CI runs, risk). The worker's `question` does the same.
+- A user ask beyond the written Goal and criteria, one that reopens a
+  ticked criterion, or one that adds a repository, a pull request or a
+  production change: the supervisor first offers to ship what meets the
+  criteria and open a follow-up task, with the cost of each way. Folded in
+  only on the user's word, then written into Notes and the criteria and
+  logged as `User round <n>`.
+- Findings: one line each, evidence as a pointer (the command and its
+  result line, not the output), no restated rules and nothing about what
+  was not done. A worker round line is a few lines at most.
+- The worker builds the smallest thing the steps and criteria ask for and
+  verifies in proportion to the change.
+- New report `waiting`: CI that outlasts one blocking command (`gh run
+  watch`, `gh pr checks --watch`), a merge, an approval, a deploy. The
+  supervisor tells the user what the task waits for and ends its turn; it
+  neither watches nor does the step.
+
+**What this risks.** A follow-up task for each new ask can split work a
+user sees as one; the user can always say "fold it in". `Not sent back`
+findings may be real weaknesses left in place; they are on record, and
+anything that breaks a criterion is still a correction.
+
+**Not run.** Layer 1 only. The runbook gains TC-D9; the next delegated
+task on dart or cleaning is the live check, against the counts above.
