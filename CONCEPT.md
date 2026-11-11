@@ -4645,5 +4645,7 @@ chat models with prices and no embedding or image entry; the Foundry
 endpoint gave `does not list them (HTTP 404)`; `models` without `--list`
 printed no list. `test_tasks_table.py` runs the same against a local fake
 `/v1/models` (chat filter, key header, 404, no key, Copilot, OpenCode
-missing). Not run: a live `/framework-models` session, the Anthropic API
-direct, OpenCode.
+missing). Live, a Claude Code session on Sonnet 5.5 typed
+`/framework-models` there (Foundry backend): it replied with the script's
+output verbatim, the 404 line included, and suggested no name. Not run: the
+Anthropic API direct, OpenCode.
