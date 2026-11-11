@@ -101,8 +101,11 @@ set only when that line holds a concrete name: a missing agent file, a
 missing or empty line and `inherit` all count as unset. The name itself is
 not checked (a proxy may serve names the framework cannot know). First
 line `MODELS OK` or `MODELS MISSING`; a missing role gets a line naming
-the file and how to set it (`init-agent --models`, which also tests the
-name as a sub-agent). Exit 1 when anything is missing. Read-only.
+the file. Then the command that sets both, written for this scaffold's
+harness (`init-agent --models`, which also tests each name as a
+sub-agent): `models worker=<m> reviewer=<m>` fills in those names, else
+the current ones, else placeholders. /framework-models shows this output
+(CONCEPT.md section 62). Exit 1 when anything is missing. Read-only.
 
 list, tree, resolve, trackers and models are read-only; start, finish, tick
 and claim write only the task file and the pointers. Stdlib only.
@@ -687,7 +690,8 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py models | tasks.py start <id> | "
+         "| tasks.py trackers | tasks.py models [worker=<m>] [reviewer=<m>] | "
+         "tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
          "tasks.py tick <id> done|steps <n> [<n>...] | "
          "tasks.py claim <id> <path> [<path>...]")
@@ -704,9 +708,49 @@ AGENT_FILES = {
 }
 
 
-def models():
+# How a user runs the setup command on each harness, and what follows
+# (CONCEPT.md section 62). Claude Code and OpenCode run a `!` line from
+# their prompt; Copilot's `!` is not verified, so it gets a terminal.
+TESTED = "It tests each model as a sub-agent and saves only those that pass."
+RUN_FROM = {
+    "claude": ("In this session, type:", "! ",
+               TESTED + " Then restart the session: it read the agent "
+               "files when it started."),
+    "opencode": ("In this session, type:", "!",
+                 TESTED + " It reloads OpenCode's server itself; the next "
+                 "/task do uses the new models."),
+    "copilot": ("In a terminal in this project, run:", "",
+                "It saves the names without a test (none exists for "
+                "Copilot yet). Then restart the session and check them "
+                "with a small /task do."),
+}
+
+
+def models_args(args):
+    """{role: name} from `worker=<m>` / `reviewer=<m>`, or bare names in
+    that order; None for an argument it cannot place."""
+    out, bare = {}, []
+    for a in args:
+        key, sep, value = a.partition("=")
+        if sep and key in AGENT_FILES and value:
+            out[key] = value
+        elif not sep:
+            bare.append(a)
+        else:
+            return None
+    for role in AGENT_FILES:
+        if role not in out and bare:
+            out[role] = bare.pop(0)
+    return None if bare else out
+
+
+def models(args=()):
     root = AI.parent
-    problems, found = [], []
+    wanted = models_args(args)
+    if wanted is None:
+        print(f"Unknown argument in {' '.join(args)!r}. {USAGE}")
+        return 2
+    problems, found, current = [], [], {}
     for role, candidates in AGENT_FILES.items():
         files = [c for c in candidates if (root / c).is_file()]
         if not files:
@@ -719,21 +763,49 @@ def models():
             if not value or value.lower() == "inherit":
                 problems.append(
                     f"{role}: {rel} has no model (`inherit` does not "
-                    "count). Set one with `init-agent --models --worker "
-                    "<name> --reviewer <name>`, which tests each as a "
-                    "sub-agent, or add a line `model: <name>` after the "
-                    "file's `description:` line")
+                    "count); set it with the command below, or add a line "
+                    "`model: <name>` after the file's `description:` line")
             else:
                 found.append(f"{role}: {rel} {value}")
+                current.setdefault(role, value)
     if problems:
         print("MODELS MISSING")
         print("\n".join(problems))
         print("Do not start the task and do not pick a model yourself: "
               "tell the user which file needs which line.")
-        return 1
-    print("MODELS OK")
-    print("\n".join(found))
-    return 0
+    else:
+        print("MODELS OK")
+        print("\n".join(found))
+    print()
+    print("\n".join(run_lines({**current, **wanted})))
+    return 1 if problems else 0
+
+
+def run_lines(names):
+    """The setup command for this scaffold's harness. The framework's
+    checkout from `$LLM_AGENT_HOME` when it holds init_agent.py, else the
+    `init-agent` shell function that install.sh defines."""
+    try:
+        stamp = json.loads((AI / "agent" / "framework.json")
+                           .read_text(encoding="utf-8"))
+        harness = stamp.get("harness")
+    except (OSError, ValueError):
+        harness = None
+    where, prefix, after = RUN_FROM.get(harness, RUN_FROM["copilot"])
+    home = os.environ.get("LLM_AGENT_HOME", "")
+    tool = (f'python3 "{home}/init_agent.py"'
+            if home and (Path(home) / "init_agent.py").is_file()
+            else "init-agent")
+    worker = names.get("worker") or "<worker>"
+    reviewer = names.get("reviewer") or "<reviewer>"
+    lines = [where,
+             f"{prefix}{tool} --models --worker {worker} "
+             f"--reviewer {reviewer}",
+             after]
+    if "<" in worker + reviewer:
+        lines.append("Replace <worker> and <reviewer> with model names as "
+                     "your harness or provider writes them.")
+    return lines
 
 
 def commit_line(tid, message):
@@ -933,7 +1005,7 @@ def main():
     if args and args[0] == "trackers":
         return trackers()
     if args and args[0] == "models":
-        return models()
+        return models(args[1:])
     if args and args[0] != "list":
         print(f"Unknown argument {args[0]!r}. {USAGE}")
         return 2

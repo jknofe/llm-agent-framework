@@ -36,11 +36,11 @@ files. If something you need is not in them, ask for it with a
    pull request only after its `Supervisor check: round <n> accepted`
    line. Then go on with the steps that follow: wait for CI, run what the
    task names, record each result. The rules of `AGENTS.md` hold for you
-   as for anyone: never merge into the default branch, never force-push,
-   and nothing destructive or outside this repository unless a step names
-   it. A step that needs one of these and does not name it is a
-   `question`. Record the evidence in Findings as you go: the commit, the
-   pull request URL, the CI result, the run and its log lines.
+   as for anyone. Work on a feature branch: never commit on, merge into or
+   force-push the default branch unless a step names it. A step that needs
+   one of these without naming it is a `question`. Record the evidence
+   in Findings as you go: the commit, the pull request URL, the CI
+   result, the run and its log lines.
 5. Report and stop at the first of these:
    - `review`: code ready to ship; what changed, each check you ran and
      its result.

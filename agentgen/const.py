@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "11.9"
+FRAMEWORK_VERSION = "12.0"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -32,14 +32,16 @@ GEN_END = "<!-- END GENERATED:project-context -->"
 # is investigating, bug hunting and testing, not only changing code. 9.0
 # folded /task-create, /task-do and /task-list-all into one /task whose
 # create-or-do decision is made by `tasks.py resolve`, not by the agent.
-SKILLS = ["explore", "task", "framework-update"]
+# 12.0 added /framework-models: it shows the models of /task do's worker and
+# reviewer and prints the command that sets them (CONCEPT.md section 62).
+SKILLS = ["explore", "task", "framework-models", "framework-update"]
 
 # Claude Code `effort` frontmatter per skill (CONCEPT.md section 42). It
 # overrides the session level only for the turn that invokes the skill, so
 # the direct path keeps the user's own /effort default. Claude only: no
 # equivalent is documented for copilot.
 SKILL_EFFORT = {"explore": "medium", "task": "medium",
-                "framework-update": "high"}
+                "framework-models": "low", "framework-update": "high"}
 
 # The harnesses this generator renders. Hermes was the third until 10.0
 # (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized
@@ -103,5 +105,6 @@ _SKILL_DESCRIPTIONS = {
 ARG_HINTS = {
     "explore": "[focus]",
     "task": "[create|do|list|tree] <id> [title...|inline]",
+    "framework-models": "[worker=<model>] [reviewer=<model>]",
     "framework-update": "[dry-run]",
 }

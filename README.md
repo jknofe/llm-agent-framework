@@ -228,6 +228,7 @@ Every harness invokes them the same way, under the same names:
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
+| `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed. |
 | `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
@@ -352,7 +353,9 @@ take over. To have the worker run somewhere else, for example in a
 terminal pane you can watch, say so when you start `/task do`. The
 worker's commits, pushes and pull requests go through the same guards as
 yours: the git guard hook blocks a merge into the default branch, and
-`AGENTS.md` stops every agent at the branch or pull request. Delegation
+`AGENTS.md` keeps every agent off the default branch, committing on a
+feature branch and stopping at it or its pull request. A commit on the
+default branch is not blocked by a hook: ask for one and the agent makes it. Delegation
 is not claimed to be cheaper: reviews and decisions stay on your model.
 
 ## Parallel tasks
@@ -425,16 +428,26 @@ OpenCode marks experimental.
 both have a model set for this project. The framework picks nothing and
 assumes nothing: no tier, no default, no inheriting the session's model.
 
-- **Set them:** in the project, `init-agent --models --worker <name>
-  --reviewer <name>`, or `init-agent --models` in a terminal to be asked.
+- **Set them:** `/framework-models` shows what is set and prints the exact
+  line to type (`/framework-models worker=haiku reviewer=sonnet` fills the
+  names in). The line is `init-agent --models --worker <name> --reviewer
+  <name>`; in a terminal, `init-agent --models` alone asks for the names.
   From a coding-agent session type it with `!` in front, then restart the
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
   (`gpt-6.1-sol`) works; `inherit` is not a model.
-- **The test:** on Claude Code the tool starts a fresh headless session that
-  spawns each role as a sub-agent and expects "hello" back. A name that
-  fails is not saved. On Copilot and OpenCode the line is written without a
-  test for now; check it with a small `/task do`.
+- **OpenCode names** are written as `opencode models` prints them,
+  `<provider>/<model>`, optionally with a variant: `claude-agent/sonnet#medium`.
+  Without one the sub-agent runs on the model's default variant, not the
+  session's. OpenCode's background server does not notice an edited agent
+  file; the tool runs `opencode reload` after saving, and `opencode debug
+  agents` shows what each agent resolved to.
+- **The test:** on Claude Code and OpenCode the tool starts a fresh headless
+  session (`claude -p`, `opencode run`) that spawns each role as a
+  sub-agent and expects "hello" back. On OpenCode it also reads the
+  sub-agent's session back and fails unless it ran on exactly the name in
+  the file. A name that fails is not saved. On Copilot the line is written
+  without a test for now; check it with a small `/task do`.
 - **The check:** `/task do` first runs `python3 .ai/agent/tools/tasks.py
   models`. If either role has no model it refuses, changes nothing and says
   which file needs which line. Run the script yourself to see the same.

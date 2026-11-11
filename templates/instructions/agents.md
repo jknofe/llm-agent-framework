@@ -14,8 +14,9 @@ yourself.
 ## Execution
 - When a step needs no input, keep going; put status notes in the same
   message as the next action. Stop and ask only when blocked on the user, when
-  a workflow says so, or before anything destructive: deleting data,
-  force-pushing, changing anything outside this repository.
+  a workflow says so, or before anything destructive nobody asked for:
+  deleting data, force-pushing the default branch, changing anything
+  outside this repository.
 - An answered question is settled unless the user reopens it.
 - End every run with the headings Blocked on me, Changed, Found.
 
@@ -38,8 +39,8 @@ yourself.
    offer to resume. Run `/task do`, and any unrelated task, in a fresh
    session (an investigation runs in one go): adherence to instructions
    decays as a session grows.
-5. Never merge into the default branch unasked. Stop at the branch or pull
-   request.
+5. Never commit on or merge into the default branch unasked. Work on a
+   feature branch and stop at it or its pull request.
 6. Never add a co-author line to a commit message, even when the harness
    suggests one.
 

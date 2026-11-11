@@ -55,6 +55,10 @@ def gate(root):
 
 
 def main():
+    # Never reload the real OpenCode server from a test; record the calls.
+    reloads = []
+    models.reload_opencode = reloads.append
+
     # Name rules.
     check(models.usable("gpt-6.1-sol") and models.usable("a/b#medium"),
           "any concrete name is usable")
@@ -111,6 +115,86 @@ def main():
                                           reviewer="gpt-6-luna"))
     check(rc == 0 and not ht.called and gate(root).returncode == 0,
           "copilot: lines written, no test claimed")
+
+    # OpenCode is tested, not just written (CONCEPT.md section 60).
+    root = project("opencode")
+    with mock.patch.object(models, "headless_test",
+                           return_value=(True, "ran")) as ht:
+        rc = models.cmd_models(root, args(worker="p/w", reviewer="p/r#high"))
+    check(rc == 0 and ht.call_count == 2 and
+          ht.call_args.args[2:] == ("opencode", "p/r#high"),
+          f"opencode: both roles tested with harness and name: {ht.call_args}")
+    check(reloads == [root], f"opencode: the server reloaded once: {reloads}")
+
+    def info(**m):
+        return {"info": {"model": m}}
+    check(models.ran_on(info(providerID="p", id="m", variant="default"))
+          == "p/m" and
+          models.ran_on(info(providerID="p", id="m", variant="medium"))
+          == "p/m#medium" and
+          models.ran_on(info(providerID="p", id="m")) == "p/m",
+          "ran_on: default variant is the bare name")
+    check(models.ran_on({"info": {}, "messages": [
+              {"role": "user"}, {"model": {"providerID": "o", "id": "x"}}]})
+          == "o/x", "ran_on: falls back to the messages' model")
+
+    # opencode_test against a fake `opencode`: the run's JSON lines, the
+    # child session's export, and the delete.
+    def fake_opencode(reply, tool_state, ran):
+        events = [{"type": "tool_use", "sessionID": "ses_parent",
+                   "part": {"tool": "subagent", "state": tool_state}},
+                  {"type": "text", "sessionID": "ses_parent",
+                   "part": {"text": reply}}]
+        calls = []
+
+        def run(cmd, **kw):
+            calls.append(cmd[1:3])
+            out = ""
+            if cmd[1] == "run":
+                out = "\n".join(json.dumps(e) for e in events)
+            elif cmd[1:3] == ["session", "export"]:
+                out = json.dumps({"info": {"model": ran}})
+            check(kw.get("stdin") == subprocess.DEVNULL,
+                  f"opencode: stdin closed for {cmd[1:3]}")
+            if cmd[1] == "run":
+                check("--standalone" in cmd, "opencode: run is standalone")
+            return subprocess.CompletedProcess(cmd, 0, out, "")
+        return run, calls
+
+    done = {"status": "completed",
+            "output": '<subagent sessionID="ses_child" state="completed">'
+                      "\nhello\n</subagent>"}
+    haiku = {"providerID": "claude-agent", "id": "haiku", "variant": "default"}
+    with mock.patch.object(models, "opencode_bin", return_value="oc"):
+        run, calls = fake_opencode("SUBAGENT_REPLY: hello", done, haiku)
+        with mock.patch.object(models.subprocess, "run", run):
+            ok, detail = models.opencode_test(root, "worker",
+                                              "claude-agent/haiku")
+        check(ok and "ran on claude-agent/haiku" in detail,
+              f"opencode: hello on the named model passes: {detail}")
+        check(["session", "export"] in calls and
+              ["session", "delete"] in calls,
+              f"opencode: child exported, sessions deleted: {calls}")
+
+        run, _ = fake_opencode("SUBAGENT_REPLY: hello", done, haiku)
+        with mock.patch.object(models.subprocess, "run", run):
+            ok, detail = models.opencode_test(root, "reviewer",
+                                              "claude-agent/sonnet#medium")
+        check(not ok and "not honored" in detail,
+              f"opencode: another model than the file's fails: {detail}")
+
+        failed = {"status": "error", "error": "Subagent failed (sessionID: "
+                  "ses_child): Model unavailable: claude-agent/nope"}
+        run, _ = fake_opencode("SUBAGENT_REPLY: none, it failed", failed,
+                               haiku)
+        with mock.patch.object(models.subprocess, "run", run):
+            ok, detail = models.opencode_test(root, "worker",
+                                              "claude-agent/nope")
+        check(not ok and "Model unavailable" in detail,
+              f"opencode: a failed spawn reports the tool error: {detail}")
+    with mock.patch.object(models, "opencode_bin", return_value=None):
+        ok, detail = models.opencode_test(root, "worker", "p/m")
+    check(not ok and "not on PATH" in detail, "opencode: no binary")
 
     # Nothing to set and no terminal to ask in: says so, exits non-zero.
     root = project()

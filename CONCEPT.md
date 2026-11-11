@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v11.9.** The framework rests on four premises, stated in
+**State: 2026-11-09, v12.0.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -176,7 +176,7 @@ a small task: at most one open step changes a host file, or none does
 (section 55). The
 Outcome, the notes, the Done-when ticks and `finish` are its own. The
 worker never ticks a done-when box, never writes Outcome, notes or the
-review line, and never merges into the default branch.
+review line, and never commits on or merges into the default branch.
 
 `/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
@@ -240,8 +240,8 @@ that one task waits on another; it schedules nothing.
 
 ## Property 3: one command set
 
-Three commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
-`/framework-update`. Same names,
+Four commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
+`/framework-models`, `/framework-update`. Same names,
 same bodies, on every harness; only the entry files differ (Agent Skills
 under `.claude/skills/`, prompt files under `.github/prompts/`, commands under
 `.opencode/commands/`). `AGENTS.md` is the one instructions file and every
@@ -318,7 +318,9 @@ repeat it.
 
 Execution (section 42): keep going while a step needs no input, with status
 notes in the same message as the next action; stop only when blocked on the
-user, when a workflow says so, or before anything destructive. An answered
+user, when a workflow says so, or before anything destructive nobody asked
+for; a change the user or a task step asked for, even to a production
+database, is the job (section 61). An answered
 question stays settled unless the user reopens it. Every run ends with the
 headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 `.ai/notes.md`.
@@ -338,8 +340,9 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
    and unrelated tasks run in fresh sessions: instruction
    adherence decays as a session grows, and the task file is the handoff
    that makes a fresh session cheap.
-5. Never merge into the default branch unasked. Work on a branch and stop at
-   the pull request; merging is the user's action.
+5. Never commit on or merge into the default branch unasked. Work on a
+   feature branch and stop at it or its pull request; merging is the user's
+   action.
 6. Never add a co-author trailer to a commit message. Harnesses inject one by
    default; the scaffold overrides it.
 
@@ -348,7 +351,10 @@ while `.ai` is dirty, and a pre-tool hook blocks rules 5 and 6 at the shell
 (`git merge` on the default branch, `git push` targeting it, `gh pr merge`, a
 commit whose message carries a co-author line). A rule that can be checked
 deterministically gets a hook and stays in the protocol text as the backstop,
-because instructions are advisory and hooks are not.
+because instructions are advisory and hooks are not. One exception by the
+owner's choice: a commit on the default branch is rule 5 in the text only,
+with no hook, because the user may ask for one and a hook cannot tell asked
+from unasked (section 61).
 
 The two hook scripts are the same file on every harness. Claude Code and
 Copilot (CLI, VS Code, cloud agent) both pipe a JSON payload with `cwd`,
@@ -457,6 +463,16 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.0 (2026-11-09, OpenCode model test, default-branch rules and
+`/framework-models`, sections 60 to 62. `init-agent --models` tests an OpenCode name the way it tests a
+Claude Code one, and also checks that the sub-agent ran on the model the
+file names. Rule 5 and the worker's contract name committing on the default
+branch, not only merging into it; protocol only, no hook, so the user can
+still ask for it. Force-pushing is asked about only for the default branch,
+and destructive work only when nobody asked for it. `/framework-models`
+shows the worker and reviewer models and prints the command that sets
+them, section 62.)
 
 v11.9 (2026-11-09, sub-agent models are explicit, section 59. `/task do`
 refuses unless the `worker` and the `reviewer` each have a model in their
@@ -4196,3 +4212,163 @@ without spawning would pass; the evidence line makes that visible, not
 impossible. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` overrides the files and the
 framework cannot see it. Layer 2: TC-M1 and TC-M2 in
 `tests/task-commands.md` are written, not yet run on a live repo.
+
+## 60. OpenCode model test (2026-11-09, v12.0)
+
+**Source.** Section 59 shipped `init-agent --models` with a sub-agent test on
+Claude Code only; OpenCode got the line and a note. The owner asked for full
+OpenCode support. The branch that held the retired `/agent-models` (section
+58) was rebased onto 11.9 and dropped; its OpenCode know-how was checked
+again and carried over.
+
+**Seen, 2026-11-09 (OpenCode 2.2.5, a scratch opencode scaffold,
+`claude-agent` provider).**
+
+- `opencode run --format json "<prompt>"` from the project spawns a
+  sub-agent through the `subagent` tool (`input.agent` is the role). Its
+  JSON lines carry the reply as `text` events and the call as a `tool_use`
+  event whose output names the child session (`<subagent
+  sessionID="...">`); `state.metadata.sessionID` held it in one run and was
+  missing in another, so the output is the fallback.
+- `opencode session export <child>` records the model the sub-agent ran on:
+  `info.model = {providerID, id, variant}`. A `model:` line without a
+  variant ran as `variant: default`; `claude-agent/sonnet#medium` ran as
+  `variant: medium`. So the `#<variant>` suffix in the agent file is
+  honored, and a pinned model without one gets the default variant, not
+  the session's.
+- A nonexistent name: the tool call ends `error`, "Model unavailable:
+  claude-agent/nonexistent-9", and the parent reports it in its reply line,
+  exit status 0. As on Claude Code, the reply line is the verdict.
+- `opencode debug agents` shows each agent's parsed model, including the
+  variant. `opencode` was not on PATH; its installer puts it in
+  `~/.opencode/bin`.
+- The background server (`opencode serve --service`) keeps the agent files
+  it read first for a directory. After the `model:` line was added it
+  still listed the worker without a model for 50 s and after a config
+  touch, and a spawn through it ran on the user's default model
+  (`opencode/iceman-free`), replying hello all the same. The first draft of
+  the test passed a nonexistent name that way; the model check is what
+  caught it. `opencode reload` made the server read the files at once and
+  ended no session; `opencode run --standalone` reads them fresh.
+- `opencode run` with stdin left open waited on it until the 240 s timeout;
+  with stdin closed the same run took about 12 s.
+- The export held the model in `info.model` in some runs and only in
+  `messages[].model` in another.
+
+**Change.**
+
+- The OpenCode test runs `opencode run` with the same prompt as the Claude
+  Code one, naming the `subagent` tool, and passes only when the reply line
+  says hello and the exported child session ran on exactly the name in the
+  file (`provider/model`, plus `#variant` when one is given). Claude Code's
+  test can only show `modelUsage`; OpenCode's can check, so it does. Both
+  test sessions are deleted afterwards. The binary is looked up on PATH,
+  then in `~/.opencode/bin`. The test runs `--standalone` with stdin
+  closed, and reads the model from `info.model` or else the messages.
+- After saving on OpenCode the tool runs `opencode reload`, so the next
+  `/task do` through the background server spawns on the new models; if
+  that fails it says to run it by hand.
+- README: OpenCode names are written as `opencode models` prints them,
+  `<provider>/<model>`, with an optional `#<variant>`.
+- Copilot still gets the line without a test.
+
+**Run, 2026-11-09.** Switcher on OpenCode: both roles OK with the model
+read back, a nonexistent name FAILED with the file unchanged, `inherit`
+refused, a re-init kept both lines, no test session left behind; on Claude
+Code again after the prompt refactor: OK and FAILED as before. TC-M1 on
+OpenCode (TUI, Sonnet 5.5 via `claude-agent`): refused at `tasks.py models`
+with no `start` and no spawn, also with `model: inherit`. TC-M2 on OpenCode:
+models set with `!` from the TUI, then `/new` and `/task do` with no TUI
+restart; the worker's and the reviewer's sessions ran on
+`claude-agent/haiku` and `claude-agent/sonnet#medium`, no spawn passed a
+model, `Delegation: claude-agent/haiku`. The reload alone was enough. Seen
+beside it, not part of this change: the OpenCode worker committed on the
+default branch. No rule forbade it then: rule 5 and the git guard cover
+merging and pushing, not a local commit (section 61).
+
+## 61. No commit on the default branch unasked (2026-11-09, v12.0)
+
+**Source.** In the OpenCode TC-M2 run of section 60 the worker committed
+`wordstat` straight onto `main`; the Claude Code worker of the same case
+had made a branch on its own. Nothing shipped forbade it: rule 5 said
+"never merge into the default branch unasked", the worker's contract said
+the same, and the git guard blocks `git merge` on the default branch, a
+`git push` to it and `gh pr merge`, not a local commit. The task named no
+branch and the scratch repo had no remote, so there was no push to block.
+Section 60 first called the commit a TC-D6 failure; TC-D6 checks merging,
+so that was corrected.
+
+**Owner's decision.** Add the rule, as protocol only. The owner sometimes
+wants a commit on the default branch and asks for it; a hook would block
+that request too, since it cannot tell an asked commit from an unasked one.
+
+**Change.**
+
+- `AGENTS.md` rule 5: "Never commit on or merge into the default branch
+  unasked. Work on a feature branch and stop at it or its pull request."
+- `work.md`: the worker's copy of the rule names committing too. A worker
+  is asked only through its task: a step that names a commit on the
+  default branch is the ask; one that needs it without naming it is a
+  `question`, as for every rule there.
+- Force-pushing is scoped the same way. `AGENTS.md` listed "force-pushing"
+  among the destructive acts to ask about first, and `work.md` said "never
+  force-push", which read as any branch; rewriting a feature branch is
+  ordinary work. Both now name the default branch only.
+- `work.md`'s rule paragraph for the worker is about the default branch
+  only: work on a feature branch, and never commit on, merge into or
+  force-push the default branch unless a step names it; a step that needs
+  one without naming it is a `question`. The worker's former line "nothing
+  destructive or outside this repository unless a step names it" is gone
+  from `work.md` by the owner's decision: listing what lies outside read as
+  a ban on work that is the job, such as a change to a production database.
+- `AGENTS.md` Execution, which the worker also follows: stop and ask before
+  anything destructive "nobody asked for". Before, the list (deleting data,
+  changing anything outside this repository) had no such clause and pulled
+  toward stopping even when the change was the task, such as one to a
+  production database. A request from the user or a task step is the ask.
+  Three words, because the copilot `AGENTS.md` stood at 645 of its 650-word
+  budget; a sentence naming the production database did not fit.
+- Part I's enforcement paragraph states the exception to "a checkable rule
+  gets a hook". The git guard is unchanged.
+- TC-D6 checks that the host repo's default branch got no commit.
+
+**Not run.** No Layer 2 case was rerun for this; it is a text change to a
+rule the agents already read. TC-D6's new check covers it on the next run.
+
+## 62. `/framework-models` (2026-11-09, v12.0)
+
+**Source.** Since 11.9 the models of `/task do`'s worker and reviewer are
+set with `init-agent --models`, a shell command. The owner asked for a slash
+command that at least prints what to run. Section 58 removed
+`/agent-models`, which set the models itself; this one only shows them.
+
+**Name.** `/framework-models`, the owner's pick, beside `/framework-update`.
+Avoided: `/model` (Claude Code, Copilot), `/models` (OpenCode), `/agents`
+(Claude Code), `/subagents` (Copilot).
+
+**Change.**
+
+- `tasks.py models [worker=<m>] [reviewer=<m>]` (also the two names bare,
+  in that order) prints, after `MODELS OK` or `MODELS MISSING`, the setup
+  command for the stamp's harness. Names come from the arguments, else the
+  current `model:` lines, else placeholders. The command is `python3
+  "$LLM_AGENT_HOME/init_agent.py"` with the absolute path when that
+  checkout exists, else the `init-agent` shell function.
+- Per harness: Claude Code, a `! ` line in the session and a restart (run
+  that way on 2026-11-09); OpenCode, a `!` line and no restart, since the
+  tool reloads the server (TC-M2 of section 60); Copilot, a terminal,
+  because Copilot CLI 1.0.107's help documents no `!` prefix, and the note
+  that Copilot gets no test.
+- The skill runs that script with the arguments and replies with its
+  output verbatim. It never runs the printed command, edits an agent file
+  or suggests a name: the choice stays the user's, and `init-agent` tests
+  it.
+- The `/task do` gate prints the same command, so a refusal ends with the
+  line to type.
+- `AGENTS.md`'s command table has no row for it: the copilot file stood at
+  648 of its 650 words. Every harness lists the command itself.
+
+**Not run.** The command was rendered on all three harnesses and the
+script's output checked there and in `test_tasks_table.py`; no live
+session typed `/framework-models` yet.
+

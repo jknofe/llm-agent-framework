@@ -17,7 +17,9 @@ only.
 Usage: python3 tests/test_tasks_table.py
 """
 import datetime
+import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -658,6 +660,54 @@ def main():
         r = attempt(mroot, "models")
         check(r.returncode == 1 and ".github/agents/worker.agent.md" in r.stdout,
               "models: a second harness's files are checked too")
+
+        # The setup command (/framework-models, CONCEPT.md section 62):
+        # written for the stamp's harness, names from the arguments, else
+        # the current lines, else placeholders.
+        shutil.rmtree(mroot / ".github")
+        home = Path(tempfile.mkdtemp())
+        (home / "init_agent.py").write_text("", encoding="utf-8")
+
+        def setup(*args, harness=None, env_home=None):
+            stamp = mroot / ".ai/agent/framework.json"
+            if harness:
+                stamp.write_text(json.dumps({"harness": harness}),
+                                 encoding="utf-8")
+            elif stamp.exists():
+                stamp.unlink()
+            env = {k: v for k, v in os.environ.items()
+                   if k != "LLM_AGENT_HOME"}
+            if env_home:
+                env["LLM_AGENT_HOME"] = str(env_home)
+            return subprocess.run(
+                [sys.executable, str(mtool), "models", *args],
+                capture_output=True, text=True, env=env)
+
+        r = setup(harness="claude", env_home=home)
+        check(r.returncode == 0 and "In this session, type:" in r.stdout and
+              f'! python3 "{home}/init_agent.py" --models --worker '
+              "gpt-6.1-sol --reviewer claude-agent/sonnet#medium" in r.stdout
+              and "restart the session" in r.stdout,
+              f"models: claude line with the current names: {r.stdout!r}")
+        r = setup("worker=w1", harness="opencode")
+        check("\n!init-agent --models --worker w1 --reviewer "
+              "claude-agent/sonnet#medium" in r.stdout and
+              "reloads OpenCode" in r.stdout,
+              f"models: opencode line, no home, one name given: {r.stdout!r}")
+        r = setup("a1", "b1", harness="copilot")
+        check("In a terminal in this project, run:\ninit-agent --models "
+              "--worker a1 --reviewer b1" in r.stdout and
+              "without a test" in r.stdout,
+              f"models: copilot terminal line, bare names: {r.stdout!r}")
+        r = setup("foo=bar", harness="claude")
+        check(r.returncode == 2 and r.stdout.startswith("Unknown argument"),
+              "models: an unknown argument is refused")
+        for role in ("worker", "reviewer"):
+            agent(f".claude/agents/{role}.md", "")
+        r = setup(harness="claude")
+        check(r.returncode == 1 and "--worker <worker> --reviewer <reviewer>"
+              in r.stdout and "Replace <worker>" in r.stdout,
+              f"models: placeholders when nothing is set: {r.stdout!r}")
 
     if FAILS:
         for f in FAILS:
