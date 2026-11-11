@@ -10,7 +10,8 @@ result on its own terms.
 ${input_block}
 
 Read, do not run. Judge from the diff, the task file and the results
-recorded in Findings. Use the shell only to read: `git diff`, `git show`,
+recorded in Findings; where a finding points at `evidence.md`, open it,
+the evidence is there. Use the shell only to read: `git diff`, `git show`,
 `git log`, `grep`, and the status of a CI run Findings cite (on GitHub
 `gh pr checks`, `gh run view`). Never run tests, linters, builds or the
 code under review: the worker ran them and recorded each result, and the

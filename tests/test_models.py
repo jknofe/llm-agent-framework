@@ -196,6 +196,22 @@ def main():
         ok, detail = models.opencode_test(root, "worker", "p/m")
     check(not ok and "not on PATH" in detail, "opencode: no binary")
 
+    # OpenCode's TUI has no model flag: its Herdr tab starts plain and
+    # spawns the role as a sub-agent (CONCEPT.md section 70).
+    for text in (content.render_task_part("do", "opencode"),
+                 content.render_update_body("opencode", "$ARGUMENTS")):
+        start = next(ln for ln in text.splitlines()
+                     if "herdr agent start" in ln)
+        check(start.rstrip().endswith("--pane <pane>") and
+              "opencode --model" not in text and
+              "Use the subagent tool with agent" in text,
+              f"opencode: the tab starts without a model flag: {start!r}")
+    check("-- --agent worker --model <model>" in
+          content.render_task_part("do", "copilot") and
+          "-- --agent worker --permission-mode" in
+          content.render_task_part("do", "claude"),
+          "copilot and claude keep their start flags")
+
     # Nothing to set and no terminal to ask in: says so, exits non-zero.
     root = project()
     with mock.patch.object(sys.stdin, "isatty", return_value=False):

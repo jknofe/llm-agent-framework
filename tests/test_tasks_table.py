@@ -799,6 +799,19 @@ def main():
               f"long findings flagged with count and longest: {out!r}")
         check("terse:" not in out.split("Legend")[-1],
               f"short findings and a 300-character line not flagged: {out!r}")
+        # A correction stays as long as it must, and nobody rewrites the
+        # Findings of a done task (CONCEPT.md section 70).
+        fix = "- 2026-11-11 Supervisor round 1: " + "z" * 500 + "\n"
+        task(root, "fixes", "fixes", "Fixes", "change", "in-progress", NEW,
+             findings=fix)
+        task(root, "over", "over", "Over", "change", "done", NEW,
+             done_when="- [x] c", steps="- [x] a",
+             findings=long_line + "- 2026-11-11 Review: inline: ok\n")
+        out = run(root)
+        check("fixes:" not in out.split("Legend")[-1],
+              f"a long Supervisor round line is not flagged: {out!r}")
+        check("over: 1 Findings" not in out,
+              f"a done task's long findings are not flagged: {out!r}")
 
     if FAILS:
         for f in FAILS:
