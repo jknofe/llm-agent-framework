@@ -20,8 +20,9 @@ Read the first word of the arguments:
 - `tree`: run `python3 ${tools_dir}/tasks.py tree` and reply with its
   complete output, verbatim, and nothing else; see Tree.
 - `create <id> <title...>`: resolve `<id>`, then Create.
-- `do [<id>] [inline]`: resolve `<id>` (none: the resume pointer), then
-  Do. `inline` keeps the work in this session instead of a worker.
+- `do [<id>] [inline|herdr]`: resolve `<id>` (none: the resume pointer),
+  then Do. `inline` keeps the work in this session instead of a worker;
+  `herdr` runs the worker in a Herdr tab instead of a sub-agent.
 - anything else is an id, maybe followed by a title: resolve it, and
   the verdict decides between Create and Do.
 

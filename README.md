@@ -78,6 +78,17 @@ section are carried into the new shape, so `/framework-update` never re-runs
 `/explore`. It reports every file it touched and what it kept.
 `/framework-update dry-run` prints that report without changing anything.
 
+The merge itself runs on a small model when you set one for the `updater`
+(`init-agent --models --updater haiku`, see
+[Sub-agent models](#sub-agent-models)). Your session then hands the update
+over and checks the result from the files: the new version stamp, every
+framework file present, retired ones gone, the `.ai` commit, your `model:`
+lines and your project section. The updater is your harness's
+sub-agent; `/framework-update herdr` runs it in a [Herdr](https://herdr.dev)
+tab instead, which stays open for you to review. With no
+updater model, or with `/framework-update inline`, the session does the
+update itself.
+
 Before touching anything it commits `.ai` and copies the host-repo framework
 files to `.ai/agent/.update-backup/`, so the whole update is revertable. It
 commits `.ai` itself and leaves host-repo changes for you to review.
@@ -132,7 +143,7 @@ file list retires nothing and prints what to remove by hand.
    script checks whether BUG-7 exists and picks create or do, and asks
    first if a similar id is already there. An investigation is planned and
    worked in one go, with no questions after the type. Anything else waits
-   for you: in a fresh session, `/task do BUG-7` works it, appends findings with their evidence
+   for you: `/task do BUG-7`, in the same session or a later one, works it, appends findings with their evidence
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
@@ -231,12 +242,12 @@ Every harness invokes them the same way, under the same names:
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
-| `/task do [<id>] [inline]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision; a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
+| `/task do [<id>] [inline\|herdr]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision (`herdr`: in a Herdr tab instead); a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed. |
-| `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
+| `/framework-update [dry-run] [inline\|herdr]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. Hands the merge to the `updater` sub-agent when it has a model (a Herdr tab with `herdr`), then checks the result; `inline` keeps it in the session. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
 Archiving has no command: prompt the agent; the rules live in AGENTS.md.
@@ -341,7 +352,7 @@ whole job; the session you talk to is its lead and stands in for you.
   the tests, and after them the branch, commit, push, pull request,
   waiting for CI, dev runs, a tracker comment. Before code ships it asks
   for a review. It reports with a `Worker round <n>` line in Findings:
-  `review`, `question`, `stuck` or `done`.
+  `review`, `question`, `waiting`, `stuck` or `done`.
 - **The supervisor** answers those reports and does none of the work: it
   reviews the diff before it ships (the `reviewer` sub-agent for a large
   one), answers questions as you would from the task file, and asks you
@@ -352,12 +363,29 @@ whole job; the session you talk to is its lead and stands in for you.
   round` line. The Outcome, `notes.md`, the done-when ticks and `finish`
   stay with the supervisor.
 
-After a report the supervisor continues the same worker where the harness
-can resume a sub-agent (Claude Code), and spawns a fresh one that reads
-the task file otherwise. It works the steps itself only with `/task do
-<id> inline`, when it cannot spawn a sub-agent, or when you tell it to
-take over. To have the worker run somewhere else, for example in a
-terminal pane you can watch, say so when you start `/task do`. The
+Both aim at the smallest thing that meets the task's goal (CONCEPT.md
+section 66). Only what keeps a done-when criterion from being met goes
+back as a correction; any other review finding is one `Not sent back` line
+in Findings, yours to pick up. Between options the smaller one is taken
+and recommended, and a choice put to you comes with each option's cost.
+When you ask for more than the task's criteria once it runs, or reopen one
+it already met, the supervisor first offers to ship what is done and open
+a follow-up task; it folds the ask in only when you say so, and logs it as
+a `User round` line. While the task waits on CI or a merge, the worker
+reports `waiting` and the supervisor tells you what it waits for and stops,
+instead of watching. A finding is one short line, a claim and a pointer
+(at most ~200 characters); long evidence goes to the task's `evidence.md`,
+and `/task list` flags any Findings line over 300 characters.
+
+The supervisor is the session you type `/task do` in, the one that planned
+the task included: no fresh session needed, the worker is the fresh one.
+The worker is the harness's sub-agent on Claude Code, Copilot and
+OpenCode alike; `/task do <id> herdr` runs it in a [Herdr](https://herdr.dev)
+tab of its own, `worker-<id>`, which you can watch and which stays open. After a report the supervisor
+continues the same worker (the tab, or a sub-agent the harness can
+resume), and spawns a fresh one that reads the task file otherwise. It
+works the steps itself only with `/task do <id> inline`, when it cannot
+spawn a sub-agent, or when you tell it to take over. The
 worker's commits, pushes and pull requests go through the same guards as
 yours: the git guard hook blocks a merge into the default branch, and
 `AGENTS.md` keeps every agent off the default branch, committing on a
@@ -432,13 +460,21 @@ OpenCode marks experimental.
 ## Sub-agent models
 
 `/task do` has two sub-agents, `worker` and `reviewer`, and runs only when
-both have a model set for this project. The framework picks nothing and
-assumes nothing: no tier, no default, no inheriting the session's model.
+both have a model set for this project. A third, `updater`, is optional:
+with a model set, `/framework-update` hands the merge to it, so a small
+model is the right pick; without one the update runs in your session. The
+framework picks nothing and assumes nothing: no tier, no default, no
+inheriting the session's model.
 
+- **See what you can pick:** `/framework-models` also lists the models
+  your setup can name, where it can list them: `opencode models` on
+  OpenCode, your backend's `/v1/models` on Claude Code (a Copilot proxy
+  answers it, with prices; Azure Foundry does not), and a pointer to the
+  `/model` picker on Copilot. It shows; you choose.
 - **Set them:** `/framework-models` shows what is set and prints the exact
   line to type (`/framework-models worker=haiku reviewer=sonnet` fills the
   names in). The line is `init-agent --models --worker <name> --reviewer
-  <name>`; in a terminal, `init-agent --models` alone asks for the names.
+  <name>`, plus `--updater <name>` if you want one; in a terminal, `init-agent --models` alone asks for the names.
   From a coding-agent session type it with `!` in front, then restart the
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
@@ -459,9 +495,9 @@ assumes nothing: no tier, no default, no inheriting the session's model.
   models`. If either role has no model it refuses, changes nothing and says
   which file needs which line. Run the script yourself to see the same.
 - **Where it lives:** the `model:` line of the agent files
-  (`.claude/agents/{worker,reviewer}.md`,
-  `.github/agents/{worker,reviewer}.agent.md` or
-  `.opencode/agents/{worker,reviewer}.md`). Nothing else sets a model, and
+  (`.claude/agents/{worker,reviewer,updater}.md`,
+  `.github/agents/{worker,reviewer,updater}.agent.md` or
+  `.opencode/agents/{worker,reviewer,updater}.md`). Nothing else sets a model, and
   the session never passes one when it spawns a sub-agent.
 - Keep the reviewer at least as strong as the worker: it is the gate that
   catches what a cheaper worker gets wrong.

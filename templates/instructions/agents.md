@@ -37,9 +37,9 @@ yourself.
    commit `.ai` content to the host repo.${hook_note}
 4. `.ai/.current` (gitignored) is the resume pointer, `.ai/.current-<id>`
    one per parallel task: `task: <id>`, task path, modified files. Read it at session start and
-   offer to resume. Run `/task do`, and any unrelated task, in a fresh
-   session (an investigation runs in one go): adherence to instructions
-   decays as a session grows.
+   offer to resume. Run an unrelated task in a fresh session: adherence to
+   instructions decays as a session grows. `/task do` needs none: its
+   worker starts fresh.
 5. Never commit on or merge into the default branch unasked. Work on a
    feature branch and stop at it or its pull request.
 6. Never add a co-author line to a commit message, even when the harness

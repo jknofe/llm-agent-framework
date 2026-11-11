@@ -153,6 +153,6 @@ Then, by type:
   plan and result in one go.
 - `change`, `bug`, `test`: stop here. Show the plan and wait: a plan
   the user can read and redirect before anything is done is what this
-  path is for. The work is `/task do <id>`, in a fresh session: the task
-  file is the handoff, so the work starts from it rather than from this
-  conversation.
+  path is for. The work is `/task do <id>`, in this session or a later
+  one: this session supervises, and the worker starts fresh from the task
+  file, so the work never depends on this conversation.

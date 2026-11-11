@@ -121,6 +121,24 @@ def render_update_body(harness: str, arg: str) -> str:
             f"   - `{COPILOT_HOOKS_DIR}/llm-agent.json` parses as JSON and every\n"
             "     hook command it names points at a file that exists.\n")
 
+    # Step 0's hand-off (CONCEPT.md sections 64 and 68): the harness's
+    # sub-agent by default, a Herdr tab when the user asks for `herdr`.
+    update_prompt = ("Run framework-update inline: read "
+                     f"{UPDATE_FILES[harness]} and follow it."
+                     if harness == "copilot" else "/framework-update inline")
+    handoff = (
+        "   - By default, spawn a fresh `updater` sub-agent, passing no\n"
+        "     model (its file names one), with the prompt `Run the framework\n"
+        "     update inline.` (`Run the framework update inline, dry-run.`\n"
+        "     with `dry-run`).\n"
+        + "\n".join("   " + ln if ln else ln for ln in herdr_tab(
+            harness, "updater", "update-<hhmmss>", update_prompt
+        ).split("\n")).rstrip(" ") +
+        "     `<hhmmss>` is the current time. Add `dry-run` to the prompt\n"
+        "     when the user gave it; read the updater's last line with\n"
+        "     `herdr agent read update-<hhmmss> --source recent-unwrapped\n"
+        "     --lines 80`.\n")
+
     owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, task files under\n"
              "`.ai/tasks/` (change specs under `.ai/changes/` before 8.0), and\n"
              "the `GENERATED:project-context` section of AGENTS.md")
@@ -189,11 +207,13 @@ def render_update_body(harness: str, arg: str) -> str:
                        arg=arg,
                        backup_paths=backup_paths,
                        framework_json=FRAMEWORK_JSON,
+                       handoff=handoff,
                        harness=harness,
                        merge_cases=merge_cases,
                        migrate=migrate,
                        owned=owned,
                        reference_skill=reference_skill,
+                       updater_file=AGENT_FILES[harness]["updater"],
                        verify_extra=verify_extra,
                        verify_tools=(f"`{TOOLS_DIR}/probe.py` and "
                                      f"`{TOOLS_DIR}/tasks.py`"))
@@ -338,12 +358,30 @@ def render_opencode_worker() -> str:
     desc, body = _split_frontmatter(render_worker_agent())
     return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
 
+def render_updater_agent(harness: str) -> str:
+    """The updater sub-agent /framework-update hands the update to (CONCEPT.md
+    section 64). Like the other roles it carries no `model:` line until
+    `init-agent --models` writes one. Its body points at the harness's own
+    copy of the update command, which is the contract."""
+    return render.fill(
+        "agents/updater.md",
+        desc=("Runs this project's framework update for /framework-update, "
+              "which hands it over and checks the result. Spawned by "
+              "/framework-update only."),
+        update_file=UPDATE_FILES[harness])
+
+def render_opencode_updater() -> str:
+    """The updater as an OpenCode V2 sub-agent: it edits and commits `.ai`."""
+    desc, body = _split_frontmatter(render_updater_agent("opencode"))
+    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+
 def render_copilot_agent(which: str) -> str:
-    """worker or reviewer as a Copilot custom agent (.github/agents/
+    """worker, reviewer or updater as a Copilot custom agent (.github/agents/
     <name>.agent.md). `description` is the one required key; the reviewer
     gets the read-only tool aliases plus the shell, its tools on claude."""
-    source = (render_worker_agent() if which == "worker"
-              else render_reviewer_agent())
+    source = {"worker": render_worker_agent,
+              "reviewer": render_reviewer_agent,
+              "updater": lambda: render_updater_agent("copilot")}[which]()
     desc, body = _split_frontmatter(source)
     tools = ('tools: ["read", "search", "execute"]\n'
              if which == "reviewer" else "")
@@ -393,14 +431,75 @@ def render_tool_probe() -> str:
     templates/tools/."""
     return render.load("tools/probe.py")
 
-def render_task_part(part: str) -> str:
+# Where a delegated role runs (CONCEPT.md section 68): the harness's own
+# sub-agent by default, a Herdr tab when the user asks for `herdr`. The tab
+# starts the harness's CLI on the role's model: `claude --agent <role>` was
+# seen to run on the agent file's model (section 64); Copilot and OpenCode
+# take the file's `model:` line through `--model`, the flag both CLIs have
+# (Copilot 1.0.105's help, the owner's OpenCode setup).
+HERDR_START = {
+    "claude": ("claude", "--agent {role} --permission-mode <mode>",
+               "`--agent {role}` runs that session on the {role}'s model;\n"
+               "  `<mode>` is your own permission mode, left out when you\n"
+               "  cannot tell."),
+    "copilot": ("copilot", "--agent {role} --model <model>",
+                "`<model>` is the `model:` line of `{file}`,\n"
+                "  as written."),
+    "opencode": ("opencode", "--model <model>",
+                 "`<model>` is the `model:` line of `{file}`,\n"
+                 "  as written; the prompt carries the {role}'s contract."),
+}
+
+def herdr_tab(harness: str, role: str, name: str, prompt: str) -> str:
+    """The Herdr-tab bullet for a role, indented as a list item."""
+    kind, args, note = HERDR_START[harness]
+    fmt = dict(role=role, file=AGENT_FILES[harness][role])
+    return (
+        "- When the user asked for `herdr`: if Herdr runs (`HERDR_ENV` is 1\n"
+        "  and `herdr` is on PATH), it gets a tab of its own and you touch\n"
+        "  no other tab; otherwise say so in one line and use the sub-agent.\n"
+        "\n"
+        "      herdr tab create --workspace \"$HERDR_WORKSPACE_ID\" \\\n"
+        "        --cwd \"$PWD\" --label " + name + " --no-focus \\\n"
+        "        | jq -r '.result.root_pane.pane_id'\n"
+        "      herdr agent start " + name + " --kind " + kind +
+        " --pane <pane> \\\n"
+        "        -- " + args.format(**fmt) + "\n"
+        "      herdr agent prompt " + name + " \"" + prompt + "\"\n"
+        "      herdr agent wait " + name + " --timeout 540000\n"
+        "\n"
+        "  " + note.format(**fmt) + "\n"
+        "  Write every value in literally: `<pane>` is the id the first\n"
+        "  command prints, and no shell variable survives from one command\n"
+        "  to the next. Repeat the wait while it is `working`. A `blocked`\n"
+        "  tab is a question or a permission prompt: show the user, and\n"
+        "  never answer a permission prompt yourself. Leave the tab open\n"
+        "  when it is done.\n")
+
+def render_task_part(part: str, harness: str = "claude") -> str:
     """`/task`'s Create, Do or Work body (`create`, `do`, `work`), written
     to TASK_DIR. Create and Do are read by the dispatching skill only when
-    `tasks.py resolve` sends it there; Work is read by the worker sub-agent Do
-    hands its steps to (CONCEPT.md sections 50 and 52)."""
+    `tasks.py resolve` sends it there; Work is read by the worker Do hands
+    its steps to (CONCEPT.md sections 50 and 52).
+
+    Do varies on harness in one place, the start of a worker tab when the
+    user asks for `herdr` (section 68); the default is the harness's
+    sub-agent everywhere."""
     rel = {"create": "task/create.md", "do": "task/do.md",
            "work": "task/work.md"}[part]
-    return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR)
+    placement = (
+        "You are the supervisor in this\n"
+        "session either way; only where the worker runs varies:\n"
+        "- By default, spawn it as your harness's sub-agent with that\n"
+        "  prompt, passing no model.\n"
+        + herdr_tab(harness, "worker", "<name>", "<the prompt>") +
+        "  `<name>` is `worker-` and the task id, lowercased, at most 32\n"
+        "  characters. If a tab of that name is still open from an earlier\n"
+        "  session, continue it instead of opening another. Its report is\n"
+        "  the `Worker round` line in the task file; continue it with\n"
+        "  `herdr agent prompt <name> \"Read Findings and go on.\"`.\n")
+    return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
+                       worker_placement=placement)
 
 def render_tool_tasks() -> str:
     """The task table and create-or-do resolver behind /task. Static, like

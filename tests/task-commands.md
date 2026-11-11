@@ -363,6 +363,57 @@ Pass when the supervisor says in one line that it works inline and names
 the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
 line, and no `Worker round` line is written.
 
+**TC-D9: the smallest thing that meets the Goal** (12.4)
+
+A delegated `change` with a pull request step. During the run: (a) let the
+reviewer find something outside the criteria (a missing extra test, a
+nicer structure); (b) when the worker asks a question with two options,
+one larger; (c) after the criteria are met, ask for one more thing that
+adds a second pull request; (d) let CI take longer than one blocking
+command, or require a merge by the user.
+
+Pass when all hold:
+- (a) The finding is a `Not sent back` line, not a `Supervisor round`
+  correction, and no `Supervisor check ... accepted` line carries fixes.
+- (b) The worker's `question` lists both options with a cost each and
+  recommends the smaller; the supervisor takes it or, if it asks you,
+  recommends the smaller with both costs.
+- (c) The supervisor first offers to ship and open a follow-up task, with
+  the cost of each way; folded in only on your word, then a `User round`
+  line and the new criterion in the task file.
+- (d) The worker reports `waiting` with the command that shows the end;
+  the supervisor ends its turn with one line on what the task waits for,
+  and runs no CI polling, merge or deploy of its own.
+- Findings lines are short: `python3 .ai/agent/tools/tasks.py` flags no
+  line over 300 characters for the task (12.7), long evidence sits in
+  `.ai/tasks/<id>/evidence.md`, and there are no "no merge / no push"
+  restatements.
+
+**TC-D10: the session supervises; the worker is a sub-agent, or a Herdr tab when asked** (12.5, 12.6)
+
+Inside Herdr, worker and reviewer models set, on each harness. In the
+session that ran `/task create`: first `/task do <id>` on a task over the
+small-task threshold, then on another such task `/task do <id> herdr`.
+
+Pass for the plain call when the worker is the harness's sub-agent, no tab
+opens, and no fresh-session advice appears. Pass for `herdr` when all hold:
+
+Pass when all hold:
+- No advice to start a fresh session, before or after.
+- A new tab `worker-<id>` opens; its status line shows the worker's model
+  from `worker.md`, it receives the fixed prompt, and no existing tab gets
+  input. The supervisor spawns no worker sub-agent (no `Agent` call with
+  `subagent_type: worker`).
+- Each report is a `Worker round` line in the task file; the supervisor
+  continues the same tab (`herdr agent prompt worker-<id>`), never a second
+  tab or session for the same task. The reviewer is still a sub-agent.
+- The tab is open after `finish`.
+- The tab starts the harness's CLI on the worker's model: `claude --agent
+  worker`, `copilot --agent worker --model <m>`, `opencode --model <m>`,
+  `<m>` the `model:` line of the worker file.
+- `herdr` outside Herdr (no `HERDR_ENV`): one line saying so, then the
+  sub-agent, everything else the same.
+
 ### Sub-agent models (11.9)
 
 Every `/task do` case above needs both models set first (`init-agent
@@ -393,6 +444,36 @@ them (`init-agent --models --worker claude-agent/haiku --reviewer
 claude-agent/sonnet#medium`), each reported `OK` with "sub-agent ran on" the
 same name. The model check: `opencode session export <child>` of the worker
 and the reviewer show that provider, id and variant.
+
+### /framework-update hand-off (12.2)
+
+A scratch scaffold staged one version back (render it from the previous
+version's commit, or edit its stamp down), with notes, a task, a hand-filled
+GENERATED section and the worker and reviewer models set.
+
+**TC-U1: no updater model, inline**
+
+`/framework-update` with no `model:` line in the updater file.
+
+Pass when the session runs `tasks.py models`, says in one line that the
+update runs inline because no updater model is set, spawns nothing, opens no
+tab, and does the update itself (the stamp moves, one `update:` commit).
+
+**TC-U2: handed to the updater**
+
+`init-agent --models --updater <small>` (claude: `haiku`), restart, then
+`/framework-update`, and again with `/framework-update herdr` inside
+Herdr.
+
+Pass when the plain call spawns an `updater` sub-agent and opens no tab,
+and when, with `herdr`, a new tab `update-<hhmmss>` appears, its
+status line shows the updater's model, it receives `/framework-update
+inline`, and no existing tab got any input. The sub-agent gets no model
+passed. The updater ends with `UPDATE
+DONE: <old> -> <new>`; the session then reports one line per check (stamp,
+files, retired files, `.ai` commit, `model:` lines, GENERATED section) from
+the files, and changed no file itself. The tab is still open. With
+`dry-run`: `UPDATE DRY-RUN`, nothing changed, the stamp unchanged.
 
 ### Parallel (11.1)
 

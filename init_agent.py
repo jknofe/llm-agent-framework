@@ -21,11 +21,13 @@ the agent through skills and folder conventions:
   archive                no command: ask the agent to archive a finished
                          task; the rules live in AGENTS.md
 
-init-agent --models [--worker M] [--reviewer M]
+init-agent --models [--worker M] [--reviewer M] [--updater M]
                          set the models of the worker and reviewer
                          sub-agents of this project (their `model:` line)
                          and test each by spawning it as a sub-agent.
-                         /task do refuses until both are set. Run it in
+                         /task do refuses until both are set. The optional
+                         updater runs /framework-update's merge; without
+                         it the update runs inline. Run it in
                          the project, from a session with `!`; restart the
                          session afterwards to use the new models
 
@@ -69,7 +71,7 @@ Context layout:
   .claude/skills/*/SKILL.md    Agent Skills (open standard)
   .github/prompts/*.prompt.md  copilot harness: same content as prompt files
   .opencode/commands/*.md      opencode harness: same content as commands, plus
-                               opencode.json, agents/reviewer.md, hooks/*.py
+                               opencode.json, agents/*.md, hooks/*.py
                                and plugins/llm-agent.js, which runs them
   .claude/settings.json        permission allow list + hook registration
                                (claude only)
@@ -82,6 +84,8 @@ Context layout:
 Framework 10.0 dropped the hermes harness. A scaffold built for it is
 switched with --harness claude, copilot or opencode, like any other switch.
   .claude/agents/reviewer.md   fresh-context adversarial reviewer subagent
+  .claude/agents/worker.md     /task do's worker subagent
+  .claude/agents/updater.md    /framework-update's updater subagent (12.2)
 
 Versioning:
   .ai/ is excluded from the host project's repo (init appends it to the
@@ -369,6 +373,9 @@ def main() -> int:
                          "harness or provider names it")
     ap.add_argument("--reviewer", metavar="MODEL",
                     help="with --models: the reviewer's model")
+    ap.add_argument("--updater", metavar="MODEL",
+                    help="with --models: the updater's model, a small one; "
+                         "/framework-update hands the update to it")
     ap.add_argument("--no-test", action="store_true",
                     help="with --models: save without the sub-agent test")
     ap.add_argument("--debug-probe", action="store_true",
