@@ -235,7 +235,7 @@ def render_update_body(harness: str, arg: str) -> str:
                        migrate=migrate,
                        owned=owned,
                        reference_skill=reference_skill,
-                       tools_dir=TOOLS_DIR,
+                       updater_file=AGENT_FILES[harness]["updater"],
                        verify_extra=verify_extra,
                        verify_tools=(f"`{TOOLS_DIR}/probe.py` and "
                                      f"`{TOOLS_DIR}/tasks.py`"))

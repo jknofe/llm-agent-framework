@@ -15,10 +15,11 @@ step says to, or after step 3 with `dry-run`.
    the `updater` yourself, go on at step 1 and do everything here.
    Otherwise hand the update to the `updater` sub-agent, on the small
    model this project chose for it, and check its result:
-   - Run `python3 ${tools_dir}/tasks.py models`. When its `updater:` line
-     says `not set` (a scaffold older than 12.2, or no model chosen), say
-     in one line that the update runs inline because no updater model is
-     set, and go on at step 1. Never pick a model for it.
+   - Read the `model:` line of `${updater_file}`. When the file or the
+     line is missing, or it says `inherit` (a scaffold older than 12.2, or
+     no model chosen), say in one line that the update runs inline because
+     no updater model is set, and go on at step 1. Never pick a model for
+     it.
    - Note what the check below compares against: the version and the
      `framework_files` in `${framework_json}`, the `model:` line of each
      agent file, and the content between AGENTS.md's GENERATED markers.

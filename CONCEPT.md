@@ -4522,8 +4522,10 @@ harness before saving it.
   name is known, else a hint to add one. `/framework-models` passes
   `updater=<m>` through.
 - The update body gains step 0. With `inline`, or as the updater, go on at
-  step 1. Otherwise read the models gate; no updater model means inline,
-  said in one line. Note the stamp, the `model:` lines and the GENERATED
+  step 1. Otherwise read the `model:` line of the updater file directly; no
+  file, no line or `inherit` means inline, said in one line. Not through
+  `tasks.py models`: the first live run below had an older `tasks.py`
+  beside the new skill, saw no `updater:` line and went inline. Note the stamp, the `model:` lines and the GENERATED
   section, hand off, wait for the last line, relay a question, and check
   the result from the files: new version, every listed file present, every
   dropped file gone, the `update:` commit and a clean `.ai`, the `model:`
@@ -4562,5 +4564,29 @@ step 0 catches a missing or stale file, a lost `model:` line and a lost
 project section, not a subtle bad merge inside a file. The backup in
 `.ai/agent/.update-backup/` and the open tab are the user's way back.
 
-**Not run.** Layer 1: all tests pass, the three harnesses render 17, 17 and
-18 framework files, AGENTS.md unchanged. Layer 2 (TC-U1, TC-U2) below.
+**Live test, 2026-11-11** (Claude Code 2.1.311, a scratch stdlib-Python
+project staged at 12.1 with a hand-filled GENERATED section, a note, worker
+and reviewer `sonnet`, updater `haiku` set with `init-agent --models
+--updater haiku`, whose sub-agent test passed on `claude-haiku-5-5`; parent
+session Sonnet 5.5 in auto mode):
+
+- Run 1, in Herdr: the parent went inline, saying no updater model was set.
+  The staging had put the 12.1 `tasks.py` beside the 12.2 skill, and step 0
+  then read the gate, which printed no `updater:` line. That is TC-U1's
+  behaviour, for the wrong reason; step 0 now reads the agent file.
+- Run 2, in Herdr, after the fix: a new tab labelled `update` opened, its
+  session the `updater` agent on Claude Haiku 5.5 in auto mode (the parent
+  passed its own mode), and received `/framework-update inline`. No other
+  tab got input. Haiku ended with `UPDATE DONE: 12.1 -> 12.2`, without a
+  pause for a go-ahead and without a safety prompt. The parent checked the
+  stamp, the file list, the `.ai` commit, the three `model:` lines and the
+  GENERATED section from the files, changed nothing itself, left the tab
+  open, and flagged that the framework checkout had uncommitted edits.
+- Run 3, outside Herdr (`claude -p` with the Herdr variables removed): an
+  `updater` sub-agent, no tab. `modelUsage`: Haiku 25.8k output tokens
+  ($0.03), the Sonnet parent 1.7k ($0.10, most of it its context). The
+  same checks, `update: framework 12.1 -> 12.2`, `.ai` clean.
+
+Not run: TC-U1 on purpose (run 1 covers its path), Copilot and OpenCode,
+and an update with real merges under the hand-off (the 12.1 and 12.2 task
+files are identical, so only the stamp and file list moved).
