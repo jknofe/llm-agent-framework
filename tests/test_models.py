@@ -43,7 +43,7 @@ def project(harness="claude", model_lines=None):
 
 
 def args(**kw):
-    base = dict(worker=None, reviewer=None, no_test=False)
+    base = dict(worker=None, reviewer=None, updater=None, no_test=False)
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -226,6 +226,34 @@ def main():
     root = project()
     (root / const.AGENT_FILES["claude"]["reviewer"]).unlink()
     check(models.cmd_models(root, args(worker="w")) == 1, "missing file")
+
+    # The updater (CONCEPT.md section 64) is optional: a scaffold older than
+    # 12.2 has no file for it and still sets the other two; asking for it
+    # there is the error. Set, it is saved and tested like the others.
+    root = project()
+    (root / const.AGENT_FILES["claude"]["updater"]).unlink()
+    with mock.patch.object(models, "headless_test",
+                           return_value=(True, "replied hello")):
+        rc = models.cmd_models(root, args(worker="w1", reviewer="r1"))
+        check(rc == 0, "no updater file: worker and reviewer still set")
+        check(models.cmd_models(root, args(updater="u1")) == 1,
+              "no updater file: asking for it is an error")
+    r = gate(root)
+    check(r.returncode == 0 and "updater: not set" in r.stdout and
+          "runs the update inline" in r.stdout,
+          f"gate: an unset updater is reported, never a failure: {r.stdout!r}")
+    root = project()
+    with mock.patch.object(models, "headless_test",
+                           return_value=(True, "replied hello")) as t:
+        rc = models.cmd_models(root, args(worker="w1", reviewer="r1",
+                                          updater="haiku"))
+    ufile = root / const.AGENT_FILES["claude"]["updater"]
+    r = gate(root)
+    check(rc == 0 and t.call_count == 3 and
+          models.current(ufile) == "haiku" and
+          f"updater: {const.AGENT_FILES['claude']['updater']} haiku"
+          in r.stdout and "--updater haiku" in r.stdout,
+          f"updater saved, tested, shown with its setup flag: {r.stdout!r}")
 
     if FAILS:
         for f in FAILS:

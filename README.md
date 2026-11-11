@@ -78,6 +78,17 @@ section are carried into the new shape, so `/framework-update` never re-runs
 `/explore`. It reports every file it touched and what it kept.
 `/framework-update dry-run` prints that report without changing anything.
 
+The merge itself runs on a small model when you set one for the `updater`
+(`init-agent --models --updater haiku`, see
+[Sub-agent models](#sub-agent-models)). Your session then hands the update
+over and checks the result from the files: the new version stamp, every
+framework file present, retired ones gone, the `.ai` commit, your `model:`
+lines and your project section. On Claude Code inside
+[Herdr](https://herdr.dev) the updater gets a new tab labelled `update`,
+which stays open for you to review; otherwise it is a sub-agent. With no
+updater model, or with `/framework-update inline`, the session does the
+update itself.
+
 Before touching anything it commits `.ai` and copies the host-repo framework
 files to `.ai/agent/.update-backup/`, so the whole update is revertable. It
 commits `.ai` itself and leaves host-repo changes for you to review.
@@ -236,7 +247,7 @@ Every harness invokes them the same way, under the same names:
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed. |
-| `/framework-update [dry-run]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. |
+| `/framework-update [dry-run] [inline]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. Hands the merge to the `updater` sub-agent when it has a model (a Herdr tab on Claude Code), then checks the result; `inline` keeps it in the session. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
 Archiving has no command: prompt the agent; the rules live in AGENTS.md.
@@ -432,13 +443,16 @@ OpenCode marks experimental.
 ## Sub-agent models
 
 `/task do` has two sub-agents, `worker` and `reviewer`, and runs only when
-both have a model set for this project. The framework picks nothing and
-assumes nothing: no tier, no default, no inheriting the session's model.
+both have a model set for this project. A third, `updater`, is optional:
+with a model set, `/framework-update` hands the merge to it, so a small
+model is the right pick; without one the update runs in your session. The
+framework picks nothing and assumes nothing: no tier, no default, no
+inheriting the session's model.
 
 - **Set them:** `/framework-models` shows what is set and prints the exact
   line to type (`/framework-models worker=haiku reviewer=sonnet` fills the
   names in). The line is `init-agent --models --worker <name> --reviewer
-  <name>`; in a terminal, `init-agent --models` alone asks for the names.
+  <name>`, plus `--updater <name>` if you want one; in a terminal, `init-agent --models` alone asks for the names.
   From a coding-agent session type it with `!` in front, then restart the
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
@@ -459,9 +473,9 @@ assumes nothing: no tier, no default, no inheriting the session's model.
   models`. If either role has no model it refuses, changes nothing and says
   which file needs which line. Run the script yourself to see the same.
 - **Where it lives:** the `model:` line of the agent files
-  (`.claude/agents/{worker,reviewer}.md`,
-  `.github/agents/{worker,reviewer}.agent.md` or
-  `.opencode/agents/{worker,reviewer}.md`). Nothing else sets a model, and
+  (`.claude/agents/{worker,reviewer,updater}.md`,
+  `.github/agents/{worker,reviewer,updater}.agent.md` or
+  `.opencode/agents/{worker,reviewer,updater}.md`). Nothing else sets a model, and
   the session never passes one when it spawns a sub-agent.
 - Keep the reviewer at least as strong as the worker: it is the gate that
   catches what a cheaper worker gets wrong.

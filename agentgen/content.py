@@ -121,6 +121,46 @@ def render_update_body(harness: str, arg: str) -> str:
             f"   - `{COPILOT_HOOKS_DIR}/llm-agent.json` parses as JSON and every\n"
             "     hook command it names points at a file that exists.\n")
 
+    # Step 0's hand-off (CONCEPT.md section 64). A Herdr tab only on claude,
+    # where `claude --agent updater` was seen to run the whole session on
+    # the agent file's model; the other harnesses use the sub-agent, whose
+    # `model:` line they honor (sections 56 and 60).
+    spawn = ("spawn a fresh `updater` sub-agent, passing\n"
+             "     no model (its file names one), with the prompt `Run the\n"
+             "     framework update inline.` (`Run the framework update\n"
+             "     inline, dry-run.` with `dry-run`).\n")
+    if harness == "claude":
+        handoff = (
+            "   - In Herdr (`HERDR_ENV` is 1 and `herdr` is on PATH), give it a\n"
+            "     new tab of its own and touch no existing tab or session:\n"
+            "\n"
+            "         herdr tab create --workspace \"$HERDR_WORKSPACE_ID\" \\\n"
+            "           --cwd \"$PWD\" --label update --no-focus \\\n"
+            "           | jq -r '.result.root_pane.pane_id'\n"
+            "         herdr agent start update-<hhmmss> --kind claude \\\n"
+            "           --pane <pane> -- --agent updater --permission-mode <mode>\n"
+            "         herdr agent prompt update-<hhmmss> \"/framework-update inline\"\n"
+            "         herdr agent wait update-<hhmmss> --timeout 540000\n"
+            "\n"
+            "     Write the values in literally, since no shell variable\n"
+            "     survives from one command to the next: `<pane>` is the id the\n"
+            "     first command prints, `<hhmmss>` the current time, one name\n"
+            "     throughout. `--agent updater` runs that session on the\n"
+            "     updater's model. `<mode>` is this session's permission mode\n"
+            "     (`auto`, `acceptEdits`, ...); leave the flag out when you\n"
+            "     cannot tell. Add `dry-run` to the prompt when the user gave\n"
+            "     it. Repeat the wait while the agent is `working`, then read\n"
+            "     its last line with `herdr agent read update-<hhmmss> --source\n"
+            "     recent-unwrapped --lines 80`. A `blocked` state is a question\n"
+            "     or a permission prompt: show the user and send their answer\n"
+            "     with `herdr agent prompt`; never answer a permission prompt\n"
+            "     yourself. Leave the tab open for the user to review.\n"
+            "   - Outside Herdr, " + spawn)
+    else:
+        handoff = ("   - Then " + spawn +
+                   f"     No Herdr tab on {harness}: starting a session there\n"
+                   "     on the updater's model is not verified yet.\n")
+
     owned = ("`.ai/notes.md`, `.ai/notes/<topic>.md`, task files under\n"
              "`.ai/tasks/` (change specs under `.ai/changes/` before 8.0), and\n"
              "the `GENERATED:project-context` section of AGENTS.md")
@@ -189,11 +229,13 @@ def render_update_body(harness: str, arg: str) -> str:
                        arg=arg,
                        backup_paths=backup_paths,
                        framework_json=FRAMEWORK_JSON,
+                       handoff=handoff,
                        harness=harness,
                        merge_cases=merge_cases,
                        migrate=migrate,
                        owned=owned,
                        reference_skill=reference_skill,
+                       tools_dir=TOOLS_DIR,
                        verify_extra=verify_extra,
                        verify_tools=(f"`{TOOLS_DIR}/probe.py` and "
                                      f"`{TOOLS_DIR}/tasks.py`"))
@@ -338,12 +380,30 @@ def render_opencode_worker() -> str:
     desc, body = _split_frontmatter(render_worker_agent())
     return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
 
+def render_updater_agent(harness: str) -> str:
+    """The updater sub-agent /framework-update hands the update to (CONCEPT.md
+    section 64). Like the other roles it carries no `model:` line until
+    `init-agent --models` writes one. Its body points at the harness's own
+    copy of the update command, which is the contract."""
+    return render.fill(
+        "agents/updater.md",
+        desc=("Runs this project's framework update for /framework-update, "
+              "which hands it over and checks the result. Spawned by "
+              "/framework-update only."),
+        update_file=UPDATE_FILES[harness])
+
+def render_opencode_updater() -> str:
+    """The updater as an OpenCode V2 sub-agent: it edits and commits `.ai`."""
+    desc, body = _split_frontmatter(render_updater_agent("opencode"))
+    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+
 def render_copilot_agent(which: str) -> str:
-    """worker or reviewer as a Copilot custom agent (.github/agents/
+    """worker, reviewer or updater as a Copilot custom agent (.github/agents/
     <name>.agent.md). `description` is the one required key; the reviewer
     gets the read-only tool aliases plus the shell, its tools on claude."""
-    source = (render_worker_agent() if which == "worker"
-              else render_reviewer_agent())
+    source = {"worker": render_worker_agent,
+              "reviewer": render_reviewer_agent,
+              "updater": lambda: render_updater_agent("copilot")}[which]()
     desc, body = _split_frontmatter(source)
     tools = ('tools: ["read", "search", "execute"]\n'
              if which == "reviewer" else "")

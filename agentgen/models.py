@@ -1,6 +1,6 @@
 """`init-agent --models`: set the model of the `worker` and the `reviewer`
-sub-agent of this project, and prove each one answers as a sub-agent
-(CONCEPT.md section 59).
+sub-agent of this project, and of the optional `updater` (CONCEPT.md
+section 64), and prove each one answers as a sub-agent (section 59).
 
 The model of a role is the `model:` line of its agent file, written here and
 nowhere else. The framework knows no model names: whatever the user types is
@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .const import AGENT_FILES, FRAMEWORK_JSON, ROLES, TOOLS_DIR
+from .const import AGENT_FILES, FRAMEWORK_JSON, ROLES, TASK_ROLES, TOOLS_DIR
 
 TEST_TIMEOUT = 240
 
@@ -205,22 +205,31 @@ def cmd_models(root: Path, args) -> int:
         print("No agent scaffold here (or an unknown harness): run "
               "init-agent first.", file=sys.stderr)
         return 1
-    missing = [str(f.relative_to(root)) for f in files.values()
-               if not f.is_file()]
+    wanted = {"worker": args.worker, "reviewer": args.reviewer,
+              "updater": getattr(args, "updater", None)}
+    # A scaffold older than 12.2 has no updater file yet: it is only an
+    # error when that role is asked for.
+    missing = [str(files[role].relative_to(root)) for role in ROLES
+               if not files[role].is_file()
+               and (role in TASK_ROLES or wanted[role])]
     if missing:
         print("Agent file missing: " + ", ".join(missing) + ". Run "
               "/framework-update to restore it.", file=sys.stderr)
         return 1
 
-    wanted = {"worker": args.worker, "reviewer": args.reviewer}
     if not any(wanted.values()) and sys.stdin.isatty():
         for role in ROLES:
+            if not files[role].is_file():
+                continue
             have = current(files[role])
-            answer = input(f"{role} model [{have or 'not set'}]: ").strip()
+            hint = " (optional, a small model)" if role == "updater" else ""
+            answer = input(f"{role} model{hint} [{have or 'not set'}]: "
+                           ).strip()
             wanted[role] = answer or None
     elif not any(wanted.values()):
-        print("Nothing to set: pass --worker and/or --reviewer (no terminal "
-              "to ask in, e.g. under `!` from a session).", file=sys.stderr)
+        print("Nothing to set: pass --worker, --reviewer and/or --updater "
+              "(no terminal to ask in, e.g. under `!` from a session).",
+              file=sys.stderr)
     for role, value in wanted.items():
         if value is not None and not usable(value):
             print(f"{role}: {value!r} is not a model name (`inherit` is the "

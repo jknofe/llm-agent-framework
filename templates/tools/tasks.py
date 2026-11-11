@@ -101,11 +101,15 @@ set only when that line holds a concrete name: a missing agent file, a
 missing or empty line and `inherit` all count as unset. The name itself is
 not checked (a proxy may serve names the framework cannot know). First
 line `MODELS OK` or `MODELS MISSING`; a missing role gets a line naming
-the file. Then the command that sets both, written for this scaffold's
-harness (`init-agent --models`, which also tests each name as a
-sub-agent): `models worker=<m> reviewer=<m>` fills in those names, else
+the file. The `updater`, the sub-agent /framework-update hands the update
+to (CONCEPT.md section 64), gets an `updater:` line either way: its model,
+or `not set` and that the update then runs inline; it never makes the gate
+fail. Then the command that sets them, written for this scaffold's harness
+(`init-agent --models`, which also tests each name as a sub-agent):
+`models worker=<m> reviewer=<m> updater=<m>` fills in those names, else
 the current ones, else placeholders. /framework-models shows this output
-(CONCEPT.md section 62). Exit 1 when anything is missing. Read-only.
+(CONCEPT.md section 62). Exit 1 when worker or reviewer is missing.
+Read-only.
 
 list, tree, resolve, trackers and models are read-only; start, finish, tick
 and claim write only the task file and the pointers. Stdlib only.
@@ -690,7 +694,8 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py models [worker=<m>] [reviewer=<m>] | "
+         "| tasks.py trackers | tasks.py models [worker=<m>] [reviewer=<m>] "
+         "[updater=<m>] | "
          "tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
          "tasks.py tick <id> done|steps <n> [<n>...] | "
@@ -705,7 +710,12 @@ AGENT_FILES = {
     "reviewer": (".claude/agents/reviewer.md",
                  ".github/agents/reviewer.agent.md",
                  ".opencode/agents/reviewer.md"),
+    "updater": (".claude/agents/updater.md",
+                ".github/agents/updater.agent.md",
+                ".opencode/agents/updater.md"),
 }
+# /task do needs these two; the updater is optional (section 64).
+TASK_ROLES = ("worker", "reviewer")
 
 
 # How a user runs the setup command on each harness, and what follows
@@ -727,8 +737,8 @@ RUN_FROM = {
 
 
 def models_args(args):
-    """{role: name} from `worker=<m>` / `reviewer=<m>`, or bare names in
-    that order; None for an argument it cannot place."""
+    """{role: name} from `worker=<m>` / `reviewer=<m>` / `updater=<m>`, or
+    bare names in that order; None for an argument it cannot place."""
     out, bare = {}, []
     for a in args:
         key, sep, value = a.partition("=")
@@ -750,24 +760,28 @@ def models(args=()):
     if wanted is None:
         print(f"Unknown argument in {' '.join(args)!r}. {USAGE}")
         return 2
-    problems, found, current = [], [], {}
+    problems, found, current, optional = [], [], {}, []
     for role, candidates in AGENT_FILES.items():
         files = [c for c in candidates if (root / c).is_file()]
-        if not files:
+        if not files and role in TASK_ROLES:
             problems.append(f"{role}: no agent file (looked for "
                             f"{', '.join(candidates)}); run "
                             "/framework-update to restore it")
         for rel in files:
             text = (root / rel).read_text(encoding="utf-8")
             value = frontmatter(text).get("model", "").strip()
-            if not value or value.lower() == "inherit":
+            if value and value.lower() != "inherit":
+                line = f"{role}: {rel} {value}"
+                (found if role in TASK_ROLES else optional).append(line)
+                current.setdefault(role, value)
+            elif role in TASK_ROLES:
                 problems.append(
                     f"{role}: {rel} has no model (`inherit` does not "
                     "count); set it with the command below, or add a line "
                     "`model: <name>` after the file's `description:` line")
-            else:
-                found.append(f"{role}: {rel} {value}")
-                current.setdefault(role, value)
+        if role not in TASK_ROLES and role not in current:
+            optional.append(f"{role}: not set; /framework-update runs the "
+                            "update inline in the session")
     if problems:
         print("MODELS MISSING")
         print("\n".join(problems))
@@ -776,6 +790,7 @@ def models(args=()):
     else:
         print("MODELS OK")
         print("\n".join(found))
+    print("\n".join(optional))
     print()
     print("\n".join(run_lines({**current, **wanted})))
     return 1 if problems else 0
@@ -798,13 +813,18 @@ def run_lines(names):
             else "init-agent")
     worker = names.get("worker") or "<worker>"
     reviewer = names.get("reviewer") or "<reviewer>"
+    updater = names.get("updater")
     lines = [where,
              f"{prefix}{tool} --models --worker {worker} "
-             f"--reviewer {reviewer}",
+             f"--reviewer {reviewer}"
+             + (f" --updater {updater}" if updater else ""),
              after]
     if "<" in worker + reviewer:
         lines.append("Replace <worker> and <reviewer> with model names as "
                      "your harness or provider writes them.")
+    if not updater:
+        lines.append("Add `--updater <model>`, a small one, to let "
+                     "/framework-update hand the update to it.")
     return lines
 
 

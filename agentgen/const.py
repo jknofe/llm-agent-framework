@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.1"
+FRAMEWORK_VERSION = "12.2"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -72,18 +72,32 @@ HARNESS_ENTRY_PATHS = {
     "hermes": [".agents/skills", ".agents/hooks"],
 }
 
-# The two sub-agents of /task do and where each harness keeps their agent
-# files. The model of a role is the `model:` line of its file and nothing
-# else (CONCEPT.md section 59); `tasks.py models` carries a copy of these
-# paths, and a test keeps the two equal.
-ROLES = ("worker", "reviewer")
+# The sub-agents and where each harness keeps their agent files: the two of
+# /task do, and the `updater` /framework-update hands the update to
+# (CONCEPT.md section 64). The model of a role is the `model:` line of its
+# file and nothing else (section 59); `tasks.py models` carries a copy of
+# these paths, and a test keeps the two equal. /task do needs TASK_ROLES; an
+# updater without a model only means the update runs inline.
+ROLES = ("worker", "reviewer", "updater")
+TASK_ROLES = ("worker", "reviewer")
 AGENT_FILES = {
     "claude": {"worker": ".claude/agents/worker.md",
-               "reviewer": ".claude/agents/reviewer.md"},
+               "reviewer": ".claude/agents/reviewer.md",
+               "updater": ".claude/agents/updater.md"},
     "copilot": {"worker": ".github/agents/worker.agent.md",
-                "reviewer": ".github/agents/reviewer.agent.md"},
+                "reviewer": ".github/agents/reviewer.agent.md",
+                "updater": ".github/agents/updater.agent.md"},
     "opencode": {"worker": f"{OPENCODE_DIR}/agents/worker.md",
-                 "reviewer": f"{OPENCODE_DIR}/agents/reviewer.md"},
+                 "reviewer": f"{OPENCODE_DIR}/agents/reviewer.md",
+                 "updater": f"{OPENCODE_DIR}/agents/updater.md"},
+}
+
+# Where each harness keeps the /framework-update command file, which the
+# updater reads as its contract.
+UPDATE_FILES = {
+    "claude": ".claude/skills/framework-update/SKILL.md",
+    "copilot": ".github/prompts/framework-update.prompt.md",
+    "opencode": f"{OPENCODE_DIR}/commands/framework-update.md",
 }
 
 # A command name that collides with a harness built-in is renamed on every
@@ -105,6 +119,7 @@ _SKILL_DESCRIPTIONS = {
 ARG_HINTS = {
     "explore": "[focus]",
     "task": "[create|do|list|tree] <id> [title...|inline]",
-    "framework-models": "[worker=<model>] [reviewer=<model>]",
-    "framework-update": "[dry-run]",
+    "framework-models": "[worker=<model>] [reviewer=<model>] "
+                        "[updater=<model>]",
+    "framework-update": "[dry-run] [inline]",
 }

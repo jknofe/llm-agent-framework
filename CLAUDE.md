@@ -59,7 +59,9 @@ Where things live:
 - Framework updates: `render_update_body` (the `/framework-update` skill body,
   varies on harness), the `.ai/agent/framework.json` stamp
   (`render_framework_json`, fed by `write`), and the two CLI flags that serve
-  the skill, `--detect` and `--emit-reference`. Bump `FRAMEWORK_VERSION` with
+  the skill, `--detect` and `--emit-reference`. The update body's step 0
+  hands the merge to the `updater` agent (`render_updater_agent`; CONCEPT.md
+  section 64). Bump `FRAMEWORK_VERSION` with
   the CONCEPT.md version. Retiring a framework file is a supported operation:
   drop the `write()` call and `/framework-update` deletes it from existing
   projects via the recorded file list. Do not add a Python update path;

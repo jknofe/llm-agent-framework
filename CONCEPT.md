@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-10, v12.1.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.2.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -273,19 +273,32 @@ never re-derived. The migrations it applies come from the reference's own
 copy of the skill, not the project's: the project's copy is as old as the
 project's version and cannot know what the new version changed.
 
+Since 12.2 the session that runs `/framework-update` does not merge
+itself: it hands the update to the `updater` sub-agent, on the small model
+the project chose for it (`init-agent --models --updater`, the same
+mechanism as the worker and reviewer, section 59), and checks the result
+from the files: stamp, file list, `.ai` commit, `model:` lines, the
+GENERATED section. Where Herdr runs, on Claude Code, the updater gets a tab
+of its own that stays open for the user; elsewhere it is an ordinary
+sub-agent. No updater model, or `inline`, means the update runs in the
+session as before; the framework never picks a model for it (section 64).
+This is the one place the framework steers Herdr; section 52 left the
+`/task do` worker's placement to the agent.
+
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 514 words on claude, 512 on
-  opencode, 630 on copilot, where the balance is that harness's own CLI note.
+- `AGENTS.md` before the generated section: 534 words on claude, 532 on
+  opencode, 650 on copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 929 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 15 framework files, a copilot one 15, an opencode
-  one 16 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
+  `tasks.py`: 1078 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, the models gate, and
+  `start`/`tick`/`claim`/`finish`.
+- A claude scaffold records 17 framework files, a copilot one 17, an opencode
+  one 18 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -470,6 +483,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.2 (2026-11-11, the update runs on a small model, section 64.
+`/framework-update` hands the merge to a new `updater` sub-agent whose model
+the project sets with `init-agent --models --updater`, in a Herdr tab of its
+own on Claude Code, and checks the result from the files. No updater model,
+or `inline`: the update runs in the session as before.)
 
 v12.1 (2026-11-10, the full suite runs once per task, section 63. The
 worker iterates, and reports `review`, on the covering tests and lint of
@@ -4461,3 +4480,87 @@ runs its tests deterministically.
 `check_templates` holds the budget. TC-D6 gained the checks (one full run,
 or none with a green CI run cited; no test or build in the reviewer's
 transcript); no live run yet.
+
+## 64. The update runs on a small model (2026-11-11, v12.2)
+
+**Source.** On 2026-11-11 the owner had six projects updated from 10.6, 11.5
+and 12.0 to 12.1, each by a Claude Code session on Haiku 5.5 in its own
+Herdr tab, and asked whether Haiku is enough. Judged against a pristine
+12.1 render per project, all six merges were right: the project sections,
+the `model:` lines, a user's `data/` deny rules and user skills kept, the
+retired `agent-models` gone, one `update:` commit each, a few minutes per
+project. Two faults: one session stopped for "Reply go to run the plan",
+which the skill does not ask for, and two wrote `rm -rf` on a variable or a
+command substitution, which Claude Code's safety prompt held until it denied
+it. The owner then asked for the update to run that way by default, in a
+sub-agent or a Herdr tab, on a small model, adapted to the harness.
+
+**Decisions, the owner's.** A new `updater` role with its own `model:` line,
+not the worker's; the session waits for the updater and checks its result;
+a project with no updater model updates inline, as before.
+
+**Why no model list.** Section 59 stands: the framework knows no model names
+(a proxy serves `gpt-6.1-sol`), and the `model:` line of an agent file is the
+one source. The adaptation to harness and provider is the name the user
+gives `init-agent --models --updater`, which tests it as a sub-agent on that
+harness before saving it.
+
+**Change.**
+
+- `updater` agent file on every harness (`.claude/agents/updater.md`,
+  `.github/agents/updater.agent.md`, `.opencode/agents/updater.md`). Its body
+  is the contract: follow the harness's own `/framework-update` file from
+  step 1 inline, never hand the update on, stop with `UPDATE QUESTION` where
+  a step needs the user, end with `UPDATE DONE: <old> -> <new>` or `UPDATE
+  DRY-RUN`.
+- `init-agent --models --updater M` sets and tests it like the other two. An
+  older scaffold without the file still sets worker and reviewer; asking for
+  the updater there is an error that names `/framework-update`.
+- `tasks.py models` prints an `updater:` line, its model or `not set` and
+  that the update then runs inline. It never fails the gate: `/task do`
+  needs only worker and reviewer. The setup line gains `--updater` when a
+  name is known, else a hint to add one. `/framework-models` passes
+  `updater=<m>` through.
+- The update body gains step 0. With `inline`, or as the updater, go on at
+  step 1. Otherwise read the models gate; no updater model means inline,
+  said in one line. Note the stamp, the `model:` lines and the GENERATED
+  section, hand off, wait for the last line, relay a question, and check
+  the result from the files: new version, every listed file present, every
+  dropped file gone, the `update:` commit and a clean `.ai`, the `model:`
+  lines and the GENERATED section still there.
+- Hand-off per harness. Claude Code in Herdr: a new tab labelled `update`,
+  `claude --agent updater --permission-mode <this session's>`, the command
+  `/framework-update inline`, a wait repeated in 9-minute steps (one Bash
+  call may run 10), values written literally since no shell variable
+  survives between calls. A `blocked` tab goes to the user; the session never
+  answers a permission prompt. The tab stays open. Elsewhere, and on
+  Copilot and OpenCode always, a fresh `updater` sub-agent with no model
+  passed.
+- The body no longer pauses for a go-ahead outside the steps that say to
+  stop, and makes its temp directory with `mktemp -d` and deletes it by that
+  literal path: the two faults of the Haiku run.
+
+**Seen, 2026-11-11 (Claude Code 2.1.311, a scratch scaffold).** With
+`model: haiku` in `.claude/agents/worker.md`, `claude -p --agent worker`
+answered and its `modelUsage` held only `claude-haiku-5-5`: a session started
+with `--agent` runs on the agent file's model, no model name passed.
+
+**Not verified, so not encoded.** Copilot CLI 1.0.105 has `--agent` and
+`--model`, but whether an `--agent` session takes the file's model was not
+run: the headless call needs `--allow-all-tools`, which the auto-mode
+classifier of this session refused. OpenCode is not installed on this
+machine. Both use the sub-agent, whose `model:` line they honor (sections 56
+and 60), and get no Herdr tab until their session start is checked.
+
+**This reverses part of section 52** for the update only: there the
+framework stopped steering Herdr for the `/task do` worker. The update is
+one bounded job the user wants to watch and review in place, and the
+evidence of this section is a Herdr run.
+
+**What this risks.** A small model merges the framework files; the check in
+step 0 catches a missing or stale file, a lost `model:` line and a lost
+project section, not a subtle bad merge inside a file. The backup in
+`.ai/agent/.update-backup/` and the open tab are the user's way back.
+
+**Not run.** Layer 1: all tests pass, the three harnesses render 17, 17 and
+18 framework files, AGENTS.md unchanged. Layer 2 (TC-U1, TC-U2) below.

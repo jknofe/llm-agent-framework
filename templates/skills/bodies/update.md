@@ -1,11 +1,41 @@
 Update this project's agent framework to the current version, in
-place, without losing what this project knows. Argument (optional,
-`dry-run` reports the plan and changes nothing): ${arg}
+place, without losing what this project knows. Arguments (optional:
+`dry-run` reports the plan and changes nothing, `inline` does the update
+in this session): ${arg}
 
 The knowledge this project accumulated is the expensive artifact and
 the framework files are cheap. So: never re-run /explore as part of an
 update, and never regenerate hand-filled content from a stub. That
 covers ${owned}.
+
+Run the steps through without pausing for a go-ahead: stop only where a
+step says to, or after step 3 with `dry-run`.
+
+0. Who does the work. With `inline` among the arguments, or when you are
+   the `updater` yourself, go on at step 1 and do everything here.
+   Otherwise hand the update to the `updater` sub-agent, on the small
+   model this project chose for it, and check its result:
+   - Run `python3 ${tools_dir}/tasks.py models`. When its `updater:` line
+     says `not set` (a scaffold older than 12.2, or no model chosen), say
+     in one line that the update runs inline because no updater model is
+     set, and go on at step 1. Never pick a model for it.
+   - Note what the check below compares against: the version and the
+     `framework_files` in `${framework_json}`, the `model:` line of each
+     agent file, and the content between AGENTS.md's GENERATED markers.
+${handoff}   - Wait for its last line. `UPDATE QUESTION`: put the question to the
+     user, change nothing yourself, and pass their answer on: continue
+     the same updater where your harness can message one that has
+     reported, else start a fresh one with the answer in its prompt.
+   - `UPDATE DONE` or `UPDATE DRY-RUN`: check the result from the files,
+     not from its report. `${framework_json}` records the new version
+     (after `dry-run`, the old one and nothing changed); every path in
+     its `framework_files` exists; every old framework file it no longer
+     lists is gone; `git -C .ai log -1 --format=%s` reads `update:
+     framework <old> -> <new>` and `git -C .ai status --short` is empty;
+     every `model:` line you noted is still there; the GENERATED section
+     still holds the project's content. Report each check in one line,
+     then the updater's table. A failed check goes back to the updater
+     as a correction; the second time, to the user.
 
 1. Preflight.
    - Read `${framework_json}` for the recorded framework version,
@@ -40,7 +70,8 @@ covers ${owned}.
    If `$LLM_AGENT_HOME` is unset, ask the user where the checkout is;
    do not guess a path. Pull it first when it has a remote
    (`git -C "$LLM_AGENT_HOME" pull --ff-only`), then render a pristine
-   scaffold into a temp directory:
+   scaffold into a temp directory made with `mktemp -d` (delete it in
+   step 6 by that literal path, never through an unchecked variable):
 
        python3 "$LLM_AGENT_HOME/init_agent.py" --emit-reference <tmpdir> \
          --harness ${harness} --name <project> --desc <description>
@@ -66,10 +97,10 @@ covers ${owned}.
    - Changed by the user: merge. Take the framework's structural
      changes, keep every user addition, and state in the report what
      you kept. The cases that actually come up:
-${merge_cases}     - a `model:` line in the `worker` or `reviewer` agent file: the
-       project's model choice (`init-agent --models`). Keep it in the
-       merged file; the reference has none, and a missing line is a
-       refusal for `/task do`, not a default.
+${merge_cases}     - a `model:` line in the `worker`, `reviewer` or `updater` agent
+       file: the project's model choice (`init-agent --models`). Keep it
+       in the merged file; the reference has none, and a missing line is
+       a refusal for `/task do`, not a default.
    - Retired (in the recorded `framework_files`, absent from the
      reference): delete it, then grep the whole scaffold for its name
      and remove the instructions that still point at it. A retired file

@@ -394,6 +394,34 @@ claude-agent/sonnet#medium`), each reported `OK` with "sub-agent ran on" the
 same name. The model check: `opencode session export <child>` of the worker
 and the reviewer show that provider, id and variant.
 
+### /framework-update hand-off (12.2)
+
+A scratch scaffold staged one version back (render it from the previous
+version's commit, or edit its stamp down), with notes, a task, a hand-filled
+GENERATED section and the worker and reviewer models set.
+
+**TC-U1: no updater model, inline**
+
+`/framework-update` with no `model:` line in the updater file.
+
+Pass when the session runs `tasks.py models`, says in one line that the
+update runs inline because no updater model is set, spawns nothing, opens no
+tab, and does the update itself (the stamp moves, one `update:` commit).
+
+**TC-U2: handed to the updater**
+
+`init-agent --models --updater <small>` (claude: `haiku`), restart, then
+`/framework-update`, once inside Herdr and once outside.
+
+Pass when, in Herdr (claude), a new tab labelled `update` appears, its
+status line shows the updater's model, it receives `/framework-update
+inline`, and no existing tab got any input; outside Herdr, an `updater`
+sub-agent is spawned with no model passed. The updater ends with `UPDATE
+DONE: <old> -> <new>`; the session then reports one line per check (stamp,
+files, retired files, `.ai` commit, `model:` lines, GENERATED section) from
+the files, and changed no file itself. The tab is still open. With
+`dry-run`: `UPDATE DRY-RUN`, nothing changed, the stamp unchanged.
+
 ### Parallel (11.1)
 
 **TC-P1: two tasks planned and worked side by side**

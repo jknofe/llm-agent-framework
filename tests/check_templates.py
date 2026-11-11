@@ -63,6 +63,11 @@ def rendered_artifacts():
     for part in ("create", "do", "work"):
         out.append((f"task part:{part}", content.render_task_part(part)))
     out.append(("reviewer", content.render_reviewer_agent()))
+    for harness in HARNESSES:
+        out.append((f"{harness} updater",
+                    content.render_updater_agent(harness)))
+    out.append(("opencode updater", content.render_opencode_updater()))
+    out.append(("copilot updater", content.render_copilot_agent("updater")))
     out.append(("settings.json", content.render_settings_json()))
     out.append(("copilot hooks.json", content.render_copilot_hooks_json()))
     out.append(("opencode config", content.render_opencode_config()))
