@@ -453,14 +453,52 @@ def render_tool_probe() -> str:
     templates/tools/."""
     return render.load("tools/probe.py")
 
-def render_task_part(part: str) -> str:
+def render_task_part(part: str, harness: str = "claude") -> str:
     """`/task`'s Create, Do or Work body (`create`, `do`, `work`), written
     to TASK_DIR. Create and Do are read by the dispatching skill only when
-    `tasks.py resolve` sends it there; Work is read by the worker sub-agent Do
-    hands its steps to (CONCEPT.md sections 50 and 52)."""
+    `tasks.py resolve` sends it there; Work is read by the worker Do hands
+    its steps to (CONCEPT.md sections 50 and 52).
+
+    Do varies on harness in one place, where the worker runs (section 67):
+    on claude a Herdr tab when Herdr runs, since `claude --agent worker`
+    starts a session on the agent file's model (seen in section 64); a
+    sub-agent everywhere else."""
     rel = {"create": "task/create.md", "do": "task/do.md",
            "work": "task/work.md"}[part]
-    return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR)
+    subagent = "spawn it as a sub-agent with that prompt, passing no model.\n"
+    if harness == "claude":
+        placement = (
+            "You are the supervisor in this\n"
+            "session either way; only where the worker runs varies:\n"
+            "- In Herdr (`HERDR_ENV` is 1 and `herdr` is on PATH), the worker\n"
+            "  gets a tab of its own and you touch no other tab:\n"
+            "\n"
+            "      herdr tab create --workspace \"$HERDR_WORKSPACE_ID\" \\\n"
+            "        --cwd \"$PWD\" --label <name> --no-focus \\\n"
+            "        | jq -r '.result.root_pane.pane_id'\n"
+            "      herdr agent start <name> --kind claude --pane <pane> \\\n"
+            "        -- --agent worker --permission-mode <mode>\n"
+            "      herdr agent prompt <name> \"<the prompt>\"\n"
+            "      herdr agent wait <name> --timeout 540000\n"
+            "\n"
+            "  `<name>` is `worker-` and the task id, lowercased, at most 32\n"
+            "  characters; `<pane>` the id the first command prints; `<mode>`\n"
+            "  your own permission mode, left out when you cannot tell. Write\n"
+            "  them in literally: no shell variable survives from one command\n"
+            "  to the next. `--agent worker` runs that session on the\n"
+            "  worker's model. If a tab of that name is still open from an\n"
+            "  earlier session, continue it instead of opening another.\n"
+            "  Repeat the wait while it is `working`; its report is the\n"
+            "  `Worker round` line in the task file. A `blocked` tab is a\n"
+            "  question or a permission prompt: show the user, and never\n"
+            "  answer a permission prompt yourself. Continue it with `herdr\n"
+            "  agent prompt <name> \"Read Findings and go on.\"`, and leave\n"
+            "  the tab open when the task ends.\n"
+            "- Otherwise " + subagent)
+    else:
+        placement = "You stay the supervisor in this\nsession: " + subagent
+    return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
+                       worker_placement=placement)
 
 def render_tool_tasks() -> str:
     """The task table and create-or-do resolver behind /task. Static, like

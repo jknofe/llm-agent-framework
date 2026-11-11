@@ -443,8 +443,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     # /task's Create and Do bodies, read on demand by the /task skill, and
     # the Work body its worker reads.
     for part in ("create", "do", "work"):
-        write(root / TASK_DIR / f"{part}.md", render_task_part(part),
-              force, created, skipped)
+        write(root / TASK_DIR / f"{part}.md",
+              render_task_part(part, harness), force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section: recover it
     # (also from legacy CLAUDE.md scaffolds) so re-init never reverts /explore.

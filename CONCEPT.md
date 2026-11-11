@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.4.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.5.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -115,7 +115,9 @@ decline; an issueless task is normal. The type
 comes from the user: when they did not name it, the first question asks for
 it; the agent never infers it. For a `change`, `bug` or `test` it runs a
 bounded Q&A and stops: the point is the plan a human reads before the work
-starts, and the work runs later in a fresh session. An `investigation` asks
+starts, and `/task do` then works it, in the same session or a later one:
+the session supervises and the worker starts fresh (section 67). An
+`investigation` asks
 nothing after the type and runs straight on into `do` in the same session:
 planning an investigation is most of doing it, and the user redirects from
 the answer, which cites its evidence, rather than from a plan.
@@ -150,8 +152,9 @@ cannot state into `.ai/notes.md`.
 Since 11.0 `/task do` splits into two roles, after Google's
 Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
 job and the supervisor none of it (section 53). The worker is the
-framework's `worker` sub-agent, defined beside `reviewer` on every harness
-(section 55): on the model its agent file names, which the user sets per
+framework's `worker` agent, defined beside `reviewer` on every harness
+(section 55), run as a sub-agent or, on Claude Code inside Herdr, in a tab
+of its own (section 67): on the model its agent file names, which the user sets per
 project (`init-agent --models`, section 59) and which `/task do` refuses to
 work without, never a default and never the session's, and it knows
 only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
@@ -361,10 +364,11 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
    to the host repo.
 4. `.ai/.current` is the resume pointer (`.ai/.current-<id>` for a task
    running in parallel); read it at session start.
-   `/task do` (except an investigation, run in one go by `/task create`)
-   and unrelated tasks run in fresh sessions: instruction
-   adherence decays as a session grows, and the task file is the handoff
-   that makes a fresh session cheap.
+   Unrelated tasks run in fresh sessions: instruction adherence decays
+   as a session grows, and the task file is the handoff that makes a
+   fresh session cheap. `/task do` needs none: the session that runs it
+   is the supervisor, the long-memory elephant, and its worker is the
+   fresh goldfish (section 67).
 5. Never commit on or merge into the default branch unasked. Work on a
    feature branch and stop at it or its pull request; merging is the user's
    action.
@@ -488,6 +492,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.5 (2026-11-11, the session supervises, the worker runs in a sub-agent
+or a Herdr tab, section 67. On Claude Code inside Herdr the `/task do`
+worker gets a tab of its own (`claude --agent worker`); elsewhere a
+sub-agent. `/task do` no longer asks for a fresh session.)
 
 v12.4 (2026-11-11, the smallest thing that meets the Goal, section 66.
 Corrections only for unmet criteria, the rest `Not sent back`; the
@@ -4731,3 +4740,52 @@ anything that breaks a criterion is still a correction.
 
 **Not run.** Layer 1 only. The runbook gains TC-D9; the next delegated
 task on dart or cleaning is the live check, against the counts above.
+
+## 67. The session supervises; the worker runs in a sub-agent or a tab (2026-11-11, v12.5)
+
+**Source.** On 2026-11-11 a DART session that had planned task 1114a ended
+"Start (preferably in a fresh session, since this one is very long): /task
+do 1114a-catalog-length-size". The owner opened a new Herdr tab, typed it
+there, and found that tab acting as a second supervisor with a hidden
+worker sub-agent. The owner's model: the main session is the supervisor,
+the elephant with the memory; the only difference is whether the worker,
+the goldfish, runs as the harness's sub-agent or in a Herdr tab.
+
+**Why the advice existed.** AGENTS.md rule 4 and the end of `/task create`
+said to run `/task do` in a fresh session, because instruction adherence
+decays as a session grows. That predates 11.0: the session then did the
+work itself. Since 11.2 the work is a fresh worker's, and the session only
+supervises; the advice now split one supervisor into two.
+
+**Change.**
+
+- `do.md` is rendered per harness in one place, where the worker runs. On
+  Claude Code inside Herdr (`HERDR_ENV=1`, `herdr` on PATH): a new tab
+  `worker-<id>` (lowercased, at most 32 characters), `claude --agent
+  worker --permission-mode <the supervisor's>`, the fixed prompt, `herdr
+  agent wait` repeated in 9-minute steps, the report read from the task
+  file, the same tab continued with `herdr agent prompt` for the next
+  round, a still-open tab of that name continued rather than doubled, a
+  `blocked` tab shown to the user (a permission prompt is never answered
+  by the supervisor), the tab left open at the end. Elsewhere, and on
+  Copilot and OpenCode always, a sub-agent as before. Everything else,
+  the prompt, `work.md`, the reports and the review, is the same.
+- AGENTS.md rule 4 keeps the fresh session for unrelated tasks and says
+  `/task do` needs none, its worker starts fresh; Create's closing line
+  says the work runs in this session or a later one. Copilot's AGENTS.md
+  stays at 649 of 650 words.
+- The reviewer stays a sub-agent: it runs nothing and is short-lived.
+
+**Basis.** `claude --agent <name>` was seen in section 64 to run the whole
+session on the agent file's model (`claude-haiku-5-5` for a `haiku` line),
+and the updater tab of section 64 ran that way, live. Copilot's and
+OpenCode's session start on an agent's model is still unverified, so they
+keep the sub-agent.
+
+**What this risks.** The supervisor's context still grows over a long
+session, which the old advice guarded against; its share of the work is
+reviews and decisions, and the task file still carries everything a later
+session needs. A worker tab outlives a closed supervisor session, which
+lets the next session continue it.
+
+**Not run.** Layer 1 only. TC-D10 is the live check.

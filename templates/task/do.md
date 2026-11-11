@@ -45,13 +45,13 @@ pull request, waiting for CI, a run in a dev environment. You stand in for
 the user: you answer its questions, review its code before it ships, and
 decide. You never do the work yourself: no host edit, commit or push, not
 even to fix a review finding; that goes back to the worker.
-The worker is a fresh `worker` sub-agent, the agent the framework defines
-beside `reviewer`, never one that inherits this conversation: it knows
-only the files, so anything the user told you that the work depends on
-goes into the task's Notes before it starts. Spawn it with this whole
-prompt: `You are the worker for task <id>. Read ${task_dir}/work.md and
-follow it.` Its model is the `model:` line of its agent file, which
-`tasks.py models` checked: pass no model at spawn, ever.
+The worker is the `worker` agent the framework defines beside
+`reviewer`, started fresh, never one that inherits this conversation: it
+knows only the files, so anything the user told you that the work depends
+on goes into the task's Notes before it starts. Its model is the `model:`
+line of its agent file, which `tasks.py models` checked: pass no model,
+ever. Its prompt is always this one: `You are the worker for task <id>.
+Read ${task_dir}/work.md and follow it.` ${worker_placement}
 Work steps 2 to 5 yourself instead when the user asked for `inline`, when
 no sub-agent can be spawned (you are one yourself, or the harness has
 none), or when the task is small: at most one of its open steps changes
@@ -112,9 +112,9 @@ round <n>` correction. Then answer by the report:
   and do not do the step yourself. When the user says go on, continue
   the worker.
 
-Commit `.ai`, then continue the same worker with its context where your
-harness can send a message to a sub-agent that has reported; tell it to
-read Findings and go on. Otherwise spawn a fresh worker with the same
+Commit `.ai`, then continue the same worker with its context (its Herdr
+tab, or a sub-agent your harness can send a message to after it
+reported); tell it to read Findings and go on. Otherwise spawn a fresh worker with the same
 prompt: the file holds everything it needs. When the worker reports
 `done` and you accept it, append `- <today> Delegation: <model>,
 <reports> report(s), <done|taken over|blocked>` to Findings, where

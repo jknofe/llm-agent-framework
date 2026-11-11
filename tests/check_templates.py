@@ -61,7 +61,9 @@ def rendered_artifacts():
         out.append((f"{harness} AGENTS.md",
                     content.render_agents_md("p", "d", harness)))
     for part in ("create", "do", "work"):
-        out.append((f"task part:{part}", content.render_task_part(part)))
+        for harness in HARNESSES:
+            out.append((f"{harness} task part:{part}",
+                        content.render_task_part(part, harness)))
     out.append(("reviewer", content.render_reviewer_agent()))
     for harness in HARNESSES:
         out.append((f"{harness} updater",

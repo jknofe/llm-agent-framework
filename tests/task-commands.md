@@ -387,6 +387,25 @@ Pass when all hold:
 - Findings lines are one line each (`awk` over the section: none longer
   than ~3 lines), with no "no merge / no push" restatements.
 
+**TC-D10: the session supervises, the worker gets a Herdr tab** (12.5)
+
+Claude Code inside Herdr, worker and reviewer models set. In the session
+that ran `/task create`, `/task do <id>` on a task over the small-task
+threshold.
+
+Pass when all hold:
+- No advice to start a fresh session, before or after.
+- A new tab `worker-<id>` opens; its status line shows the worker's model
+  from `worker.md`, it receives the fixed prompt, and no existing tab gets
+  input. The supervisor spawns no worker sub-agent (no `Agent` call with
+  `subagent_type: worker`).
+- Each report is a `Worker round` line in the task file; the supervisor
+  continues the same tab (`herdr agent prompt worker-<id>`), never a second
+  tab or session for the same task. The reviewer is still a sub-agent.
+- The tab is open after `finish`.
+- Outside Herdr (no `HERDR_ENV`): the worker is a sub-agent, everything
+  else the same.
+
 ### Sub-agent models (11.9)
 
 Every `/task do` case above needs both models set first (`init-agent

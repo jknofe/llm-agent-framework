@@ -143,7 +143,7 @@ file list retires nothing and prints what to remove by hand.
    script checks whether BUG-7 exists and picks create or do, and asks
    first if a similar id is already there. An investigation is planned and
    worked in one go, with no questions after the type. Anything else waits
-   for you: in a fresh session, `/task do BUG-7` works it, appends findings with their evidence
+   for you: `/task do BUG-7`, in the same session or a later one, works it, appends findings with their evidence
    as they happen, re-plans in the file when a hypothesis dies, and ends
    with a fresh-context review (the `reviewer` subagent where the harness
    has one): a diff against the criteria, an outcome against its evidence.
@@ -375,12 +375,15 @@ a `User round` line. While the task waits on CI or a merge, the worker
 reports `waiting` and the supervisor tells you what it waits for and stops,
 instead of watching. Findings stay one line each.
 
-After a report the supervisor continues the same worker where the harness
-can resume a sub-agent (Claude Code), and spawns a fresh one that reads
-the task file otherwise. It works the steps itself only with `/task do
-<id> inline`, when it cannot spawn a sub-agent, or when you tell it to
-take over. To have the worker run somewhere else, for example in a
-terminal pane you can watch, say so when you start `/task do`. The
+The supervisor is the session you type `/task do` in, the one that planned
+the task included: no fresh session needed, the worker is the fresh one.
+On Claude Code inside [Herdr](https://herdr.dev) the worker runs in a tab
+of its own, `worker-<id>`, which you can watch and which stays open;
+elsewhere it is the harness's sub-agent. After a report the supervisor
+continues the same worker (the tab, or a sub-agent the harness can
+resume), and spawns a fresh one that reads the task file otherwise. It
+works the steps itself only with `/task do <id> inline`, when it cannot
+spawn a sub-agent, or when you tell it to take over. The
 worker's commits, pushes and pull requests go through the same guards as
 yours: the git guard hook blocks a merge into the default branch, and
 `AGENTS.md` keeps every agent off the default branch, committing on a
