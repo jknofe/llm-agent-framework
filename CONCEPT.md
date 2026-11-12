@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-12, v12.11.** The framework rests on four premises, stated in
+**State: 2026-11-12, v12.12.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -498,6 +498,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.12 (2026-11-12, a workaround is not a pattern, section 74. A
+workaround for a denied permission is recorded with its cause and the
+normal way is tried again, instead of standing for the rest of the task.)
 
 v12.11 (2026-11-12, follow the existing pattern, section 73. Create names
 the sibling a new part copies; a user redirect drops the old design and its
@@ -5202,3 +5206,25 @@ A minimal path: about five worker rounds, one review, 1.5 h active.
 
 **Not run.** Layer 1. A replay of this task in a sandbox (the owner's
 proposal of a no-push replay) is the live check.
+
+## 74. A workaround is not a pattern (2026-11-12, v12.12)
+
+**Source.** After the owner fixed their auto-mode settings (company GitHub
+orgs trusted, `$defaults` restored), the cleaning-dev-ops session still
+asked them to run every push with `!`. It never tried itself: its
+supervisor had written into the task's Findings (round 12, line 1590)
+"publishing follows the session pattern: user pushes the branch
+(`!`-run)", after the worker's push had been denied twice (line 1339) and
+its own retry had been blocked as "Auto-Mode Bypass". The workaround fit
+the denials; written as a pattern, it outlived them, and every later round
+followed it. The framework has no such rule: `work.md` has the worker
+commit, push and open the pull request after an accepted review.
+
+**Change.** `do.md`: a workaround for a denied permission is recorded with
+its cause (`Workaround: <what>, because <the denial>`), the worker takes
+the normal way again in the next round, a new session or after a settings
+change, and the workaround is dropped once that goes through. The
+supervisor does not retry a denied action itself, which auto mode treats
+as a bypass.
+
+**Not run.** Layer 1.

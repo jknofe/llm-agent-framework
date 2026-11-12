@@ -140,6 +140,13 @@ whether or not it changes a criterion: start no review of it, stop one
 that is still running where your harness can, and carry none of its
 findings into the new direction. Record it as `- <today> Dropped: the
 round <n> design, replaced by User round <m>`.
+A workaround for a denied permission (the user runs a push with `!`, does
+a step by hand) is not a pattern for the rest of the task: record it with
+its cause, `- <today> Workaround: <what>, because <the denial>`, and let
+the worker take the normal way again in the next round, a new session or
+after the user changed a setting; drop the workaround once that goes
+through. Do not retry a denied action yourself: auto mode treats that as
+a bypass.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
