@@ -356,7 +356,7 @@ def render_worker_agent() -> str:
     return render.fill(
         "agents/worker.md",
         desc=("Works the steps of a task for /task do, which supervises it. "
-              "Spawned by /task do only."),
+              "Spawned by /task do and by init-agent's model check only."),
         task_dir=TASK_DIR)
 
 def render_opencode_worker() -> str:
@@ -374,7 +374,7 @@ def render_updater_agent(harness: str) -> str:
         "agents/updater.md",
         desc=("Runs this project's framework update for /framework-update, "
               "which hands it over and checks the result. Spawned by "
-              "/framework-update only."),
+              "/framework-update and by init-agent's model check only."),
         update_file=UPDATE_FILES[harness])
 
 def render_opencode_updater() -> str:
