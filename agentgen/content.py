@@ -123,9 +123,14 @@ def render_update_body(harness: str, arg: str) -> str:
 
     # Step 0's hand-off (CONCEPT.md sections 64 and 68): the harness's
     # sub-agent by default, a Herdr tab when the user asks for `herdr`.
-    update_prompt = ("Run framework-update inline: read "
-                     f"{UPDATE_FILES[harness]} and follow it."
-                     if harness == "copilot" else "/framework-update inline")
+    update_prompt = {
+        "claude": "/framework-update inline",
+        "copilot": ("Run framework-update inline: read "
+                    f"{UPDATE_FILES[harness]} and follow it."),
+        # OpenCode's tab spawns the updater as a sub-agent (herdr_tab), and
+        # a sub-agent's prompt cannot be a slash command.
+        "opencode": "Run the framework update inline.",
+    }[harness]
     handoff = (
         "   - By default, spawn a fresh `updater` sub-agent, passing no\n"
         "     model (its file names one), with the prompt `Run the framework\n"
@@ -327,7 +332,9 @@ def render_reviewer_agent() -> str:
               "the review gate in /task do."),
         input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
                      "Done when, Findings,\nOutcome) plus the code diff, "
-                     "if the task changed code."))
+                     "if the task changed code, and\n"
+                     "`.ai/tasks/<id>/evidence.md` where a finding points "
+                     "at it."))
 
 def render_opencode_reviewer() -> str:
     """The same reviewer as an OpenCode V2 agent: a sub-agent by frontmatter,
@@ -434,9 +441,12 @@ def render_tool_probe() -> str:
 # Where a delegated role runs (CONCEPT.md section 68): the harness's own
 # sub-agent by default, a Herdr tab when the user asks for `herdr`. The tab
 # starts the harness's CLI on the role's model: `claude --agent <role>` was
-# seen to run on the agent file's model (section 64); Copilot and OpenCode
-# take the file's `model:` line through `--model`, the flag both CLIs have
-# (Copilot 1.0.105's help, the owner's OpenCode setup).
+# seen to run on the agent file's model (section 64); Copilot takes the
+# file's `model:` line through `--model` (its help, 1.0.105 and 1.0.107).
+# OpenCode's TUI has no model flag (2.2.5 answers `--model` with its usage
+# text), so its tab starts plain and the prompt has that session spawn the
+# role as its sub-agent, which runs on the agent file's model and is
+# continued by session id (seen live, section 70).
 HERDR_START = {
     "claude": ("claude", "--agent {role} --permission-mode <mode>",
                "`--agent {role}` runs that session on the {role}'s model;\n"
@@ -445,10 +455,28 @@ HERDR_START = {
     "copilot": ("copilot", "--agent {role} --model <model>",
                 "`<model>` is the `model:` line of `{file}`,\n"
                 "  as written."),
-    "opencode": ("opencode", "--model <model>",
-                 "`<model>` is the `model:` line of `{file}`,\n"
-                 "  as written; the prompt carries the {role}'s contract."),
+    "opencode": ("opencode", "",
+                 "OpenCode's own session in the tab only passes the prompt\n"
+                 "  on: the {role} runs as its sub-agent, on the `model:` line\n"
+                 "  of `{file}`."),
 }
+
+# What the tab is told. OpenCode's wraps the role's prompt in a spawn; to go
+# on after a report it continues that sub-agent instead of starting one.
+HERDR_PROMPT = {
+    "opencode": ("Use the subagent tool with agent {role} and this prompt, "
+                 "then print its last line: {prompt}"),
+}
+HERDR_CONTINUE = {
+    "opencode": ("Continue the same {role} sub-agent with this prompt, then "
+                 "print its last line: {prompt}"),
+}
+
+
+def herdr_prompt(harness: str, role: str, prompt: str, again=False) -> str:
+    """The text `herdr agent prompt` sends for a role's prompt."""
+    wrap = (HERDR_CONTINUE if again else HERDR_PROMPT).get(harness, "{prompt}")
+    return wrap.format(role=role, prompt=prompt)
 
 def herdr_tab(harness: str, role: str, name: str, prompt: str) -> str:
     """The Herdr-tab bullet for a role, indented as a list item."""
@@ -463,9 +491,10 @@ def herdr_tab(harness: str, role: str, name: str, prompt: str) -> str:
         "        --cwd \"$PWD\" --label " + name + " --no-focus \\\n"
         "        | jq -r '.result.root_pane.pane_id'\n"
         "      herdr agent start " + name + " --kind " + kind +
-        " --pane <pane> \\\n"
-        "        -- " + args.format(**fmt) + "\n"
-        "      herdr agent prompt " + name + " \"" + prompt + "\"\n"
+        " --pane <pane>" +
+        (" \\\n        -- " + args.format(**fmt) if args else "") + "\n"
+        "      herdr agent prompt " + name + " \"" +
+        herdr_prompt(harness, role, prompt) + "\"\n"
         "      herdr agent wait " + name + " --timeout 540000\n"
         "\n"
         "  " + note.format(**fmt) + "\n"
@@ -497,7 +526,9 @@ def render_task_part(part: str, harness: str = "claude") -> str:
         "  characters. If a tab of that name is still open from an earlier\n"
         "  session, continue it instead of opening another. Its report is\n"
         "  the `Worker round` line in the task file; continue it with\n"
-        "  `herdr agent prompt <name> \"Read Findings and go on.\"`.\n")
+        "  `herdr agent prompt <name> \"" +
+        herdr_prompt(harness, "worker", "Read Findings and go on.", True) +
+        "\"`.\n")
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                        worker_placement=placement)
 

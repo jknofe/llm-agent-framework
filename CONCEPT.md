@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.7.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.8.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -492,6 +492,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.8 (2026-11-11, review fixes for 12.2 to 12.7, section 70. OpenCode's
+Herdr tab starts plain and spawns the role as a sub-agent; the update
+check diffs merged files against the backup; the reviewer follows a
+finding into `evidence.md`; the long-line flag spares `Supervisor round`
+lines and done tasks; `gh run watch` is on the allowlist; the runbook
+no longer asks for a fresh session per `/task do`.)
 
 v12.7 (2026-11-11, a finding is a claim and a pointer, section 69. At
 most ~200 characters, checks of a kind grouped in one line, long evidence
@@ -4895,3 +4902,81 @@ verbatim. Nothing measured it: TC-D9's check counted lines.
 over, one at 298, a terse task unflagged). The running tfa-rpu-ws task read
 its rules at start and keeps them; its next task is the live check, with
 `tasks.py` showing whether any line goes over.
+
+## 70. Review fixes for 12.2 to 12.7 (2026-11-11, v12.8)
+
+**Source.** A review of the 12.x line (sections 60 to 69) before it goes to
+the default branch. Six findings, each fixed here.
+
+**1. OpenCode's Herdr tab could not start.** Section 68 rendered `herdr
+agent start <name> --kind opencode --pane <pane> -- --model <model>` and
+called the line unverified, OpenCode "not installed here". It is installed
+(`~/.opencode/bin`, not on PATH), and its TUI has no model flag: OpenCode
+2.2.5 answers `opencode --model claude-agent/haiku` with its usage text
+and does not start; only `opencode run` takes `--model`. So `/task do <id>
+herdr` and `/framework-update herdr` failed on OpenCode.
+
+Now the tab starts plain `opencode` and its prompt has that session spawn
+the role as its sub-agent: `Use the subagent tool with agent <role> and
+this prompt, then print its last line: <prompt>`. The sub-agent runs on the
+agent file's `model:` line, the mechanism section 60 measured. To go on
+after a report the supervisor sends `Continue the same <role> sub-agent
+with this prompt, ...`. The updater's prompt in that tab is `Run the
+framework update inline.`, since a sub-agent's prompt cannot be a slash
+command.
+
+**Seen, 2026-11-11 (OpenCode 2.2.5 inside Herdr, a scratch opencode
+scaffold, worker `claude-agent/haiku`).** `herdr tab create`, `herdr agent
+start worker-oc8 --kind opencode --pane <pane>` and the spawn prompt: the
+worker replied, and its exported session shows `claude-agent/haiku`,
+variant `default`, under a Sonnet session in the tab. A second prompt to
+continue the same worker carried the first one's `sessionID` in the
+`subagent` call and ran on the same model. Not run: a whole `/task do
+<id> herdr` or `/framework-update herdr` on OpenCode, and Copilot's tab.
+
+**2. The update check did not cover the merges.** Step 0's check compared
+the version, the file list, the `.ai` commit, the `model:` lines and the
+GENERATED section. A small model that dropped a rule the project appended
+to `AGENTS.md`, or a permission it added to the settings file, passed all
+of it, and those additions are why the update is a merge at all. The
+session now diffs each file the updater reports as merged against its copy
+in `.ai/agent/.update-backup/`: a line that is gone must be one the new
+framework version changed.
+
+**3. The runbook still asked for a fresh session per `/task do`.** 12.5
+took that out of `AGENTS.md` rule 4 and `create.md`; `tests/task-commands.md`
+kept "`/clear` before each one, as the skill requires". It now says
+`/clear` is for test isolation only. TC-D10 gains a check for the cost of
+keeping the session: what the user says after `/task create` must be in the
+task's Notes before the worker starts, since the supervisor knows it and
+the worker reads only the files.
+
+**4. The reviewer was not pointed at `evidence.md`.** 12.7 moved long
+evidence out of Findings, and since 12.1 the review runs nothing and
+judges from what is recorded. The reviewer's input named only the task file
+and the diff. Its input, its "read, do not run" paragraph and `do.md`'s
+review step now name the `evidence.md` a finding points at.
+
+**5. The long-line flag hit lines that must be long.** `tasks.py` flagged
+every Findings line over 300 characters. A `Supervisor round` line carries
+every correction with its file and what done looks like; flagging it
+pushes toward vaguer corrections, so it is not counted. A done task is not
+flagged either: nobody rewrites its Findings, and it stayed flagged until
+archived.
+
+**6. `gh run watch` was not on the allowlist.** `work.md` (12.4) has the
+worker wait with `gh run watch <id>` or `gh pr checks <n> --watch`; only
+the second matched an entry, so the first prompted inside a sub-agent.
+
+**Not changed, noted.** `AGENTS.md` rule 4 says "`/task do` needs none: its
+worker starts fresh", which is not so for a small or `inline` task the
+session works itself; the copilot file stands at its 650-word budget. A
+task id with a character Herdr's names do not allow (`[a-z0-9_-]` only)
+gives an invalid tab name. `tasks.py models --list` sends the API key from
+the environment to the base URL Claude Code itself uses, from a script on
+the read-only allowlist.
+
+**Tests.** `test_models.py`: the OpenCode tab line has no model flag, the
+other two keep theirs. `test_tasks_table.py`: a long `Supervisor round`
+line and a done task's long line are not flagged. Both sets fail on 12.7.
+

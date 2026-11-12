@@ -47,8 +47,10 @@ python3 <framework-checkout>/init_agent.py --harness claude -y --name satty
   whether `cargo` was on PATH; with it, TC-D3 does not apply and TC-D1 to
   TC-D4 should end `done` instead.
 - **Model:** record it. Reference runs used sonnet-5.5 at medium effort.
-- **Fresh session per `/task do`:** `/clear` before each one, as the skill
-  requires. The task file is the handoff, not the conversation.
+- **Sessions:** `/task do` needs no fresh session since 12.5: the session
+  that ran `/task create` supervises and the worker starts fresh. `/clear`
+  between test cases only to keep one case's conversation out of the next;
+  a case that tests the create-then-do flow says so and does not clear.
 - **Answering Q&A:** pick the option the agent marks as recommended, unless
   the case says otherwise. Note every question it asked.
 - **Copilot:** the same cases apply. Its `reviewer` and `worker` are custom
@@ -204,7 +206,9 @@ is missing.
 
 ### /task do
 
-Run each in a fresh session (`/clear`, then `/task do <id>`).
+Run each case apart from the one before (`/clear`, then `/task do <id>`),
+for test isolation, not because the skill asks for it (TC-D10 runs create
+and do in one session).
 
 In every do case (10.1): the transcript shows `tasks.py start <id>` at the
 start and `tasks.py finish <id> done|blocked` at the end, every ticked box
@@ -409,8 +413,14 @@ Pass when all hold:
   tab or session for the same task. The reviewer is still a sub-agent.
 - The tab is open after `finish`.
 - The tab starts the harness's CLI on the worker's model: `claude --agent
-  worker`, `copilot --agent worker --model <m>`, `opencode --model <m>`,
-  `<m>` the `model:` line of the worker file.
+  worker`, or `copilot --agent worker --model <m>`, `<m>` the `model:`
+  line of the worker file. On OpenCode the tab starts plain `opencode`
+  (its TUI has no model flag) and is told to spawn the `worker` sub-agent;
+  that sub-agent's exported session shows the worker file's model (12.8).
+- What the user said after `/task create` reaches the worker: before
+  `/task do`, tell the session one thing the work depends on that the task
+  file does not hold. It is in the task's Notes before the worker starts
+  (12.8).
 - `herdr` outside Herdr (no `HERDR_ENV`): one line saying so, then the
   sub-agent, everything else the same.
 
@@ -576,7 +586,7 @@ criteria of the three that touch files are waived in the prompt.
 |---|---|---|
 | investigation | `input-scale-window` (issue #689), as TC-D1 | `/task <id> ... Type: investigation` |
 | bug | `nextrelease-typo`: `release.nu:106` replaces `NEXTRELEASE` with the version, but README line 139 says `NEXTRELASE` for pixelate, so a release keeps the placeholder | `/task create`, then `/task <id>` in a fresh session |
-| change | `readme-troubleshooting`, as TC-D4 | `/task create`, then `/task do <id>` in a fresh session |
+| change | `readme-troubleshooting`, as TC-D4 | `/task create`, then `/task do <id>` in the same session |
 | test | `keybinds-consistency`: every action under `[keybinds]` in `config.toml` exists in `src/keybindings.rs` and in the README | `/task create`, then `/task <id>` in a fresh session |
 
 Prompts (Copilot CLI: wrap each as `Run task ...: read

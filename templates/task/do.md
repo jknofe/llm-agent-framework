@@ -147,8 +147,9 @@ from corrections.
    `.ai/tasks/<id>/evidence.md`, and the finding points at it; often it
    is not worth keeping at all. Do not restate a rule, or what you did
    not do (`no merge, no push`): the rules hold without it.
-   `tasks.py` flags a Findings line over 300 characters. A finding the file does not hold is lost at
-   the next session. Commit `.ai` after each finding that changes the
+   `tasks.py` flags a Findings line over 300 characters, except a
+   `Supervisor round` line: a correction stays as long as it must to be
+   exact. A finding the file does not hold is lost at the next session. Commit `.ai` after each finding that changes the
    direction of the task.
 4. Re-plan openly. When a result invalidates the plan (a hypothesis is
    ruled out, a new lead appears, a scenario cannot run), edit `##
@@ -201,8 +202,8 @@ from corrections.
      stop and ask the user: there is no fallback to another agent and no
      self-review of a result that needs a fresh context.
    - A review reads and runs nothing: no test, lint, build or run of the
-     code. It judges the diff, the task file and the results recorded in
-     Findings; a missing or contradicted result is a finding for the
+     code. It judges the diff, the task file, the results recorded in
+     Findings and the `evidence.md` a finding points at; a missing or contradicted result is a finding for the
      worker, and the full suite runs once by step 5.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in

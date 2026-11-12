@@ -10,8 +10,8 @@ leaves the working view. The task the resume pointer `.ai/.current` names is
 marked. Below the table it flags what needs a look: an `in-progress` task not
 updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
 frontmatter line, a `done` task with unchecked done-when criteria or with no
-review line in Findings, and any task whose Findings hold lines over
-LONG_FINDING characters. Only the task files are read: frontmatter,
+review line in Findings, and any unfinished task whose Findings hold
+lines over LONG_FINDING characters (`Supervisor round` lines excepted). Only the task files are read: frontmatter,
 checkboxes, whether Findings names a review, and its line lengths. The output is the whole
 answer, so no agent has to open a task file to add to it. Status and
 type show as emoji only, explained by a legend line under the table. The id
@@ -291,9 +291,11 @@ def age_days(value):
 
 def long_findings(findings):
     """(count, longest) of the Findings lines over LONG_FINDING
-    characters."""
+    characters. A `Supervisor round` line is not counted: it carries every
+    correction with its file and what done looks like, and must not be
+    cut short to fit."""
     sizes = [len(ln) for ln in findings.splitlines()
-             if len(ln) > LONG_FINDING]
+             if len(ln) > LONG_FINDING and "Supervisor round" not in ln]
     return len(sizes), max(sizes, default=0)
 
 
@@ -302,7 +304,8 @@ def flags(rows):
     out = []
     for r in rows:
         count, longest = r["long"]
-        if count:
+        # Not on a done task: nobody rewrites its Findings any more.
+        if count and r["status"] != "done":
             out.append(f"- {FLAG} {r['id']}: {count} Findings line(s) over "
                        f"{LONG_FINDING} characters (longest {longest}); "
                        "keep each to a claim and a pointer, long evidence "

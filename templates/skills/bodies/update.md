@@ -34,7 +34,12 @@ ${handoff}   - Wait for its last line. `UPDATE QUESTION`: put the question to th
      lists is gone; `git -C .ai log -1 --format=%s` reads `update:
      framework <old> -> <new>` and `git -C .ai status --short` is empty;
      every `model:` line you noted is still there; the GENERATED section
-     still holds the project's content. Report each check in one line,
+     still holds the project's content; and no merge lost what the
+     project added: for each file the updater's table reports as merged,
+     `diff` its copy in `.ai/agent/.update-backup/` against the file now.
+     A line gone from it must be one the new framework version changed;
+     a rule, a permission or a hook entry the project added itself must
+     still be there. Report each check in one line,
      then the updater's table. A failed check goes back to the updater
      as a correction; the second time, to the user.
 
