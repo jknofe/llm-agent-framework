@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.8.** The framework rests on four premises, stated in
+**State: 2026-11-12, v12.9.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -492,6 +492,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.9 (2026-11-12, the OpenCode paths run live, section 71. The model
+check reaches worker and updater; an update makes one `.ai` commit and
+writes no note, and step 0 checks both.)
 
 v12.8 (2026-11-11, review fixes for 12.2 to 12.7, section 70. OpenCode's
 Herdr tab starts plain and spawns the role as a sub-agent; the update
@@ -4980,3 +4984,56 @@ the read-only allowlist.
 other two keep theirs. `test_tasks_table.py`: a long `Supervisor round`
 line and a done task's long line are not flagged. Both sets fail on 12.7.
 
+## 71. The OpenCode paths, run live (2026-11-12, v12.9)
+
+**Source.** After 12.8 the owner asked what was left for OpenCode and had it
+tested in a new Herdr tab, worker `github-copilot/gpt-6.1-terra`, reviewer
+`github-copilot/gpt-6.1-sol`. OpenCode 2.2.7 (`~/.opencode/bin`, started
+through the owner's `opencode` shell function and launcher), a scratch
+stdlib-Python project, the supervisor session on the default model, GPT-6.1
+Terra. The updater got `gpt-6.1-terra` as well.
+
+**Found and fixed.**
+
+- `init-agent --models` failed for worker and updater: the parent refused to
+  spawn them, quoting "Spawned by /task do only"; a sentence in the test
+  prompt did not outweigh the description. The descriptions now name
+  init-agent's model check as allowed. Then the sub-agents followed their
+  own contract instead of replying: the worker asked for a task id, the
+  updater started a real update and wrote a backup. The test prompt now
+  says it is a model check and not a task, and both bodies give that check
+  the one-word reply and nothing else. All three roles then passed, the
+  model read back from each sub-agent's session.
+- The updater in a Herdr tab (`gpt-6.1-terra`) wrote a note into
+  `.ai/notes.md` (and shifted a line of the stub's comment) and split the
+  update over three `.ai` commits. Step 0's check read only the last commit
+  message and passed it. The body now says: one `.ai` commit for the whole
+  update, no note and no task edit beyond a named migration; step 0 notes
+  the start commit and checks `log <start>..HEAD` and `diff <start> --
+  notes.md notes tasks`.
+
+**Passed, live.**
+
+- `/framework-models`: the gate, the setup line and `opencode models` (62
+  names), verbatim, no name suggested.
+- `/task do calc-ops`: one `worker` sub-agent, its session on
+  `github-copilot/gpt-6.1-terra`; `Worker round 1: done`, an inline review,
+  `Delegation:` naming the model, `finish done`, 3 tests OK; every Findings
+  line short, no flag. The supervisor's one edit was its own Review and
+  Outcome in the task file.
+- `/task do calc-ops2 herdr`: tab `worker-calc-ops2`, plain `opencode`
+  spawning the worker (12.8's start), the same record, 5 tests OK; the
+  supervisor ran herdr commands and no sub-agent of its own.
+- Turn-end check on 2.2.7: an uncommitted line in `.ai/notes.md` held the
+  turn end; the agent inspected it and left it, not its own change.
+- `/framework-update` from a scaffold staged at 12.7: an `updater`
+  sub-agent asked `UPDATE QUESTION` (pull a framework checkout with
+  uncommitted edits?), the supervisor relayed it, the answer continued the
+  same updater session, stamp 12.8, every framework file equal to a fresh
+  render but the three `model:` lines.
+- `/framework-update herdr`: tab `update-062212`, `UPDATE DONE: 12.7 ->
+  12.8`, the same result (and the notes slip above).
+
+**Not run.** The reviewer on `gpt-6.1-sol`: both tasks were under the
+inline threshold, so no review reached it beyond its model check. Copilot's
+Herdr paths remain unrun.
