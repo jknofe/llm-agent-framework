@@ -47,8 +47,10 @@ python3 <framework-checkout>/init_agent.py --harness claude -y --name satty
   whether `cargo` was on PATH; with it, TC-D3 does not apply and TC-D1 to
   TC-D4 should end `done` instead.
 - **Model:** record it. Reference runs used sonnet-5.5 at medium effort.
-- **Fresh session per `/task do`:** `/clear` before each one, as the skill
-  requires. The task file is the handoff, not the conversation.
+- **Sessions:** `/task do` needs no fresh session since 12.5: the session
+  that ran `/task create` supervises and the worker starts fresh. `/clear`
+  between test cases only to keep one case's conversation out of the next;
+  a case that tests the create-then-do flow says so and does not clear.
 - **Answering Q&A:** pick the option the agent marks as recommended, unless
   the case says otherwise. Note every question it asked.
 - **Copilot:** the same cases apply. Its `reviewer` and `worker` are custom
@@ -204,7 +206,9 @@ is missing.
 
 ### /task do
 
-Run each in a fresh session (`/clear`, then `/task do <id>`).
+Run each case apart from the one before (`/clear`, then `/task do <id>`),
+for test isolation, not because the skill asks for it (TC-D10 runs create
+and do in one session).
 
 In every do case (10.1): the transcript shows `tasks.py start <id>` at the
 start and `tasks.py finish <id> done|blocked` at the end, every ticked box
@@ -302,7 +306,7 @@ sub-agent runs, no suite runs, and the task ends `done` with every
 criterion ticked. Fail: a fresh-context review of a purely mechanical
 diff, or an inline review whose line does not say it is mechanical.
 
-**TC-D6: the worker ships, the supervisor reviews** (11.0, 11.3)
+**TC-D6: the worker ships, the supervisor reviews** (11.0, 11.3, 12.1)
 
 On a session model above the cheapest tier (claude: Opus or Fable). A
 `change` with three or more code steps, then a step "commit on branch
@@ -328,8 +332,16 @@ Pass when all hold:
 - The supervisor made no host edit, commit or push (no `Edit`/`Write`
   outside `.ai`, no `git commit` or `git push` in the host repo) and
   changed no file while the worker ran.
-- The supervisor reran no test when Findings hold the worker's commands
-  and results; it read the evidence instead.
+- The supervisor ran no test, lint or build (12.1): it read the worker's
+  recorded commands and results, and a missing or doubtful one went back
+  to the worker as a `Supervisor round` correction.
+- The full test and lint commands ran once, after the last code change
+  (12.1): the worker's `review` round records only the covering tests and
+  lint on the changed files, and the transcript holds one full-suite run,
+  or none where the record cites a green CI run on the last push.
+- The `reviewer` ran no test, lint or build (12.1): its transcript holds
+  only reads (`git diff`, `git show`, `grep`, file reads), and a missing
+  result shows up as a finding, not as a run.
 - The worker ticked steps only: no done-when box, no Outcome, no
   `notes.md` change in its round commits (`git -C .ai show <commit>`).
 - Findings end with a `Delegation: <model> ...` line; the supervisor
@@ -354,6 +366,63 @@ without `inline`.
 Pass when the supervisor says in one line that it works inline and names
 the count (`Inline: 1 of 2 steps edits a host file.`), no worker runs, the task ends `done` with a `Review: inline`
 line, and no `Worker round` line is written.
+
+**TC-D9: the smallest thing that meets the Goal** (12.4)
+
+A delegated `change` with a pull request step. During the run: (a) let the
+reviewer find something outside the criteria (a missing extra test, a
+nicer structure); (b) when the worker asks a question with two options,
+one larger; (c) after the criteria are met, ask for one more thing that
+adds a second pull request; (d) let CI take longer than one blocking
+command, or require a merge by the user.
+
+Pass when all hold:
+- (a) The finding is a `Not sent back` line, not a `Supervisor round`
+  correction, and no `Supervisor check ... accepted` line carries fixes.
+- (b) The worker's `question` lists both options with a cost each and
+  recommends the smaller; the supervisor takes it or, if it asks you,
+  recommends the smaller with both costs.
+- (c) The supervisor first offers to ship and open a follow-up task, with
+  the cost of each way; folded in only on your word, then a `User round`
+  line and the new criterion in the task file.
+- (d) The worker reports `waiting` with the command that shows the end;
+  the supervisor ends its turn with one line on what the task waits for,
+  and runs no CI polling, merge or deploy of its own.
+- Findings lines are short: `python3 .ai/agent/tools/tasks.py` flags no
+  line over 300 characters for the task (12.7), long evidence sits in
+  `.ai/tasks/<id>/evidence.md`, and there are no "no merge / no push"
+  restatements.
+
+**TC-D10: the session supervises; the worker is a sub-agent, or a Herdr tab when asked** (12.5, 12.6)
+
+Inside Herdr, worker and reviewer models set, on each harness. In the
+session that ran `/task create`: first `/task do <id>` on a task over the
+small-task threshold, then on another such task `/task do <id> herdr`.
+
+Pass for the plain call when the worker is the harness's sub-agent, no tab
+opens, and no fresh-session advice appears. Pass for `herdr` when all hold:
+
+Pass when all hold:
+- No advice to start a fresh session, before or after.
+- A new tab `worker-<id>` opens; its status line shows the worker's model
+  from `worker.md`, it receives the fixed prompt, and no existing tab gets
+  input. The supervisor spawns no worker sub-agent (no `Agent` call with
+  `subagent_type: worker`).
+- Each report is a `Worker round` line in the task file; the supervisor
+  continues the same tab (`herdr agent prompt worker-<id>`), never a second
+  tab or session for the same task. The reviewer is still a sub-agent.
+- The tab is open after `finish`.
+- The tab starts the harness's CLI on the worker's model: `claude --agent
+  worker`, or `copilot --agent worker --model <m>`, `<m>` the `model:`
+  line of the worker file. On OpenCode the tab starts plain `opencode`
+  (its TUI has no model flag) and is told to spawn the `worker` sub-agent;
+  that sub-agent's exported session shows the worker file's model (12.8).
+- What the user said after `/task create` reaches the worker: before
+  `/task do`, tell the session one thing the work depends on that the task
+  file does not hold. It is in the task's Notes before the worker starts
+  (12.8).
+- `herdr` outside Herdr (no `HERDR_ENV`): one line saying so, then the
+  sub-agent, everything else the same.
 
 ### Sub-agent models (11.9)
 
@@ -385,6 +454,36 @@ them (`init-agent --models --worker claude-agent/haiku --reviewer
 claude-agent/sonnet#medium`), each reported `OK` with "sub-agent ran on" the
 same name. The model check: `opencode session export <child>` of the worker
 and the reviewer show that provider, id and variant.
+
+### /framework-update hand-off (12.2)
+
+A scratch scaffold staged one version back (render it from the previous
+version's commit, or edit its stamp down), with notes, a task, a hand-filled
+GENERATED section and the worker and reviewer models set.
+
+**TC-U1: no updater model, inline**
+
+`/framework-update` with no `model:` line in the updater file.
+
+Pass when the session runs `tasks.py models`, says in one line that the
+update runs inline because no updater model is set, spawns nothing, opens no
+tab, and does the update itself (the stamp moves, one `update:` commit).
+
+**TC-U2: handed to the updater**
+
+`init-agent --models --updater <small>` (claude: `haiku`), restart, then
+`/framework-update`, and again with `/framework-update herdr` inside
+Herdr.
+
+Pass when the plain call spawns an `updater` sub-agent and opens no tab,
+and when, with `herdr`, a new tab `update-<hhmmss>` appears, its
+status line shows the updater's model, it receives `/framework-update
+inline`, and no existing tab got any input. The sub-agent gets no model
+passed. The updater ends with `UPDATE
+DONE: <old> -> <new>`; the session then reports one line per check (stamp,
+files, retired files, `.ai` commit, `model:` lines, GENERATED section) from
+the files, and changed no file itself. The tab is still open. With
+`dry-run`: `UPDATE DRY-RUN`, nothing changed, the stamp unchanged.
 
 ### Parallel (11.1)
 
@@ -487,7 +586,7 @@ criteria of the three that touch files are waived in the prompt.
 |---|---|---|
 | investigation | `input-scale-window` (issue #689), as TC-D1 | `/task <id> ... Type: investigation` |
 | bug | `nextrelease-typo`: `release.nu:106` replaces `NEXTRELEASE` with the version, but README line 139 says `NEXTRELASE` for pixelate, so a release keeps the placeholder | `/task create`, then `/task <id>` in a fresh session |
-| change | `readme-troubleshooting`, as TC-D4 | `/task create`, then `/task do <id>` in a fresh session |
+| change | `readme-troubleshooting`, as TC-D4 | `/task create`, then `/task do <id>` in the same session |
 | test | `keybinds-consistency`: every action under `[keybinds]` in `config.toml` exists in `src/keybindings.rs` and in the README | `/task create`, then `/task <id>` in a fresh session |
 
 Prompts (Copilot CLI: wrap each as `Run task ...: read

@@ -43,7 +43,7 @@ def project(harness="claude", model_lines=None):
 
 
 def args(**kw):
-    base = dict(worker=None, reviewer=None, no_test=False)
+    base = dict(worker=None, reviewer=None, updater=None, no_test=False)
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -196,6 +196,22 @@ def main():
         ok, detail = models.opencode_test(root, "worker", "p/m")
     check(not ok and "not on PATH" in detail, "opencode: no binary")
 
+    # OpenCode's TUI has no model flag: its Herdr tab starts plain and
+    # spawns the role as a sub-agent (CONCEPT.md section 70).
+    for text in (content.render_task_part("do", "opencode"),
+                 content.render_update_body("opencode", "$ARGUMENTS")):
+        start = next(ln for ln in text.splitlines()
+                     if "herdr agent start" in ln)
+        check(start.rstrip().endswith("--pane <pane>") and
+              "opencode --model" not in text and
+              "Use the subagent tool with agent" in text,
+              f"opencode: the tab starts without a model flag: {start!r}")
+    check("-- --agent worker --model <model>" in
+          content.render_task_part("do", "copilot") and
+          "-- --agent worker --permission-mode" in
+          content.render_task_part("do", "claude"),
+          "copilot and claude keep their start flags")
+
     # Nothing to set and no terminal to ask in: says so, exits non-zero.
     root = project()
     with mock.patch.object(sys.stdin, "isatty", return_value=False):
@@ -226,6 +242,34 @@ def main():
     root = project()
     (root / const.AGENT_FILES["claude"]["reviewer"]).unlink()
     check(models.cmd_models(root, args(worker="w")) == 1, "missing file")
+
+    # The updater (CONCEPT.md section 64) is optional: a scaffold older than
+    # 12.2 has no file for it and still sets the other two; asking for it
+    # there is the error. Set, it is saved and tested like the others.
+    root = project()
+    (root / const.AGENT_FILES["claude"]["updater"]).unlink()
+    with mock.patch.object(models, "headless_test",
+                           return_value=(True, "replied hello")):
+        rc = models.cmd_models(root, args(worker="w1", reviewer="r1"))
+        check(rc == 0, "no updater file: worker and reviewer still set")
+        check(models.cmd_models(root, args(updater="u1")) == 1,
+              "no updater file: asking for it is an error")
+    r = gate(root)
+    check(r.returncode == 0 and "updater: not set" in r.stdout and
+          "runs the update inline" in r.stdout,
+          f"gate: an unset updater is reported, never a failure: {r.stdout!r}")
+    root = project()
+    with mock.patch.object(models, "headless_test",
+                           return_value=(True, "replied hello")) as t:
+        rc = models.cmd_models(root, args(worker="w1", reviewer="r1",
+                                          updater="haiku"))
+    ufile = root / const.AGENT_FILES["claude"]["updater"]
+    r = gate(root)
+    check(rc == 0 and t.call_count == 3 and
+          models.current(ufile) == "haiku" and
+          f"updater: {const.AGENT_FILES['claude']['updater']} haiku"
+          in r.stdout and "--updater haiku" in r.stdout,
+          f"updater saved, tested, shown with its setup flag: {r.stdout!r}")
 
     if FAILS:
         for f in FAILS:

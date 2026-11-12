@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-09, v12.0.** The framework rests on four premises, stated in
+**State: 2026-11-11, v12.8.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -115,7 +115,9 @@ decline; an issueless task is normal. The type
 comes from the user: when they did not name it, the first question asks for
 it; the agent never infers it. For a `change`, `bug` or `test` it runs a
 bounded Q&A and stops: the point is the plan a human reads before the work
-starts, and the work runs later in a fresh session. An `investigation` asks
+starts, and `/task do` then works it, in the same session or a later one:
+the session supervises and the worker starts fresh (section 67). An
+`investigation` asks
 nothing after the type and runs straight on into `do` in the same session:
 planning an investigation is most of doing it, and the user redirects from
 the answer, which cites its evidence, rather than from a plan.
@@ -130,7 +132,8 @@ The type decides what done means:
 | `test` | every named scenario run and its result recorded with evidence; new tests pass with the full suite |
 
 Any task that ends up changing code takes the full-suite criterion,
-whatever its type. For bugs and investigations the steps are hypotheses,
+whatever its type, met by one run on the final code: a green CI run on the
+last push, or one local run before `done` (section 63). For bugs and investigations the steps are hypotheses,
 each with how to confirm or rule it out, and the plan is expected to change.
 
 `/task do <id>` works the steps, appends each finding to the task file as it
@@ -149,25 +152,32 @@ cannot state into `.ai/notes.md`.
 Since 11.0 `/task do` splits into two roles, after Google's
 Elephant-Goldfish Model (section 50); since 11.3 the worker does the whole
 job and the supervisor none of it (section 53). The worker is the
-framework's `worker` sub-agent, defined beside `reviewer` on every harness
-(section 55): on the model its agent file names, which the user sets per
+framework's `worker` agent, defined beside `reviewer` on every harness
+(section 55), run as the harness's sub-agent, or in a Herdr tab of its
+own when the user asks for `herdr`, on every harness (section 68): on the model its agent file names, which the user sets per
 project (`init-agent --models`, section 59) and which `/task do` refuses to
 work without, never a default and never the session's, and it knows
 only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
 every step the task names: the code, the tests, then the branch, commit,
 push, pull request, the wait for CI, a dev run, a tracker comment. Before
-code ships it reports `review`; it also stops at `question`, `stuck` and
-`done`, each a `Worker round <n>` line in Findings. The session that ran
+code ships it reports `review`; it also stops at `question`, `waiting`,
+`stuck` and `done`, each a `Worker round <n>` line in Findings. The session that ran
 `/task do` is the supervisor and stands in for the user: it reviews the
 uncommitted diff before it ships (the review gate), answers a question as
 the user would from the task file, and asks the user only what it cannot
 decide for them (a changed Goal or criterion, a merge, production,
 deleting data). It judges each report from the files and trusts recorded
-evidence, a CI result or a command with its output, rerunning the tests
-only when that evidence is missing or doubtful. A worker's `done` is a
+evidence, a CI result or a command with its output, and runs no check
+itself: missing or doubtful evidence goes back to the worker (section 63).
+A worker's `done` is a
 claim, not a gate result. Corrections and answers go into Findings as
 `Supervisor round <n>` lines, an accepted review as a `Supervisor check`
-line; then the supervisor continues the same worker where the harness can
+line. A correction is only what keeps a criterion from being met; any
+other finding stays a `Not sent back` line. Between options it takes, and
+recommends to the user, the smallest that meets the Goal. A wait on CI
+or a person (`waiting`) ends its turn instead of watching. A user ask
+beyond the written criteria is offered as a follow-up task first, and
+logged as a `User round` line when folded in (section 66); then the supervisor continues the same worker where the harness can
 resume a sub-agent, or spawns a fresh one that reads the file. The
 supervisor never edits host code, commits or pushes, not even to fix a
 review finding; it takes over only when the user says so, and works the
@@ -203,7 +213,11 @@ Rules that came from failures, not from theory:
 - A code-changing task always includes a criterion that the project's full
   test and lint commands pass. A criterion naming a single test is what
   produced the one correctness loss the framework has ever caused (Part II,
-  sequence round).
+  sequence round). The full suite runs once per task, on the final code;
+  iterating and each review round take only the covering tests and lint
+  on the changed files, and a review reads and runs nothing. On one task
+  with a 4-minute suite the worker ran the full suite 34 times and the
+  reviewer 10 times, about an hour between them (section 63).
 - `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
@@ -267,19 +281,32 @@ never re-derived. The migrations it applies come from the reference's own
 copy of the skill, not the project's: the project's copy is as old as the
 project's version and cannot know what the new version changed.
 
+Since 12.2 the session that runs `/framework-update` does not merge
+itself: it hands the update to the `updater` sub-agent, on the small model
+the project chose for it (`init-agent --models --updater`, the same
+mechanism as the worker and reviewer, section 59), and checks the result
+from the files: stamp, file list, `.ai` commit, `model:` lines, the
+GENERATED section. The updater is the harness's sub-agent; with
+`herdr` it gets a tab of its own that stays open for the user, on every
+harness. No updater model, or `inline`, means the update runs in the
+session as before; the framework never picks a model for it (sections 64
+and 68). The worker of `/task do` follows the same rule: a sub-agent by
+default, a Herdr tab only when asked.
+
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 514 words on claude, 512 on
-  opencode, 630 on copilot, where the balance is that harness's own CLI note.
+- `AGENTS.md` before the generated section: 534 words on claude, 532 on
+  opencode, 650 on copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 650. The number is a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 929 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, and `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 15 framework files, a copilot one 15, an opencode
-  one 16 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
+  `tasks.py`: 1198 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, the models gate, and
+  `start`/`tick`/`claim`/`finish`.
+- A claude scaffold records 17 framework files, a copilot one 17, an opencode
+  one 18 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42).
@@ -328,18 +355,20 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
 2. When code changed, tests and lint must pass, the whole suite, not only the
-   test a task names. Done = checks green. While iterating, the covering
-   tests suffice; docs or comments only need no suite run. When the task is a question,
+   test a task names, once on the final code (a green CI run counts).
+   Done = checks green. While iterating, the covering tests suffice; docs
+   or comments only need no suite run. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
    to the host repo.
 4. `.ai/.current` is the resume pointer (`.ai/.current-<id>` for a task
    running in parallel); read it at session start.
-   `/task do` (except an investigation, run in one go by `/task create`)
-   and unrelated tasks run in fresh sessions: instruction
-   adherence decays as a session grows, and the task file is the handoff
-   that makes a fresh session cheap.
+   Unrelated tasks run in fresh sessions: instruction adherence decays
+   as a session grows, and the task file is the handoff that makes a
+   fresh session cheap. `/task do` needs none: the session that runs it
+   is the supervisor, the long-memory elephant, and its worker is the
+   fresh goldfish (section 67).
 5. Never commit on or merge into the default branch unasked. Work on a
    feature branch and stop at it or its pull request; merging is the user's
    action.
@@ -463,6 +492,56 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.8 (2026-11-11, review fixes for 12.2 to 12.7, section 70. OpenCode's
+Herdr tab starts plain and spawns the role as a sub-agent; the update
+check diffs merged files against the backup; the reviewer follows a
+finding into `evidence.md`; the long-line flag spares `Supervisor round`
+lines and done tasks; `gh run watch` is on the allowlist; the runbook
+no longer asks for a fresh session per `/task do`.)
+
+v12.7 (2026-11-11, a finding is a claim and a pointer, section 69. At
+most ~200 characters, checks of a kind grouped in one line, long evidence
+in `.ai/tasks/<id>/evidence.md`; "verbatim" only for the one full run;
+`tasks.py` flags Findings lines over 300 characters. The update deletes
+its old backup by literal path.)
+
+v12.6 (2026-11-11, Herdr only when asked, on every harness, section 68.
+The `/task do` worker and the `/framework-update` updater are the
+harness's sub-agent by default on Claude Code, Copilot and OpenCode; with
+`herdr` in the call they get a Herdr tab, started per harness on the
+role's model.)
+
+v12.5 (2026-11-11, the session supervises, the worker runs in a sub-agent
+or a Herdr tab, section 67. On Claude Code inside Herdr the `/task do`
+worker gets a tab of its own (`claude --agent worker`); elsewhere a
+sub-agent. `/task do` no longer asks for a fresh session.)
+
+v12.4 (2026-11-11, the smallest thing that meets the Goal, section 66.
+Corrections only for unmet criteria, the rest `Not sent back`; the
+smallest option recommended, with its cost; asks beyond the criteria
+offered as a follow-up task first, logged as `User round`; one-line
+Findings without restated rules; a `waiting` report that ends the
+supervisor's turn instead of watching CI.)
+
+v12.3 (2026-11-11, `/framework-models` lists what can be named, section
+65. `tasks.py models --list`: `opencode models` on OpenCode, the backend's
+`/v1/models` on Claude Code where it answers (chat models only, prices
+where the backend gives them), a pointer to the picker on Copilot. The
+user still chooses; the /task do gate never lists.)
+
+v12.2 (2026-11-11, the update runs on a small model, section 64.
+`/framework-update` hands the merge to a new `updater` sub-agent whose model
+the project sets with `init-agent --models --updater`, in a Herdr tab of its
+own on Claude Code, and checks the result from the files. No updater model,
+or `inline`: the update runs in the session as before.)
+
+v12.1 (2026-11-10, the full suite runs once per task, section 63. The
+worker iterates, and reports `review`, on the covering tests and lint of
+the changed files; the project's full test and lint commands run once on
+the final code, and a green CI run on the last push is that run. The
+review and the supervisor read the diff and the recorded results and run
+nothing; only the worker runs checks.)
 
 v12.0 (2026-11-09, OpenCode model test, default-branch rules and
 `/framework-models`, sections 60 to 62. `init-agent --models` tests an OpenCode name the way it tests a
@@ -4371,4 +4450,533 @@ Avoided: `/model` (Claude Code, Copilot), `/models` (OpenCode), `/agents`
 **Not run.** The command was rendered on all three harnesses and the
 script's output checked there and in `test_tasks_table.py`; no live
 session typed `/framework-models` yet.
+
+## 63. The full suite runs once per task (2026-11-10, v12.1)
+
+**Source.** The owner saw `/task do` progress slowly on a real project
+(DART, `dart-data-pipelines`, a pytest suite of about 270 tests that takes 3
+to 4.5 minutes because of its Postgres tests), and asked whether the
+reviewer ran tests too. The sub-agent transcripts of one task
+(`1221-prefect-chain`, 2026-11-09 and 10), split by their `agentType`:
+
+| Sub-agent | pytest/ruff runs | Time | Full-suite runs | Time |
+|---|---|---|---|---|
+| `worker` | 101 | 50 min | 34 | 19 min |
+| `reviewer`, one review | 17 | 58 min | 10 | 42 min |
+
+Two of the reviewer's runs hit the 10-minute tool timeout and went to the
+background. `work.md` required the full test and lint commands before every
+report, and a worker reports every round (`review`, then `done`, then again
+after each correction); `do.md` step 5 asked for them before every review
+gate. The reviewer had `Bash` and a checklist line, "every Done-when
+criterion is met and, where testable, tested", that read as an order to
+run the tests again. CI then ran the same suite on the pull request.
+
+**Change.**
+
+- The worker iterates, answers a correction, and reports `review` on the
+  tests that cover the change and lint on the changed files only.
+- The project's full test and lint commands run once, on the final code. A
+  green CI run on the last push is that run; without CI the worker runs
+  them locally after the last code change, before it reports `done`. It
+  records the command and its result line, or the CI run's URL and result.
+- The supervisor checks on `done` that the one full run is recorded and ran
+  on the final code, and does not ask for it before then.
+- A review reads and runs nothing, inline or by the `reviewer`: it judges
+  the diff, the task file and the results in Findings, and a missing or
+  contradicted result is a finding for the worker. The `reviewer` keeps
+  `Bash` for `git diff`, `git show`, `git log` and `grep`, since it reviews
+  an uncommitted diff; its file says never to run tests, linters, builds or
+  the code, and its checklist asks for a test in the diff or a recorded
+  result instead of "tested".
+- The supervisor never runs a check either. 11.3 let it rerun one when the
+  command or result was missing from Findings or contradicted the diff;
+  that now goes back to the worker as a `Supervisor round` correction. Only
+  the worker runs tests, so each run is recorded where the next round reads
+  it. Working inline (`inline`, a small task), the supervisor is the
+  worker, and step 5 applies to it.
+- Reading a CI result is not running it. On `done` the supervisor reads
+  the status of a CI run Findings cite (on GitHub `gh pr checks`, `gh run
+  view`), and the reviewer may read it too; both commands joined the
+  read-only allowlist. A cited green run is the one claim about tests the
+  supervisor can check without a run, so it does.
+- The full-suite Done-when criterion stays: `create.md` writes it as one
+  run on the final code. `AGENTS.md` rule 2 says the same for the direct
+  path, three words shorter elsewhere in the rule to stay under the
+  copilot budget.
+
+**Kept.** The rule from the sequence round (Part II): never only the test
+a task names. A fix that passes its own test and breaks another still
+fails the criterion; it is caught once, at the end, not every round.
+
+**What this risks.** A break outside the covered tests now surfaces at the
+end instead of in the round that caused it, so a late failure can cost one
+more round. On the measured task that round costs one 4-minute run; the
+rules it replaces cost 44 full runs between worker and reviewer. A reviewer
+that cannot run anything can miss a failure a run would show; the worker's
+recorded results and the one full run at the end are the check for that.
+Without CI that one run is the worker's recorded result line and nothing
+else: no one reruns it, and the runbook records a worker reporting done
+with 0 of 4 criteria ticked (2026-09-29). With CI the supervisor reads the
+run's status, so a misreported green run is caught. A project without CI
+that needs more can take the turn-end check hook `/explore` offers, which
+runs its tests deterministically.
+
+**Not run.** Layer 1 only: the templates render on all three harnesses and
+`check_templates` holds the budget. TC-D6 gained the checks (one full run,
+or none with a green CI run cited; no test or build in the reviewer's
+transcript); no live run yet.
+
+## 64. The update runs on a small model (2026-11-11, v12.2)
+
+**Source.** On 2026-11-11 the owner had six projects updated from 10.6, 11.5
+and 12.0 to 12.1, each by a Claude Code session on Haiku 5.5 in its own
+Herdr tab, and asked whether Haiku is enough. Judged against a pristine
+12.1 render per project, all six merges were right: the project sections,
+the `model:` lines, a user's `data/` deny rules and user skills kept, the
+retired `agent-models` gone, one `update:` commit each, a few minutes per
+project. Two faults: one session stopped for "Reply go to run the plan",
+which the skill does not ask for, and two wrote `rm -rf` on a variable or a
+command substitution, which Claude Code's safety prompt held until it denied
+it. The owner then asked for the update to run that way by default, in a
+sub-agent or a Herdr tab, on a small model, adapted to the harness.
+
+**Decisions, the owner's.** A new `updater` role with its own `model:` line,
+not the worker's; the session waits for the updater and checks its result;
+a project with no updater model updates inline, as before.
+
+**Why no model list.** Section 59 stands: the framework knows no model names
+(a proxy serves `gpt-6.1-sol`), and the `model:` line of an agent file is the
+one source. The adaptation to harness and provider is the name the user
+gives `init-agent --models --updater`, which tests it as a sub-agent on that
+harness before saving it.
+
+**Change.**
+
+- `updater` agent file on every harness (`.claude/agents/updater.md`,
+  `.github/agents/updater.agent.md`, `.opencode/agents/updater.md`). Its body
+  is the contract: follow the harness's own `/framework-update` file from
+  step 1 inline, never hand the update on, stop with `UPDATE QUESTION` where
+  a step needs the user, end with `UPDATE DONE: <old> -> <new>` or `UPDATE
+  DRY-RUN`.
+- `init-agent --models --updater M` sets and tests it like the other two. An
+  older scaffold without the file still sets worker and reviewer; asking for
+  the updater there is an error that names `/framework-update`.
+- `tasks.py models` prints an `updater:` line, its model or `not set` and
+  that the update then runs inline. It never fails the gate: `/task do`
+  needs only worker and reviewer. The setup line gains `--updater` when a
+  name is known, else a hint to add one. `/framework-models` passes
+  `updater=<m>` through.
+- The update body gains step 0. With `inline`, or as the updater, go on at
+  step 1. Otherwise read the `model:` line of the updater file directly; no
+  file, no line or `inherit` means inline, said in one line. Not through
+  `tasks.py models`: the first live run below had an older `tasks.py`
+  beside the new skill, saw no `updater:` line and went inline. Note the stamp, the `model:` lines and the GENERATED
+  section, hand off, wait for the last line, relay a question, and check
+  the result from the files: new version, every listed file present, every
+  dropped file gone, the `update:` commit and a clean `.ai`, the `model:`
+  lines and the GENERATED section still there.
+- Hand-off per harness. Claude Code in Herdr: a new tab labelled `update`,
+  `claude --agent updater --permission-mode <this session's>`, the command
+  `/framework-update inline`, a wait repeated in 9-minute steps (one Bash
+  call may run 10), values written literally since no shell variable
+  survives between calls. A `blocked` tab goes to the user; the session never
+  answers a permission prompt. The tab stays open. Elsewhere, and on
+  Copilot and OpenCode always, a fresh `updater` sub-agent with no model
+  passed.
+- The body no longer pauses for a go-ahead outside the steps that say to
+  stop, and makes its temp directory with `mktemp -d` and deletes it by that
+  literal path: the two faults of the Haiku run.
+
+**Seen, 2026-11-11 (Claude Code 2.1.311, a scratch scaffold).** With
+`model: haiku` in `.claude/agents/worker.md`, `claude -p --agent worker`
+answered and its `modelUsage` held only `claude-haiku-5-5`: a session started
+with `--agent` runs on the agent file's model, no model name passed.
+
+**Not verified, so not encoded.** Copilot CLI 1.0.105 has `--agent` and
+`--model`, but whether an `--agent` session takes the file's model was not
+run: the headless call needs `--allow-all-tools`, which the auto-mode
+classifier of this session refused. OpenCode is not installed on this
+machine. Both use the sub-agent, whose `model:` line they honor (sections 56
+and 60), and get no Herdr tab until their session start is checked.
+
+**This reverses part of section 52** for the update only: there the
+framework stopped steering Herdr for the `/task do` worker. The update is
+one bounded job the user wants to watch and review in place, and the
+evidence of this section is a Herdr run.
+
+**What this risks.** A small model merges the framework files; the check in
+step 0 catches a missing or stale file, a lost `model:` line and a lost
+project section, not a subtle bad merge inside a file. The backup in
+`.ai/agent/.update-backup/` and the open tab are the user's way back.
+
+**Live test, 2026-11-11** (Claude Code 2.1.311, a scratch stdlib-Python
+project staged at 12.1 with a hand-filled GENERATED section, a note, worker
+and reviewer `sonnet`, updater `haiku` set with `init-agent --models
+--updater haiku`, whose sub-agent test passed on `claude-haiku-5-5`; parent
+session Sonnet 5.5 in auto mode):
+
+- Run 1, in Herdr: the parent went inline, saying no updater model was set.
+  The staging had put the 12.1 `tasks.py` beside the 12.2 skill, and step 0
+  then read the gate, which printed no `updater:` line. That is TC-U1's
+  behaviour, for the wrong reason; step 0 now reads the agent file.
+- Run 2, in Herdr, after the fix: a new tab labelled `update` opened, its
+  session the `updater` agent on Claude Haiku 5.5 in auto mode (the parent
+  passed its own mode), and received `/framework-update inline`. No other
+  tab got input. Haiku ended with `UPDATE DONE: 12.1 -> 12.2`, without a
+  pause for a go-ahead and without a safety prompt. The parent checked the
+  stamp, the file list, the `.ai` commit, the three `model:` lines and the
+  GENERATED section from the files, changed nothing itself, left the tab
+  open, and flagged that the framework checkout had uncommitted edits.
+- Run 3, outside Herdr (`claude -p` with the Herdr variables removed): an
+  `updater` sub-agent, no tab. `modelUsage`: Haiku 25.8k output tokens
+  ($0.03), the Sonnet parent 1.7k ($0.10, most of it its context). The
+  same checks, `update: framework 12.1 -> 12.2`, `.ai` clean.
+
+Not run: TC-U1 on purpose (run 1 covers its path), Copilot and OpenCode,
+and an update with real merges under the hand-off (the 12.1 and 12.2 task
+files are identical, so only the stamp and file list moved).
+
+## 65. `/framework-models` lists what can be named (2026-11-11, v12.3)
+
+**Source.** After section 64 the owner asked whether a running session can
+find out by itself which models are available, so that picking a small
+updater (or worker) does not need the names from memory.
+
+**Finding.** It depends on the harness and the backend, not the session:
+
+- OpenCode: `opencode models` prints every name in the form the `model:`
+  line takes (section 60).
+- Claude Code: no list command (`claude --help` has `--model` only; `/model`
+  is the user's picker). The backend may answer `GET /v1/models`: the owner's
+  Copilot proxy (localhost:4140) did, 25 entries with `display_name`,
+  `capabilities.type` and GitHub's `billing.token_prices`, embedding and
+  image models among them. The owner's Azure Foundry endpoint did not: 401
+  without the key, 404 with it. The Anthropic API serves the same endpoint
+  with an API key; not run here, no such key in this environment.
+- Copilot CLI 1.0.105: no list command in `copilot --help`; its `/model`
+  picker shows the names.
+
+**Change.**
+
+- `tasks.py models --list` appends an `Available models` block after the
+  setup command: the output of `opencode models`; on Claude Code the
+  backend's `/v1/models` (`ANTHROPIC_BASE_URL`, else the Anthropic API),
+  with the environment's `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` sent
+  only to the base URL Claude Code sends it to, one line per chat model
+  with its display name and, where the backend gives one, the in/out price;
+  entries whose `type` is not `model` or whose `capabilities.type` is not
+  `chat` are left out. A backend that does not answer, or no key, gives a
+  line naming the reason and pointing at the picker. On Copilot, the
+  pointer to the picker. Every list ends by saying the user chooses and the
+  setup command tests the name.
+- `/framework-models` passes `--list`, and may still not suggest or pick a
+  name, from the list or otherwise. The `/task do` gate runs `models`
+  without it: no network call there.
+
+**Why still no pick.** Section 59 stands. A list says what can be named,
+not what fits a role: names like `gpt-6.1-sol` carry no size, and only some
+backends give prices. On the proxy's list the prices make the small ones
+plain (`claude-haiku-5-5` 10/50, `gpt-6-luna` 10/50, `gpt-5.6-luna`
+20/120), which is the user's information to act on.
+
+**Seen, 2026-11-11.** In the scratch claude project: the proxy listed 21
+chat models with prices and no embedding or image entry; the Foundry
+endpoint gave `does not list them (HTTP 404)`; `models` without `--list`
+printed no list. `test_tasks_table.py` runs the same against a local fake
+`/v1/models` (chat filter, key header, 404, no key, Copilot, OpenCode
+missing). Live, a Claude Code session on Sonnet 5.5 typed
+`/framework-models` there (Foundry backend): it replied with the script's
+output verbatim, the 404 line included, and suggested no name. Not run: the
+Anthropic API direct, OpenCode.
+
+## 66. The smallest thing that meets the Goal (2026-11-11, v12.4)
+
+**Source.** The owner felt that agents overcomplicate their solutions and
+had four long tasks read against their transcripts and diffs: dart
+`1221-prefect-chain` (18 worker rounds, 12 corrections), dart
+`team-meeting-showcase` (16 rounds) and `1216-worker-image-pinning`,
+cleaning `BEGIFZ-6472-foss-doc` (a 1508-line task file) and
+`sbom-generator-rename`. Three read-only sub-agents each took one cluster;
+their key claims were spot-checked against the task files.
+
+**Finding.** The delivered code was mostly the right size for what was
+finally asked: the 1221 create plan was small, PR 2's first version met
+the original criteria at 362 + 534 lines, the rename was mechanical. The
+time went to, in order:
+
+- Scope growing inside the task. 1221's Done-when 4-9 were ticked on
+  2026-11-10 at 10:25 (`b1c0237`); the user's review reopened three, and
+  Notes 21 and 23-27 cost about six hours and four pushes and doubled the
+  flow (761 + 1032 lines). The FOSS task was reopened after `done` for a
+  review stage, a pin change, artifact renaming (five new criteria) and a
+  CI fix. The showcase's 16 rounds were 16 user design changes, logged
+  as Notes, so Findings showed "0 corrections".
+- The supervisor adding work. Each accepted 1221 round carried three
+  more fixes (task.md L108, L119, L125); one made tests flaky, the user
+  reversed another. Its option questions marked the larger option
+  "Recommended" each time. The one real overcomplication: a 209-line
+  scoped CI trust fix (FOSS, `f423512`) where a one-line `safe.directory`
+  would do, after a correction ruled the broad fix out. In both projects
+  the supervisor was the largest token consumer (about 340k and 238k
+  output tokens in the task windows) and watched CI in the session; on
+  1216 it did merges and production runs itself after round 5.
+- Verification volume: 31-34 full-suite runs per task, reviewers rerunning
+  the suite, Findings of 1123 lines with rules restated, five viewports
+  measured for one-line CSS edits. 12.1 (section 63) already cut the runs.
+- Waiting no rule removes: merges, CI at 11-12 minutes a push, provider
+  504s, nights, classifier-blocked steps.
+
+**Change.**
+
+- A correction is only what keeps a Done-when criterion from being met or
+  breaks something outside the task. Any other review finding is one
+  `Not sent back` line and stays there unless the user asks. An accepted
+  round carries no fixes.
+- Between options the supervisor takes, and recommends, the smallest that
+  meets the Goal; a choice put to the user gives each option's cost
+  (rounds, lines, CI runs, risk). The worker's `question` does the same.
+- A user ask beyond the written Goal and criteria, one that reopens a
+  ticked criterion, or one that adds a repository, a pull request or a
+  production change: the supervisor first offers to ship what meets the
+  criteria and open a follow-up task, with the cost of each way. Folded in
+  only on the user's word, then written into Notes and the criteria and
+  logged as `User round <n>`.
+- Findings: one line each, evidence as a pointer (the command and its
+  result line, not the output), no restated rules and nothing about what
+  was not done. A worker round line is a few lines at most.
+- The worker builds the smallest thing the steps and criteria ask for and
+  verifies in proportion to the change.
+- New report `waiting`: CI that outlasts one blocking command (`gh run
+  watch`, `gh pr checks --watch`), a merge, an approval, a deploy. The
+  supervisor tells the user what the task waits for and ends its turn; it
+  neither watches nor does the step.
+
+**What this risks.** A follow-up task for each new ask can split work a
+user sees as one; the user can always say "fold it in". `Not sent back`
+findings may be real weaknesses left in place; they are on record, and
+anything that breaks a criterion is still a correction.
+
+**Not run.** Layer 1 only. The runbook gains TC-D9; the next delegated
+task on dart or cleaning is the live check, against the counts above.
+
+## 67. The session supervises; the worker runs in a sub-agent or a tab (2026-11-11, v12.5)
+
+**Source.** On 2026-11-11 a DART session that had planned task 1114a ended
+"Start (preferably in a fresh session, since this one is very long): /task
+do 1114a-catalog-length-size". The owner opened a new Herdr tab, typed it
+there, and found that tab acting as a second supervisor with a hidden
+worker sub-agent. The owner's model: the main session is the supervisor,
+the elephant with the memory; the only difference is whether the worker,
+the goldfish, runs as the harness's sub-agent or in a Herdr tab.
+
+**Why the advice existed.** AGENTS.md rule 4 and the end of `/task create`
+said to run `/task do` in a fresh session, because instruction adherence
+decays as a session grows. That predates 11.0: the session then did the
+work itself. Since 11.2 the work is a fresh worker's, and the session only
+supervises; the advice now split one supervisor into two.
+
+**Change.**
+
+- `do.md` is rendered per harness in one place, where the worker runs. On
+  Claude Code inside Herdr (`HERDR_ENV=1`, `herdr` on PATH): a new tab
+  `worker-<id>` (lowercased, at most 32 characters), `claude --agent
+  worker --permission-mode <the supervisor's>`, the fixed prompt, `herdr
+  agent wait` repeated in 9-minute steps, the report read from the task
+  file, the same tab continued with `herdr agent prompt` for the next
+  round, a still-open tab of that name continued rather than doubled, a
+  `blocked` tab shown to the user (a permission prompt is never answered
+  by the supervisor), the tab left open at the end. Elsewhere, and on
+  Copilot and OpenCode always, a sub-agent as before. Everything else,
+  the prompt, `work.md`, the reports and the review, is the same.
+- AGENTS.md rule 4 keeps the fresh session for unrelated tasks and says
+  `/task do` needs none, its worker starts fresh; Create's closing line
+  says the work runs in this session or a later one. Copilot's AGENTS.md
+  stays at 649 of 650 words.
+- The reviewer stays a sub-agent: it runs nothing and is short-lived.
+
+**Basis.** `claude --agent <name>` was seen in section 64 to run the whole
+session on the agent file's model (`claude-haiku-5-5` for a `haiku` line),
+and the updater tab of section 64 ran that way, live. Copilot's and
+OpenCode's session start on an agent's model is still unverified, so they
+keep the sub-agent.
+
+**What this risks.** The supervisor's context still grows over a long
+session, which the old advice guarded against; its share of the work is
+reviews and decisions, and the task file still carries everything a later
+session needs. A worker tab outlives a closed supervisor session, which
+lets the next session continue it.
+
+**Live test, 2026-11-11 (TC-D10)** (Claude Code 2.1.311 inside Herdr, a
+scratch stdlib-Python project at 12.5, supervisor Sonnet 5.5 in the
+session that had run the earlier tests, `worker.md` set to `haiku` after
+that session started, a 4-step `change` with 3 host-editing steps):
+`/task do calc-ops` gave no fresh-session advice and spawned no sub-agent
+(zero `Agent` calls). It opened tab `worker-calc-ops`, `herdr agent start
+... -- --agent worker`, the fixed prompt, `herdr agent wait`; the tab's
+status line read Claude Haiku 5.5, so the new session took the model from
+the file the supervisor's own session had read before the change. One
+round, `Worker round 1: done` with `Ran 3 tests ... OK`, an inline review
+of the 8-line diff, `Delegation: haiku, 1 report(s), done`, `finish done`;
+the tab stayed open. It left out `--permission-mode`, as the rule allows
+when the mode is unknown. Not run: a multi-round task continued through
+`herdr agent prompt`, and the outside-Herdr path after this change.
+
+## 68. Herdr only when asked, on every harness (2026-11-11, v12.6)
+
+**Source.** The owner on 12.2 and 12.5: the default is the harness's own
+sub-agent flow, as long as the `/task do` call does not ask for Herdr, and
+it works the same way on Copilot, OpenCode and Claude Code. 12.2 and 12.5
+had put the role in a Herdr tab whenever Herdr ran, and on Claude Code
+only.
+
+**Change.**
+
+- Default on every harness: the worker of `/task do` and the updater of
+  `/framework-update` are the harness's sub-agent, no model passed.
+- `/task do <id> herdr` and `/framework-update herdr`: the role gets a
+  Herdr tab of its own when Herdr runs; without Herdr the session says so
+  and uses the sub-agent. The tab starts the harness's CLI on the role's
+  model, one line per harness, from one helper (`content.herdr_tab`):
+  Claude Code `claude --agent <role> --permission-mode <mode>`; Copilot
+  `copilot --agent <role> --model <the file's model: line>`; OpenCode
+  `opencode --model <the file's model: line>`, the prompt carrying the
+  contract. The rest (name, literal values, repeated wait, `blocked` to the
+  user, the tab left open, a still-open worker tab continued) is shared.
+- The `/task` dispatcher passes `herdr` like `inline`; the argument hints
+  and the update body's argument line name it.
+
+**Basis.** Claude Code's `--agent` was seen to run the session on the
+agent file's model (section 64, TC-D10 of section 67). Copilot CLI 1.0.105
+lists `--agent` and `--model` in its help. OpenCode is not installed here;
+its `--model` and `--agent` flags on the TUI are taken from the owner's
+own setup notes (`claude-and-bash/opencode-setup/set-me-up.md`, `opencode
+--agent aiq102 --model aiq102/claude-opus-5-5`). `--agent` is not used
+there for the role, because whether OpenCode starts a `mode: subagent`
+agent as the session's agent is unverified; `--model` with the file's line
+keeps section 59's rule that the file is the only source.
+
+**Live, 2026-11-11 (TC-D10, plain call, Claude Code inside Herdr).** A
+Sonnet supervisor ran `/task do calc-ops2` without `herdr`: one `worker`
+sub-agent (on `haiku` from `worker.md`), no herdr command, no tab, no
+fresh-session advice; `Worker round 1: review`, `Supervisor check: round 1
+accepted`, an inline review, `finish done`, 5 tests OK. The `herdr` path on
+Claude Code is the one section 67 ran. Not run: the `herdr` path on Copilot
+and OpenCode, whose start lines are unverified live.
+
+## 69. A finding is a claim and a pointer (2026-11-11, v12.7)
+
+**Source.** In the tfa-rpu-ws workspace, a task started under 12.6
+(`BEGLRV-11591-mpc3-event-logger-poc`, Claude Code, worker `sonnet`) had 12
+Findings after three worker rounds: median 601 characters, longest 1039,
+7.5k in all. Each was one line, as 12.4 asked: a paragraph without a line
+break, every check with its full command and result ("S3 ROS-less checks":
+yamllint, xmllint, `bash -n`, shellcheck, `ast.parse`, `git diff --check`,
+601 characters), a retold CI workflow contract ("S3 CI evidence", 781). The
+owner asked why the framework logs so much.
+
+**Why 12.4 did not hold.** "One line" carries no length, and two rules
+pulled the other way: `do.md` step 3 listed the evidence to give (file and
+line, command and result line, log excerpt, doc URL), read as a list to
+fill; `work.md` said to record each command with its result line
+verbatim. Nothing measured it: TC-D9's check counted lines.
+
+**Change.**
+
+- `do.md` step 3: one line of at most ~200 characters, the claim and one
+  pointer, never the evidence itself; checks of a kind in one grouped
+  line; longer evidence in `.ai/tasks/<id>/evidence.md` or nowhere.
+- `work.md`: verbatim only for the one full test and lint run (or the CI
+  run) the supervisor trusts; intermediate checks one grouped line; a
+  `Worker round` line at most ~300 characters; shipping evidence as
+  pointers, no log lines.
+- `tasks.py` (`list` and `tree`) flags a task whose Findings hold lines
+  over 300 characters (`LONG_FINDING`), with the count and the longest:
+  the prose can be ignored, the flag cannot.
+- The update body deletes an older backup by its literal path (`rm -rf
+  .ai/agent/.update-backup`). Its "replacing any older backup" had Haiku
+  write `rm -rf .ai/agent/.update-backup/*`, which Claude Code's safety
+  check held for confirmation in the 12.6 rollout (cleaning-dev-ops).
+
+**Not run.** Layer 1: `test_tasks_table.py` covers the flag (two lines
+over, one at 298, a terse task unflagged). The running tfa-rpu-ws task read
+its rules at start and keeps them; its next task is the live check, with
+`tasks.py` showing whether any line goes over.
+
+## 70. Review fixes for 12.2 to 12.7 (2026-11-11, v12.8)
+
+**Source.** A review of the 12.x line (sections 60 to 69) before it goes to
+the default branch. Six findings, each fixed here.
+
+**1. OpenCode's Herdr tab could not start.** Section 68 rendered `herdr
+agent start <name> --kind opencode --pane <pane> -- --model <model>` and
+called the line unverified, OpenCode "not installed here". It is installed
+(`~/.opencode/bin`, not on PATH), and its TUI has no model flag: OpenCode
+2.2.5 answers `opencode --model claude-agent/haiku` with its usage text
+and does not start; only `opencode run` takes `--model`. So `/task do <id>
+herdr` and `/framework-update herdr` failed on OpenCode.
+
+Now the tab starts plain `opencode` and its prompt has that session spawn
+the role as its sub-agent: `Use the subagent tool with agent <role> and
+this prompt, then print its last line: <prompt>`. The sub-agent runs on the
+agent file's `model:` line, the mechanism section 60 measured. To go on
+after a report the supervisor sends `Continue the same <role> sub-agent
+with this prompt, ...`. The updater's prompt in that tab is `Run the
+framework update inline.`, since a sub-agent's prompt cannot be a slash
+command.
+
+**Seen, 2026-11-11 (OpenCode 2.2.5 inside Herdr, a scratch opencode
+scaffold, worker `claude-agent/haiku`).** `herdr tab create`, `herdr agent
+start worker-oc8 --kind opencode --pane <pane>` and the spawn prompt: the
+worker replied, and its exported session shows `claude-agent/haiku`,
+variant `default`, under a Sonnet session in the tab. A second prompt to
+continue the same worker carried the first one's `sessionID` in the
+`subagent` call and ran on the same model. Not run: a whole `/task do
+<id> herdr` or `/framework-update herdr` on OpenCode, and Copilot's tab.
+
+**2. The update check did not cover the merges.** Step 0's check compared
+the version, the file list, the `.ai` commit, the `model:` lines and the
+GENERATED section. A small model that dropped a rule the project appended
+to `AGENTS.md`, or a permission it added to the settings file, passed all
+of it, and those additions are why the update is a merge at all. The
+session now diffs each file the updater reports as merged against its copy
+in `.ai/agent/.update-backup/`: a line that is gone must be one the new
+framework version changed.
+
+**3. The runbook still asked for a fresh session per `/task do`.** 12.5
+took that out of `AGENTS.md` rule 4 and `create.md`; `tests/task-commands.md`
+kept "`/clear` before each one, as the skill requires". It now says
+`/clear` is for test isolation only. TC-D10 gains a check for the cost of
+keeping the session: what the user says after `/task create` must be in the
+task's Notes before the worker starts, since the supervisor knows it and
+the worker reads only the files.
+
+**4. The reviewer was not pointed at `evidence.md`.** 12.7 moved long
+evidence out of Findings, and since 12.1 the review runs nothing and
+judges from what is recorded. The reviewer's input named only the task file
+and the diff. Its input, its "read, do not run" paragraph and `do.md`'s
+review step now name the `evidence.md` a finding points at.
+
+**5. The long-line flag hit lines that must be long.** `tasks.py` flagged
+every Findings line over 300 characters. A `Supervisor round` line carries
+every correction with its file and what done looks like; flagging it
+pushes toward vaguer corrections, so it is not counted. A done task is not
+flagged either: nobody rewrites its Findings, and it stayed flagged until
+archived.
+
+**6. `gh run watch` was not on the allowlist.** `work.md` (12.4) has the
+worker wait with `gh run watch <id>` or `gh pr checks <n> --watch`; only
+the second matched an entry, so the first prompted inside a sub-agent.
+
+**Not changed, noted.** `AGENTS.md` rule 4 says "`/task do` needs none: its
+worker starts fresh", which is not so for a small or `inline` task the
+session works itself; the copilot file stands at its 650-word budget. A
+task id with a character Herdr's names do not allow (`[a-z0-9_-]` only)
+gives an invalid tab name. `tasks.py models --list` sends the API key from
+the environment to the base URL Claude Code itself uses, from a script on
+the read-only allowlist.
+
+**Tests.** `test_models.py`: the OpenCode tab line has no model flag, the
+other two keep theirs. `test_tasks_table.py`: a long `Supervisor round`
+line and a done task's long line are not flagged. Both sets fail on 12.7.
 

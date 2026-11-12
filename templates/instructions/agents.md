@@ -28,17 +28,18 @@ yourself.
    fails for a reason the code does not explain, record it there before
    moving on.
 2. Code changed: iterate on the covering tests; before done, the whole test
-   and lint suite passes, not only the test a task names. Docs or comments
-   only: no suite run. A question: done = an answer citing its evidence, or
-   "inconclusive" with what was ruled out.
+   and lint suite, not one named test, passes once on the final code
+   (green CI counts). Docs or comments only: no suite run. A question:
+   done = an answer citing its evidence, or "inconclusive" with what was
+   ruled out.
 3. After changing `.ai/`, commit it in its own repo: `git -C .ai add <paths
    you changed> && git -C .ai commit -m "<summary>"`, never `add -A`. Never
    commit `.ai` content to the host repo.${hook_note}
 4. `.ai/.current` (gitignored) is the resume pointer, `.ai/.current-<id>`
    one per parallel task: `task: <id>`, task path, modified files. Read it at session start and
-   offer to resume. Run `/task do`, and any unrelated task, in a fresh
-   session (an investigation runs in one go): adherence to instructions
-   decays as a session grows.
+   offer to resume. Run an unrelated task in a fresh session: adherence to
+   instructions decays as a session grows. `/task do` needs none: its
+   worker starts fresh.
 5. Never commit on or merge into the default branch unasked. Work on a
    feature branch and stop at it or its pull request.
 6. Never add a co-author line to a commit message, even when the harness

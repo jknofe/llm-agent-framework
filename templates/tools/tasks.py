@@ -10,8 +10,9 @@ leaves the working view. The task the resume pointer `.ai/.current` names is
 marked. Below the table it flags what needs a look: an `in-progress` task not
 updated for STALE_DAYS, a `blocked` task with the reason from its `blocked:`
 frontmatter line, a `done` task with unchecked done-when criteria or with no
-review line in Findings. Only the task files are read: frontmatter,
-checkboxes, and whether Findings names a review. The output is the whole
+review line in Findings, and any unfinished task whose Findings hold
+lines over LONG_FINDING characters (`Supervisor round` lines excepted). Only the task files are read: frontmatter,
+checkboxes, whether Findings names a review, and its line lengths. The output is the whole
 answer, so no agent has to open a task file to add to it. Status and
 type show as emoji only, explained by a legend line under the table. The id
 is colored by status, but only when a person runs the script in a terminal
@@ -101,11 +102,19 @@ set only when that line holds a concrete name: a missing agent file, a
 missing or empty line and `inherit` all count as unset. The name itself is
 not checked (a proxy may serve names the framework cannot know). First
 line `MODELS OK` or `MODELS MISSING`; a missing role gets a line naming
-the file. Then the command that sets both, written for this scaffold's
-harness (`init-agent --models`, which also tests each name as a
-sub-agent): `models worker=<m> reviewer=<m>` fills in those names, else
+the file. The `updater`, the sub-agent /framework-update hands the update
+to (CONCEPT.md section 64), gets an `updater:` line either way: its model,
+or `not set` and that the update then runs inline; it never makes the gate
+fail. Then the command that sets them, written for this scaffold's harness
+(`init-agent --models`, which also tests each name as a sub-agent):
+`models worker=<m> reviewer=<m> updater=<m>` fills in those names, else
 the current ones, else placeholders. /framework-models shows this output
-(CONCEPT.md section 62). Exit 1 when anything is missing. Read-only.
+(CONCEPT.md section 62). Exit 1 when worker or reviewer is missing.
+With `--list` (what /framework-models passes, never the /task do gate) it
+then lists the models this harness or its backend can name, to choose
+from (CONCEPT.md section 65): `opencode models` on OpenCode, the backend's
+`/v1/models` on Claude Code where it answers, and on Copilot, which has no
+list command, a pointer to its picker. It never picks one. Read-only.
 
 list, tree, resolve, trackers and models are read-only; start, finish, tick
 and claim write only the task file and the pointers. Stdlib only.
@@ -120,6 +129,8 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 AI = Path(__file__).resolve().parents[2]  # the .ai/ directory
@@ -155,6 +166,9 @@ def paint(text, code):
 
 # An in-progress task untouched this long is flagged as stale.
 STALE_DAYS = 14
+# A Findings line is a claim and a pointer (CONCEPT.md section 69); longer
+# ones are flagged so a model that writes paragraphs on one line is seen.
+LONG_FINDING = 300
 
 
 def frontmatter(text):
@@ -259,6 +273,8 @@ def load(path):
                     if d.strip()],
         # /task do ends its review gate with a Findings line naming the
         # review; a done task without one skipped the gate.
+        # Findings lines over LONG_FINDING characters: (count, longest).
+        "long": long_findings(section(text, "Findings")),
         "reviewed": bool(re.search(r"^\s*[-*].*\breview",
                                    section(text, "Findings"), re.M | re.I)),
     }
@@ -273,10 +289,27 @@ def age_days(value):
     return (datetime.date.today() - day).days
 
 
+def long_findings(findings):
+    """(count, longest) of the Findings lines over LONG_FINDING
+    characters. A `Supervisor round` line is not counted: it carries every
+    correction with its file and what done looks like, and must not be
+    cut short to fit."""
+    sizes = [len(ln) for ln in findings.splitlines()
+             if len(ln) > LONG_FINDING and "Supervisor round" not in ln]
+    return len(sizes), max(sizes, default=0)
+
+
 def flags(rows):
     """One line per task that needs a look, in table order."""
     out = []
     for r in rows:
+        count, longest = r["long"]
+        # Not on a done task: nobody rewrites its Findings any more.
+        if count and r["status"] != "done":
+            out.append(f"- {FLAG} {r['id']}: {count} Findings line(s) over "
+                       f"{LONG_FINDING} characters (longest {longest}); "
+                       "keep each to a claim and a pointer, long evidence "
+                       "in evidence.md.")
         if r["status"] == "in-progress":
             age = age_days(r["updated"])
             if age is not None and age > STALE_DAYS:
@@ -690,7 +723,8 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py models [worker=<m>] [reviewer=<m>] | "
+         "| tasks.py trackers | tasks.py models [--list] [worker=<m>] "
+         "[reviewer=<m>] [updater=<m>] | "
          "tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
          "tasks.py tick <id> done|steps <n> [<n>...] | "
@@ -705,7 +739,12 @@ AGENT_FILES = {
     "reviewer": (".claude/agents/reviewer.md",
                  ".github/agents/reviewer.agent.md",
                  ".opencode/agents/reviewer.md"),
+    "updater": (".claude/agents/updater.md",
+                ".github/agents/updater.agent.md",
+                ".opencode/agents/updater.md"),
 }
+# /task do needs these two; the updater is optional (section 64).
+TASK_ROLES = ("worker", "reviewer")
 
 
 # How a user runs the setup command on each harness, and what follows
@@ -727,8 +766,8 @@ RUN_FROM = {
 
 
 def models_args(args):
-    """{role: name} from `worker=<m>` / `reviewer=<m>`, or bare names in
-    that order; None for an argument it cannot place."""
+    """{role: name} from `worker=<m>` / `reviewer=<m>` / `updater=<m>`, or
+    bare names in that order; None for an argument it cannot place."""
     out, bare = {}, []
     for a in args:
         key, sep, value = a.partition("=")
@@ -746,28 +785,34 @@ def models_args(args):
 
 def models(args=()):
     root = AI.parent
+    listing = "--list" in args
+    args = [a for a in args if a != "--list"]
     wanted = models_args(args)
     if wanted is None:
         print(f"Unknown argument in {' '.join(args)!r}. {USAGE}")
         return 2
-    problems, found, current = [], [], {}
+    problems, found, current, optional = [], [], {}, []
     for role, candidates in AGENT_FILES.items():
         files = [c for c in candidates if (root / c).is_file()]
-        if not files:
+        if not files and role in TASK_ROLES:
             problems.append(f"{role}: no agent file (looked for "
                             f"{', '.join(candidates)}); run "
                             "/framework-update to restore it")
         for rel in files:
             text = (root / rel).read_text(encoding="utf-8")
             value = frontmatter(text).get("model", "").strip()
-            if not value or value.lower() == "inherit":
+            if value and value.lower() != "inherit":
+                line = f"{role}: {rel} {value}"
+                (found if role in TASK_ROLES else optional).append(line)
+                current.setdefault(role, value)
+            elif role in TASK_ROLES:
                 problems.append(
                     f"{role}: {rel} has no model (`inherit` does not "
                     "count); set it with the command below, or add a line "
                     "`model: <name>` after the file's `description:` line")
-            else:
-                found.append(f"{role}: {rel} {value}")
-                current.setdefault(role, value)
+        if role not in TASK_ROLES and role not in current:
+            optional.append(f"{role}: not set; /framework-update runs the "
+                            "update inline in the session")
     if problems:
         print("MODELS MISSING")
         print("\n".join(problems))
@@ -776,21 +821,114 @@ def models(args=()):
     else:
         print("MODELS OK")
         print("\n".join(found))
+    print("\n".join(optional))
     print()
     print("\n".join(run_lines({**current, **wanted})))
+    if listing:
+        print()
+        print("\n".join(available(stamp_harness())))
     return 1 if problems else 0
+
+
+def stamp_harness():
+    try:
+        stamp = json.loads((AI / "agent" / "framework.json")
+                           .read_text(encoding="utf-8"))
+        return stamp.get("harness")
+    except (OSError, ValueError):
+        return None
+
+
+LIST_TIMEOUT = 10
+CHOOSE = ("Choose the names yourself: the list says what can be named, not "
+          "what fits a role, and the setup command tests each name before "
+          "it saves it.")
+
+
+def available(harness):
+    """Lines naming the models to choose from (CONCEPT.md section 65). Only
+    a list: the framework knows no names and picks none (section 59)."""
+    if harness == "opencode":
+        oc = shutil.which("opencode") or str(Path.home() / ".opencode" /
+                                             "bin" / "opencode")
+        try:
+            run = subprocess.run([oc, "models"], capture_output=True,
+                                 text=True, timeout=30,
+                                 stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            return ["Available models: `opencode` is not on PATH, so they "
+                    "cannot be listed here. Run `opencode models`."]
+        names = [ln.strip() for ln in run.stdout.splitlines() if ln.strip()]
+        return (["Available models (`opencode models`), written as the "
+                 "`model:` line takes them:"] + [f"  {n}" for n in names]
+                + [CHOOSE])
+    if harness == "claude":
+        return backend_models()
+    return ["Available models: Copilot CLI has no command that lists them. "
+            "Its model picker (`/model` in a session) shows the names; "
+            "write them exactly as it shows them.", CHOOSE]
+
+
+def backend_models():
+    """The backend's `GET /v1/models`, which the Anthropic API serves and a
+    proxy may. The key Claude Code uses from the environment goes only to
+    the same base URL Claude Code sends it to. A login made inside Claude
+    Code is not readable from here."""
+    base = os.environ.get("ANTHROPIC_BASE_URL", "").rstrip("/")
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    picker = ("use the names Claude Code's model picker (`/model`) shows, "
+              "or an alias such as `haiku`.")
+    if not base and not key and not token:
+        return ["Available models: no API key in the environment (Claude "
+                "Code's own login is not readable from a script), so the "
+                "list cannot be fetched; " + picker, CHOOSE]
+    url = (base or "https://api.anthropic.com") + "/v1/models?limit=100"
+    headers = {"anthropic-version": "2023-06-01"}
+    if key:
+        headers["x-api-key"] = key
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    host = (base or "https://api.anthropic.com").split("//")[-1].split("/")[0]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url,
+                                    headers=headers),
+                                    timeout=LIST_TIMEOUT) as resp:
+            data = json.load(resp).get("data") or []
+    except urllib.error.HTTPError as e:
+        return [f"Available models: the backend at {host} does not list "
+                f"them (HTTP {e.code}); " + picker, CHOOSE]
+    except (OSError, ValueError) as e:
+        return [f"Available models: no answer from {host} ({e}); " + picker,
+                CHOOSE]
+    rows = []
+    for m in data:
+        if not isinstance(m, dict) or not m.get("id"):
+            continue
+        # Only models an agent can run on: a proxy also lists embedding and
+        # image models, marked by these two fields where it sets them.
+        kind = (m.get("capabilities") or {}).get("type")
+        if m.get("type", "model") != "model" or kind not in (None, "chat"):
+            continue
+        price = ((m.get("billing") or {}).get("token_prices") or {}) \
+            .get("default") or {}
+        cost = (f"  in/out {price.get('input_price', '?')}/"
+                f"{price.get('output_price', '?')}" if price else "")
+        label = m.get("display_name") or ""
+        rows.append(f"  {m['id']}" + (f"  ({label})" if label and
+                                       label != m["id"] else "") + cost)
+    if not rows:
+        return [f"Available models: the backend at {host} returned an empty "
+                "list; " + picker, CHOOSE]
+    return ([f"Available models (`/v1/models` at {host}), usable on the "
+             "`model:` line:"] + rows + [CHOOSE])
 
 
 def run_lines(names):
     """The setup command for this scaffold's harness. The framework's
     checkout from `$LLM_AGENT_HOME` when it holds init_agent.py, else the
     `init-agent` shell function that install.sh defines."""
-    try:
-        stamp = json.loads((AI / "agent" / "framework.json")
-                           .read_text(encoding="utf-8"))
-        harness = stamp.get("harness")
-    except (OSError, ValueError):
-        harness = None
+    harness = stamp_harness()
     where, prefix, after = RUN_FROM.get(harness, RUN_FROM["copilot"])
     home = os.environ.get("LLM_AGENT_HOME", "")
     tool = (f'python3 "{home}/init_agent.py"'
@@ -798,13 +936,18 @@ def run_lines(names):
             else "init-agent")
     worker = names.get("worker") or "<worker>"
     reviewer = names.get("reviewer") or "<reviewer>"
+    updater = names.get("updater")
     lines = [where,
              f"{prefix}{tool} --models --worker {worker} "
-             f"--reviewer {reviewer}",
+             f"--reviewer {reviewer}"
+             + (f" --updater {updater}" if updater else ""),
              after]
     if "<" in worker + reviewer:
         lines.append("Replace <worker> and <reviewer> with model names as "
                      "your harness or provider writes them.")
+    if not updater:
+        lines.append("Add `--updater <model>`, a small one, to let "
+                     "/framework-update hand the update to it.")
     return lines
 
 

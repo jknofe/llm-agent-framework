@@ -31,10 +31,11 @@ def write(path: Path, content: str, force: bool, created: list, skipped: list):
 
 def write_agent(path: Path, content: str, force: bool, created: list,
                 skipped: list):
-    """A `worker` or `reviewer` agent file: framework-owned like any other,
-    except its `model:` line, which is the project's choice (`init-agent
-    --models`, CONCEPT.md section 59) and survives a regeneration. Without
-    it /task do refuses, so a re-init must never drop it."""
+    """A `worker`, `reviewer` or `updater` agent file: framework-owned like
+    any other, except its `model:` line, which is the project's choice
+    (`init-agent --models`, CONCEPT.md section 59) and survives a
+    regeneration. Without it /task do refuses and /framework-update runs
+    inline, so a re-init must never drop it."""
     from agentgen.models import current, with_model
     kept = current(path) if path.is_file() else ""
     write(path, with_model(content, kept) if kept else content,
@@ -442,8 +443,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
     # /task's Create and Do bodies, read on demand by the /task skill, and
     # the Work body its worker reads.
     for part in ("create", "do", "work"):
-        write(root / TASK_DIR / f"{part}.md", render_task_part(part),
-              force, created, skipped)
+        write(root / TASK_DIR / f"{part}.md",
+              render_task_part(part, harness), force, created, skipped)
 
     # AGENTS.md is framework-owned except its generated section: recover it
     # (also from legacy CLAUDE.md scaffolds) so re-init never reverts /explore.
@@ -461,6 +462,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_reviewer_agent(), force, created, skipped)
         write_agent(root / ".claude" / "agents" / "worker.md",
               render_worker_agent(), force, created, skipped)
+        write_agent(root / ".claude" / "agents" / "updater.md",
+              render_updater_agent("claude"), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "hooks" / "git_guard.py",
@@ -477,6 +480,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_opencode_reviewer(), force, created, skipped)
         write_agent(opencode / "agents" / "worker.md",
               render_opencode_worker(), force, created, skipped)
+        write_agent(opencode / "agents" / "updater.md",
+              render_opencode_updater(), force, created, skipped)
         write(opencode / "plugins" / "llm-agent.js",
               render_opencode_plugin(), force, created, skipped)
         write(opencode / "hooks" / "ai_repo_clean.py",
@@ -490,7 +495,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
                 command_specs(harness, "${input:focus}", "${input:ticket}")).items():
             write(root / ".github" / "prompts" / fname, content,
                   force, created, skipped)
-        for which in ("worker", "reviewer"):
+        for which in ("worker", "reviewer", "updater"):
             write_agent(root / ".github" / "agents" / f"{which}.agent.md",
                   render_copilot_agent(which), force, created, skipped)
         write(root / COPILOT_HOOKS_DIR / "ai_repo_clean.py",

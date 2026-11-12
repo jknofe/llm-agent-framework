@@ -128,7 +128,9 @@ task; do not work it here.
      evidence; tests written by the task pass together with the full
      suite. A failure found is a finding, not something to fix silently.
    Any task that ends up changing code takes the full test and lint
-   criterion, whatever its type.
+   criterion, whatever its type. It is met by one run on the final
+   code: a green CI run on the last push, or one local run; write it
+   so, not as a check after every step.
 
    Steps by type: for a `change`, the edits in order with their files.
    For a `bug` or an `investigation`, hypotheses, each with how to
@@ -151,6 +153,6 @@ Then, by type:
   plan and result in one go.
 - `change`, `bug`, `test`: stop here. Show the plan and wait: a plan
   the user can read and redirect before anything is done is what this
-  path is for. The work is `/task do <id>`, in a fresh session: the task
-  file is the handoff, so the work starts from it rather than from this
-  conversation.
+  path is for. The work is `/task do <id>`, in this session or a later
+  one: this session supervises, and the worker starts fresh from the task
+  file, so the work never depends on this conversation.
