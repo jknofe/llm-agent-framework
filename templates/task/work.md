@@ -21,8 +21,10 @@ files. If something you need is not in them, ask for it with a
    open re-planning in `## Steps`. Build what the steps and criteria ask,
    in the smallest way that meets them: no extra option, abstraction or
    check they do not call for. Verify a change in proportion to it: a
-   one-line edit gets one check, not a sweep. Write tests for logic only,
-   and never a change-detector test (`do.md` step 5): a YAML, JSON,
+   one-line edit gets one check, not a sweep. Every piece of logic you add
+   or change gets a test that stays in the suite (a run by hand is not
+   one); write tests for logic only, and never a change-detector test
+   (`do.md` step 5): a YAML, JSON,
    CMake or workflow file is checked by the tool that reads it, not by a
    test that compares its values. While you iterate, after a correction, and for a
    `review` report, run only the tests that cover the change and lint on

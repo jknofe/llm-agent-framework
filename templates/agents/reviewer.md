@@ -27,7 +27,8 @@ of rigor.
 Check:
 ${coverage}
 - Nothing outside the stated scope changed.
-- Stated edge cases of logic have tests.
+- Logic the work adds or changes has a test in the suite, and its stated
+  edge cases too; a run by hand recorded in Findings is not one.
 - Each new or changed assertion could fail for a reason other than
   someone editing, on purpose, the file it reads. A test that loads a
   declarative file (YAML, JSON, CMake, a workflow, a manifest) and

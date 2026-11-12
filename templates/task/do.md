@@ -77,7 +77,8 @@ round <n>` correction. Then answer by the report:
   If not, append `- <today> Supervisor round <n>: <each correction: file,
   what is wrong, what done looks like>`. A correction is only what keeps
   a Done-when criterion from being met or breaks something outside the
-  task, and a change-detector test (step 5), which goes back too.
+  task, and two test findings of step 5, which go back too: a
+  change-detector test, and new or changed logic without a test.
   Everything else the review finds (a nicer structure, an extra test,
   robustness beyond the criteria, style) is one line, `- <today> Not
   sent back: <finding>`, and stays there unless the user asks for it.
@@ -174,7 +175,8 @@ from corrections.
    file that task claimed is not yours to fix; record it in Findings and
    rerun once that task finishes.
    What gets a test: tests are for logic, code that computes, branches or
-   transforms. Declarative files only state what they are:
+   transforms, and every piece of logic the task adds or changes gets one
+   that stays in the suite; running it once by hand is not a test. Declarative files only state what they are:
    configuration, manifests, build files, CI workflows, package metadata,
    data (YAML, JSON, TOML, XML, CMake, Dockerfiles, workflow files and
    the like). Their check is the tool that reads them: a linter or schema

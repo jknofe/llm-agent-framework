@@ -5106,9 +5106,10 @@ ideally on the resolved plan.
 - The reviewer's coverage line asks for "the check that fits" (a test for
   logic, the consuming tool for a declarative file) instead of "a test in
   the diff", and a new check asks the "could it fail" question of every new
-  or changed assertion; a change-detector test is a finding. In `do.md` it
-  is the one review finding outside the criteria that goes back to the
-  worker rather than into a `Not sent back` line.
+  or changed assertion; a change-detector test is a finding. In `do.md`
+  it and new logic without a test are the two review findings outside the
+  criteria that go back to the worker rather than into a `Not sent back`
+  line.
 - AGENTS.md rule 2 says it for the direct path in two sentences. That puts
   copilot's AGENTS.md at 678 words; the owner accepted the cost, so
   `check_templates`' tripwire moves from 650 to 700.
@@ -5117,4 +5118,24 @@ ideally on the resolved plan.
 sources, need tooling per language. Existing change-detector tests in the
 projects are left to their owners.
 
-**Not run.** Layer 1. TC-D11 is the live check.
+**Live test, 2026-11-12 (TC-D11, Claude Code, Sonnet supervisor, Haiku
+worker, outside Herdr).** A task adding an `exporter` entry to
+`config/services.yaml` and a `next_free_port(services)` function.
+
+- Run 1, the rule as first written: no test read the YAML, `yamllint
+  config/` was its recorded check. But `next_free_port` got no test at all:
+  the worker ran it once by hand ("Check: ... gives 8002"), and the
+  supervisor filed the gap as `Not sent back: no unit test covers
+  next_free_port ... not a Done-when criterion`. The rule said what may be
+  tested, not that new logic must be.
+- Fix: logic the task adds or changes gets a test that stays in the suite,
+  a run by hand is not one (`do.md` step 5, `work.md`, the reviewer); and
+  new logic without a test is the second test finding that goes back to the
+  worker, beside a change-detector test.
+- Run 2: two tests for `next_free_port` with their own fixtures and
+  expected values from the requirement, one for the highest-not-last case
+  (9000, 8000 -> 9001); no test reads the YAML; `yamllint` recorded; the
+  inline review noted "tests cover logic"; 2 tests OK.
+
+Not run: the reviewer shown a planted change-detector test (TC-D11's third
+check), Copilot and OpenCode.
