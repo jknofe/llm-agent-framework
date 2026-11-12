@@ -77,9 +77,10 @@ round <n>` correction. Then answer by the report:
   If not, append `- <today> Supervisor round <n>: <each correction: file,
   what is wrong, what done looks like>`. A correction is only what keeps
   a Done-when criterion from being met or breaks something outside the
-  task. Everything else the review finds (a nicer structure, an extra
-  test, robustness beyond the criteria, style) is one line, `- <today>
-  Not sent back: <finding>`, and stays there unless the user asks for it.
+  task, and a change-detector test (step 5), which goes back too.
+  Everything else the review finds (a nicer structure, an extra test,
+  robustness beyond the criteria, style) is one line, `- <today> Not
+  sent back: <finding>`, and stays there unless the user asks for it.
 - `question`: answer it as the user would, from the Goal, the Notes, the
   criteria and what the user told you, in a `Supervisor round <n>` line.
   Between options, take the smallest one that meets the Goal; never the
@@ -172,6 +173,24 @@ from corrections.
    parallel, the suite also sees its unfinished edits: a failure in a
    file that task claimed is not yours to fix; record it in Findings and
    rerun once that task finishes.
+   What gets a test: tests are for logic, code that computes, branches or
+   transforms. Declarative files only state what they are:
+   configuration, manifests, build files, CI workflows, package metadata,
+   data (YAML, JSON, TOML, XML, CMake, Dockerfiles, workflow files and
+   the like). Their check is the tool that reads them: a linter or schema
+   validator, a build, a plan or dry run, a CI run, a start on the target.
+   Before you keep any test, ask: could this assertion fail for a reason
+   other than someone editing, on purpose, the file it reads? If not, it
+   is a change-detector test: do not write it. A test that loads a
+   declarative file and compares its values to literals is one. A
+   test's expected value comes from the requirement, never from the file
+   or the code under test. Code inside a declarative file (a workflow's
+   `run:` step, a CMake function with logic) and code that generates or
+   rewrites one is logic and gets tested like other code. A rule across
+   files that no linter expresses is a policy check, not a change
+   detector, and is kept: it asserts a rule, not a value (every database
+   module passes its storage size; the cleanup workflow removes every
+   deployment the deploy script registers).
 6. Review gate, sized to the result: before code ships (step 2) and
    before declaring the task done, check it against every Done-when
    criterion.

@@ -16,7 +16,7 @@ unanswerable while the content lived inside string literals:
   reference  does the /framework-update body name the path where the
              reference scaffold really holds its own copy of that skill?
   budget     does AGENTS.md stay a requirements file (CONCEPT sections 36
-             and 38): under 650 words before the generated section on every
+             and 38, 72): under 700 words before the generated section on every
              harness, and no artifact still describes the retired overview
              digest, the retired map leaf, or the commands v7.0 dropped?
 
@@ -214,9 +214,9 @@ def check_budget():
         text = content.render_agents_md("p", "d", harness)
         pre = text.split("<!-- BEGIN GENERATED")[0]
         words = len(pre.split())
-        if words > 650:
+        if words > 700:
             fail("budget", f"{harness} AGENTS.md is {words} words before the "
-                           "generated section (max 650)")
+                           "generated section (max 700)")
     for label, text in rendered_artifacts():
         # "module map" is not banned outright: the templates say "no module
         # map" to forbid one, and the update body has to name the retired

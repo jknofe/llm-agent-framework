@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-12, v12.9.** The framework rests on four premises, stated in
+**State: 2026-11-12, v12.10.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -218,6 +218,10 @@ Rules that came from failures, not from theory:
   on the changed files, and a review reads and runs nothing. On one task
   with a 4-minute suite the worker ran the full suite 34 times and the
   reviewer 10 times, about an hour between them (section 63).
+- Tests are for logic. A declarative file (configuration, manifest, build
+  file, CI workflow) is checked by the tool that reads it, never by a test
+  that compares its values to literals: such a change-detector test fails
+  only on an intended edit. Agents wrote them in two projects (section 72).
 - `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
@@ -295,9 +299,11 @@ default, a Herdr tab only when asked.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 534 words on claude, 532 on
-  opencode, 650 on copilot, where the balance is that harness's own CLI note.
-  `check_templates` fails above 650. The number is a tripwire against
+- `AGENTS.md` before the generated section: 562 words on claude, 560 on
+  opencode, 678 on copilot, where the balance is that harness's own CLI note.
+  `check_templates` fails above 700 (650 until 12.10, raised for the test
+  rule of section 72, which saves more tokens than it costs). The number is
+  a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
@@ -492,6 +498,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.10 (2026-11-12, tests are for logic, section 72. No change-detector
+tests for declarative files; their check is the tool that reads them. The
+reviewer asks of every assertion whether it could fail other than by an
+intended edit. AGENTS.md tripwire raised from 650 to 700 words.)
 
 v12.9 (2026-11-12, the OpenCode paths run live, section 71. The model
 check reaches worker and updater; an update makes one `.ai` commit and
@@ -5037,3 +5048,73 @@ Terra. The updater got `gpt-6.1-terra` as well.
 **Not run.** The reviewer on `gpt-6.1-sol`: both tasks were under the
 inline threshold, so no review reached it beyond its model check. Copilot's
 Herdr paths remain unrun.
+
+## 72. Tests are for logic (2026-11-12, v12.10)
+
+**Source.** The owner found a worker in tfa-rpu-ws had added
+`scripts/test_mpc3_snap_app.py` for task BEGLRV-11591, whose first test loads
+`snap/snapcraft.yaml` and asserts its fields against the literals just
+written (command, `daemon: simple`, `restart-delay: 2s`, five plugs, even
+the feature-branch pin in `fa_core_stack.repos`). The worker had reported
+"covering tests" on its own; no correction asked for them. The same pattern
+was found in DART: `dart-iac/tests/terraform/test_prefect_docker_proxy.py`
+(a JSON job template's env dict, value by value), `test_sagemaker_ecr.py`
+(regex for literal lines of `main.tf`), and two `test_deploy.py` tests that
+count strings in a workflow YAML. Two other DART tests read config and are
+worth keeping: `test_rds_storage_sizing.py` asserts a rule across every
+`modules/rds` caller, written after a prod outage (#945), and
+`test_the_cleanup_workflow_deletes_every_deployment_...` checks that a
+workflow and the deploy script agree.
+
+**Why the framework produced them.** `do.md` step 5 said to iterate with the
+tests that cover the change; a YAML change has none, so the agent wrote one.
+The reviewer's checklist asked that each criterion be "covered by a test in
+the diff or a result recorded in Findings", and since 12.1 the reviewer runs
+nothing, so a test in the diff was the cheap way through. Nothing said what
+a test is for.
+
+**Prior art (web, 2026-11-12).** Google's Testing on the Toilet,
+"Change-Detector Tests Considered Harmful" (2015): tests that fail when the
+code changes, not when behavior is wrong. *Software Engineering at Google*
+ch. 12: test behavior, not implementation. On agents: Matt Pocock (AIHero)
+calls these tautological tests; SpecStory states that a test catches a wrong
+answer only when its expected value comes from a source that stays fixed
+when the code changes, and cites a 2026 study of 86,156 agent test-file
+changes, 80.2% with weak or no real check of the result; digdir-agents
+issue #302 found a written rule was not enough and added the self-review
+question "could each new or changed assertion fail if the code under test
+broke?" and a separate reviewer. Simon Willison holds red/green TDD for
+agent code and has agents run what they build; red/green alone does not
+stop a config change-detector, which also fails first. IaC practice:
+unit-test the logic (templates, conditionals, generated values), check
+standards with linters and policy-as-code (tflint, Checkov, conftest),
+ideally on the resolved plan.
+
+**Change.**
+
+- `do.md` step 5, which the worker follows too, states what gets a test:
+  logic, code that computes, branches or transforms. A declarative file is
+  checked by the tool that reads it (linter or schema validator, build,
+  plan or dry run, CI, a start on the target). Before keeping a test: could
+  this assertion fail for a reason other than an intended edit of the file
+  it reads? If not, it is a change-detector test and is not written. The
+  expected value comes from the requirement. Code inside a declarative file
+  (`run:` steps) and code that rewrites one is logic. A rule across files
+  that no linter expresses is a policy check and stays.
+- `work.md` points at it in one sentence; `/task create` makes a criterion
+  about a declarative file name its consuming check, never "has a test".
+- The reviewer's coverage line asks for "the check that fits" (a test for
+  logic, the consuming tool for a declarative file) instead of "a test in
+  the diff", and a new check asks the "could it fail" question of every new
+  or changed assertion; a change-detector test is a finding. In `do.md` it
+  is the one review finding outside the criteria that goes back to the
+  worker rather than into a `Not sent back` line.
+- AGENTS.md rule 2 says it for the direct path in two sentences. That puts
+  copilot's AGENTS.md at 678 words; the owner accepted the cost, so
+  `check_templates`' tripwire moves from 650 to 700.
+
+**Not done.** Mutation testing and per-test labels, both suggested in the
+sources, need tooling per language. Existing change-detector tests in the
+projects are left to their owners.
+
+**Not run.** Layer 1. TC-D11 is the live check.

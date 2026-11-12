@@ -316,9 +316,10 @@ def render_reviewer_agent() -> str:
     checks whichever the task produced."""
     return render.fill(
         "agents/reviewer.md",
-        coverage=("- Every Done-when criterion is met and, where testable, "
-                  "covered by a test\n  in the diff or a result recorded "
-                  "in Findings.\n"
+        coverage=("- Every Done-when criterion is met and covered by the check "
+                  "that fits it,\n  in the diff or as a result recorded in "
+                  "Findings: a test for logic, the\n  consuming tool "
+                  "(linter, validator, build, CI) for a declarative file.\n"
                   "- Every claim in Outcome cites evidence in Findings, the "
                   "evidence was\n  produced in this task rather than "
                   "inferred, and the answer fits the\n  question in Goal. "

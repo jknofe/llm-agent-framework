@@ -30,7 +30,7 @@ notes carry real gotchas between sessions for almost nothing.
 
 **This framework does not make a session cheaper.** Every round measured
 more tokens, by design. It is economical about its own text (`AGENTS.md`
-under 650 words, everything else read on demand), which is a different
+under 700 words, everything else read on demand), which is a different
 claim. Untested: weak models, projects dense in non-derivable context, and
 sessions where a human answers the questions.
 
@@ -179,7 +179,9 @@ The full suite runs once per task, on the final code: a green CI run on the
 last push counts, otherwise the agent runs it locally before `done`. While
 working, and for each review round, only the tests that cover the change and
 lint on the changed files run, so a slow suite costs one run, not one per
-round. The review runs nothing: it judges the diff and the results the
+round. Tests are for logic: a declarative file (a manifest, a CI workflow, a
+build file, configuration) is checked by its linter, a build or CI, never by
+a test that compares its values to the literals just written. The review runs nothing: it judges the diff and the results the
 worker recorded.
 
 The framework is model-agnostic: it never picks a model. The session runs on

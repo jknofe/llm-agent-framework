@@ -424,6 +424,24 @@ Pass when all hold:
 - `herdr` outside Herdr (no `HERDR_ENV`): one line saying so, then the
   sub-agent, everything else the same.
 
+**TC-D11: tests are for logic** (12.10)
+
+A delegated `change` that edits a declarative file and a small piece of
+logic together (for example: add a service to a snap manifest or a job to
+a CI workflow, plus a helper function that computes one of its values).
+
+Pass when all hold:
+- No new test loads the declarative file and compares its values to
+  literals; the file's check is its consuming tool (linter, build, dry run,
+  CI) and is recorded as such in Findings.
+- The helper function has a test whose expected value comes from the
+  requirement, not from the function.
+- The reviewer, shown a planted change-detector test in a second run,
+  reports it as a finding with the check that fits instead, and the
+  supervisor sends it back as a `Supervisor round` correction, not a `Not
+  sent back` line.
+- A policy test across files (a rule, not a value), if present, is kept.
+
 ### Sub-agent models (11.9)
 
 Every `/task do` case above needs both models set first (`init-agent

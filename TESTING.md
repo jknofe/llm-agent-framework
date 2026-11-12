@@ -46,7 +46,7 @@ themselves.
    Asserts no orphaned template, every declared slot filled, no `${...}` left
    in any rendered artifact, rendered tools parse as Python, rendered settings
    parse as JSON, no em dash in a template (CONCEPT.md section 8), the same
-   command names on every harness, and AGENTS.md under 650
+   command names on every harness, and AGENTS.md under 700
    words before its generated section on every harness (CONCEPT.md
    section 36) with no leftover text describing the retired overview digest.
    `safe_substitute` leaves a mistyped slot in place silently, so the slot

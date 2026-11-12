@@ -27,7 +27,13 @@ of rigor.
 Check:
 ${coverage}
 - Nothing outside the stated scope changed.
-- Stated edge cases have tests.
+- Stated edge cases of logic have tests.
+- Each new or changed assertion could fail for a reason other than
+  someone editing, on purpose, the file it reads. A test that loads a
+  declarative file (YAML, JSON, CMake, a workflow, a manifest) and
+  compares its values to literals is a change-detector test: report it,
+  with the check that fits instead (its linter, a build, a dry run, CI).
+  A rule across files that no linter expresses is fine.
 - Only where the work touches build, CI, or packaging config you cannot run
   here: reason about whether it would actually build or run: required
   toolchain/compiler versions, and whether declared dependencies exist in the

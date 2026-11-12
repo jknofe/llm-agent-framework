@@ -112,7 +112,10 @@ task; do not work it here.
      or policy check for the ecosystem you touch would catch a
      wrong-but-working result (eslint, mypy/ruff, clippy, shellcheck,
      lintian, a schema validator), name it and make passing it a
-     criterion.
+     criterion. A criterion about a declarative file (a manifest, a
+     workflow, a build file, configuration) names the check that reads
+     it (the snap builds, `actionlint` passes, the plan shows the
+     change, the service starts on the target), never "has a test".
    - `bug`: the root cause stated with evidence; a reproduction (a
      failing test where the code allows one, exact steps otherwise)
      that fails before the fix and passes after; the full test and lint
