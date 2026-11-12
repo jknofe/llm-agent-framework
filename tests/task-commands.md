@@ -388,6 +388,10 @@ Pass when all hold:
 - (d) The worker reports `waiting` with the command that shows the end;
   the supervisor ends its turn with one line on what the task waits for,
   and runs no CI polling, merge or deploy of its own.
+- (e, 12.11) Redirect the design while a review of it runs: no new review
+  of the old design starts, its findings are not carried over, a `Dropped:`
+  line records it; and after the next report the continued worker re-reads
+  `work.md` (visible in its transcript).
 - Findings lines are short: `python3 .ai/agent/tools/tasks.py` flags no
   line over 300 characters for the task (12.7), long evidence sits in
   `.ai/tasks/<id>/evidence.md`, and there are no "no merge / no push"

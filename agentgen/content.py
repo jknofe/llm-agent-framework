@@ -528,7 +528,8 @@ def render_task_part(part: str, harness: str = "claude") -> str:
         "  session, continue it instead of opening another. Its report is\n"
         "  the `Worker round` line in the task file; continue it with\n"
         "  `herdr agent prompt <name> \"" +
-        herdr_prompt(harness, "worker", "Read Findings and go on.", True) +
+        herdr_prompt(harness, "worker",
+                     "Read work.md again, then Findings, and go on.", True) +
         "\"`.\n")
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                        worker_placement=placement)

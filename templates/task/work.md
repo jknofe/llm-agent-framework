@@ -13,8 +13,9 @@ files. If something you need is not in them, ask for it with a
 1. Read `.ai/notes.md`, then `.ai/tasks/<id>/task.md` whole. Read every
    `Supervisor round` line in Findings first: each is an answer or a
    correction to act on before any new step. When the supervisor
-   continues you after a report, read what it added to Findings since
-   your last report, then go on.
+   continues you after a report, read this file again first (its rules
+   may have changed since you started), then what was added to Findings
+   since your last report, then go on.
 2. Work the task by `${task_dir}/do.md` steps 2 to 5: the steps in order,
    findings recorded as they happen, each one short line with a pointer
    to its evidence (`do.md` step 3),

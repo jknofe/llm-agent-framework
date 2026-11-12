@@ -75,7 +75,10 @@ round <n>` correction. Then answer by the report:
   you checked>`; the worker then commits, pushes and opens the pull
   request. An accepted round is accepted as it is: attach no fixes to it.
   If not, append `- <today> Supervisor round <n>: <each correction: file,
-  what is wrong, what done looks like>`. A correction is only what keeps
+  what is wrong, what done looks like>`. A correction that tells the
+  worker to copy or follow something (a file, a sibling repository, a
+  pattern) names it only after you have read it: it exists and says what
+  you claim. A correction is only what keeps
   a Done-when criterion from being met or breaks something outside the
   task, and two test findings of step 5, which go back too: a
   change-detector test, and new or changed logic without a test.
@@ -116,7 +119,7 @@ round <n>` correction. Then answer by the report:
 
 Commit `.ai`, then continue the same worker with its context (its Herdr
 tab, or a sub-agent your harness can send a message to after it
-reported); tell it to read Findings and go on. Otherwise spawn a fresh worker with the same
+reported); tell it to read `work.md` again, then Findings, and go on. Otherwise spawn a fresh worker with the same
 prompt: the file holds everything it needs. When the worker reports
 `done` and you accept it, append `- <today> Delegation: <model>,
 <reports> report(s), <done|taken over|blocked>` to Findings, where
@@ -132,6 +135,11 @@ costs. Fold it into this task only when the user says so; then write it
 into Notes and the criteria with their words, and log it as `- <today>
 User round <n>: <the ask>`, so Findings show the user's changes apart
 from corrections.
+A user redirect of how something is built makes the old design moot,
+whether or not it changes a criterion: start no review of it, stop one
+that is still running where your harness can, and carry none of its
+findings into the new direction. Record it as `- <today> Dropped: the
+round <n> design, replaced by User round <m>`.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step

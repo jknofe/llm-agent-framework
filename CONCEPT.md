@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-12, v12.10.** The framework rests on four premises, stated in
+**State: 2026-11-12, v12.11.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -498,6 +498,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.11 (2026-11-12, follow the existing pattern, section 73. Create names
+the sibling a new part copies; a user redirect drops the old design and its
+pending review; a correction names a source only after reading it; a
+continued worker re-reads `work.md`.)
 
 v12.10 (2026-11-12, tests are for logic, section 72. No change-detector
 tests for declarative files; their check is the tool that reads them. The
@@ -5139,3 +5144,61 @@ worker, outside Herdr).** A task adding an `exporter` entry to
 
 Not run: the reviewer shown a planted change-detector test (TC-D11's third
 check), Copilot and OpenCode.
+
+## 73. Follow the existing pattern (2026-11-12, v12.11)
+
+**Source.** The owner found tfa-rpu-ws task `BEGLRV-11591-mpc3-event-logger-poc`
+right in result but slow: 21.6 h wall, 19 worker rounds, 13 Supervisor
+rounds, 6 reviews, 8 User rounds, for a 20-line snap integration
+(`447a8b7`, 2 files) on top of a 2,411-line PoC import into a new repo. A
+read-only sub-agent reconstructed it from the supervisor (Kimi K3), worker
+(gpt-6.1-sol) and three reviewer transcripts; the test churn, the 20-line
+result and the classifier denials were checked by hand.
+
+**Finding.** Agents were active 3.1 h; 15.8 h overnight, 72 min waiting for
+the user's push and 49 min for the create Q&A were idle. Of the active
+time:
+
+- S4, the snap integration, took three designs in 57 min: a custom native
+  wrapper (round 13), the `ros2` CLI direct (round 14), the sibling apps'
+  `ros2-wrapper.sh` (round 15). The create plan's S4 never said how the new
+  app launches, and the worker invented a wrapper instead of copying the
+  apps beside it.
+- The supervisor started the round-13 reviewer 7 s after the user's
+  redirect was queued and wrote its advice ("must NOT route through
+  ros2-wrapper.sh") into Findings; the worker built round 14 on it and the
+  user reversed it (User round 2).
+- A Supervisor round asked to mirror LICENSE files from a sibling repo
+  without checking; there were none, costing a worker round.
+- A change-detector test was edited ten times, run eight times and deleted
+  (12.10 covers it); it had also pushed the diff past the inline-review
+  size, forcing two reviewer runs.
+- The supervisor read `do.md` once and ran 12.6 throughout; 12.7's short
+  Findings never reached either agent, and 75 of 92 Findings lines exceed
+  300 characters. Once the worker re-read `work.md` under 12.10 (07:32), its
+  lines dropped to 167-349 characters.
+- External, not changed here: the auto-mode classifier denied nine
+  actions (pushes, repo creation, docker, delegation messages), and four
+  pushes went to the user; the user's CI-only validation added two
+  fix-push-CI cycles. The owner's `autoMode.environment` can name the
+  company GitHub orgs as trusted.
+
+A minimal path: about five worker rounds, one review, 1.5 h active.
+
+**Change.**
+
+- `create.md`: a step that adds something with siblings in the code names
+  the sibling it copies and how, from reading it (file and line); new parts
+  follow the existing pattern unless the user asks otherwise.
+- `do.md`: a user redirect of how something is built drops the old design:
+  no review of it starts, a running one stops where the harness can, none
+  of its findings carry over, and a `Dropped:` line records it (not a
+  `Review:` line, which `tasks.py` would count as the review `finish`
+  needs).
+- `do.md`: a correction that tells the worker to copy or follow something
+  names it only after the supervisor has read it.
+- `work.md` and the continue prompts (sub-agent and Herdr tab): a continued
+  worker re-reads `work.md` first, so rule changes reach a running task.
+
+**Not run.** Layer 1. A replay of this task in a sandbox (the owner's
+proposal of a no-push replay) is the live check.

@@ -136,6 +136,10 @@ task; do not work it here.
    so, not as a check after every step.
 
    Steps by type: for a `change`, the edits in order with their files.
+   A step that adds something with siblings in the code (another app in
+   the same manifest, a module beside others, a CI job beside others)
+   names the sibling it copies and how, from reading it (file and line):
+   new parts follow the existing pattern unless the user asks otherwise.
    For a `bug` or an `investigation`, hypotheses, each with how to
    confirm or rule it out (`- [ ] H1: <hypothesis> - check: <how>`),
    cheapest check first; the plan is expected to change as they
