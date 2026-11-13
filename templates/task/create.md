@@ -53,8 +53,8 @@ task; do not work it here.
    Take the type only from the user. If they did not name it, ask which
    of the four it is, and in the same message the tracker question of
    step 2 and the questions step 4 would ask for a `change`, `bug` or
-   `test`; then wait for the answer. One message, not a type question
-   first and the rest after. Do not infer it
+   `test`; then wait for the answer. Ask them together with `${ask_tool}`,
+   not a type question first and the rest after. Do not infer it
    from the title, the id, or the code: the type decides what done
    means, and that is the user's call. In an autonomous run with no
    human, pick one and record it as a numbered assumption in Notes, as

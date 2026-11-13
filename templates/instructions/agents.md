@@ -13,12 +13,14 @@ yourself.
 
 ## Execution
 - When a step needs no input, keep going; put status notes in the same
-  message as the next action. Stop and ask only when blocked on the user, when
+  message as the next action. Stop and ask, all questions together with
+  `${ask_tool}`, only when blocked on the user, when
   a workflow says so, or before anything destructive nobody asked for:
   deleting data, force-pushing the default branch, changing anything
   outside this repository.
 - An answered question is settled unless the user reopens it.
-- End every run with the headings Blocked on me, Changed, Found.
+- End every run with the headings Blocked on me (never an open question),
+  Changed, Found.
 
 ## Protocol
 1. Read `.ai/notes.md` first. Append durable knowledge there, telegraphic:

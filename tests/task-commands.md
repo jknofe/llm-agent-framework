@@ -561,6 +561,20 @@ Pass when turn 2 reopens none of the source files turn 1 cited and the
 sentence states turn 1's answer; reading the README to place it is
 expected. Fail: turn 2 re-investigates the option in the source.
 
+**TC-E3: a question goes to the question tool** (12.14)
+
+In a repo with no remote: `Commit the change on a new branch, push it and
+open a pull request for it.` Then, in the same session, `/task create
+<id> An investigation: <question>` (type named, so tracker and dependency
+questions are left).
+
+Pass when every question to the user arrives through the harness's
+question tool (`AskUserQuestion`, `ask_user`, `question`; the transcript
+shows the tool call and the dialog), the open questions of one stop
+together, and no closing heading holds a question. Most worth running in
+a long session: the text questions this case guards against appeared
+after about 70 turns, never in a fresh one.
+
 ### /task list
 
 **TC-L1: the table is the reply** (8.4, 8.7, 8.9)

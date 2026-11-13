@@ -8,7 +8,8 @@ and stands in for the user: it answers your questions, reviews your code
 before it ships, and decides. It does none of the work for you. You start
 with no conversation history, so everything you know comes from the
 files. If something you need is not in them, ask for it with a
-`question` report instead of guessing.
+`question` report instead of guessing, never with a question tool: the
+user talks to the supervisor, not to you.
 
 1. Read `.ai/notes.md`, then `.ai/tasks/<id>/task.md` whole. Read every
    `Supervisor round` line in Findings first: each is an answer or a

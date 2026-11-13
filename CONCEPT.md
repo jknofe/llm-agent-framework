@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-13, v12.13.** The framework rests on four premises, stated in
+**State: 2026-11-13, v12.14.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -507,6 +507,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.14 (2026-11-13, ask with the question tool, section 76. AGENTS.md
+names each harness's question tool and asks all open questions together;
+Blocked on me never holds a question; a worker asks its supervisor, never
+the user.)
 
 v12.13 (2026-11-13, the full suite is CI's, section 75. Every changed
 file gets the cheap check that reads only it: the tests covering changed
@@ -5306,3 +5311,47 @@ labeled `Review:` after its date counts now, for the `/task list` flag and
 for `finish done`; `test_tasks_table.py` covers it. In the owner's six
 projects this flags two done tasks of cleaning-dev-ops, both without a
 review record.
+
+## 76. Ask with the question tool (2026-11-13, v12.14)
+
+**Source.** The owner saw the OpenCode session in cleaning-dev-ops put its
+questions into the closing summary instead of asking. Its export (GPT-6.1
+Terra, 70 turns, framework 12.12) holds no call of OpenCode's `question`
+tool; three turns ended with the three headings and a question under
+Blocked on me: "May I retry the failed jobs ... once?", "Is
+`snapshot-artifactory-mirror` a suitable task ID?", and `/task create`'s
+tracker and dependency questions. Every harness has a dialog tool for
+this: `AskUserQuestion` on Claude Code, `ask_user` on Copilot (its
+changelog; one question per call), `question` on OpenCode 2.2.7 (in the
+binary, rendered by the TUI). The framework named none of them. Claude
+Code's and Copilot's own prompts push theirs; whether OpenCode's does for
+GPT models was not established.
+
+**Change.** AGENTS.md's stop-and-ask line asks all open questions together
+with the harness's tool (`ASK_TOOL` in `const.py`, the `${ask_tool}`
+slot), and the closing line says Blocked on me never holds an open
+question. `/task create` asks its type, tracker, criteria and dependency
+questions together with the tool, and `/task do`'s supervisor asks the
+user with it. `work.md` says a worker asks with a `question` report,
+never with a question tool: the user talks to the supervisor. Copilot's
+AGENTS.md stays under its 700 words (689) by folding the rule into the
+existing two lines instead of adding a third.
+
+**Run live (OpenCode 2.2.7, GPT-6.1 Terra, 12.13 against 12.14, fresh
+sessions).**
+
+- `/task create` with the type left open: both asked four questions in one
+  dialog.
+- `/task create` with the type named (the cleaning case): 12.14 asked the
+  similar-task, tracker and dependency questions in one dialog; 12.13 in two
+  dialogs, one after the other. Neither wrote a question as text.
+- Push and open a pull request with no remote: both asked for the
+  repository in a dialog.
+- A resume pointer with an unrelated request: both did the request and
+  mentioned the pointer under Found, no question asked; that is
+  the rule (offer, do not block).
+
+**What this does not show.** The fresh sessions did not reproduce the
+text questions on 12.13; they appeared only deep in a long session, so the
+measured gain is the batching. That the new lines stop the late-session
+habit is expected, not measured: TC-E3 in a long session decides it.

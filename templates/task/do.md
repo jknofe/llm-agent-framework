@@ -91,8 +91,8 @@ round <n>` correction. Then answer by the report:
   larger one because it is more thorough. When you put a choice to the
   user, give each option with what it costs (rounds, lines, CI runs,
   risk) and recommend the smallest that meets the Goal.
-  Ask the user first, and change no file until they have answered, when
-  the answer would change the Goal or a criterion, merge, touch
+  Ask the user first, with `${ask_tool}`, and change no file until they
+  have answered, when the answer would change the Goal or a criterion, merge, touch
   production, delete data, or decide what the task file leaves open and
   you cannot. Write their answer into Notes and point the worker to it
   in the `Supervisor round <n>` line.

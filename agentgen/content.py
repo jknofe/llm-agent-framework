@@ -37,6 +37,7 @@ def render_agents_md(project_name: str, description: str = "",
     if harness == "copilot":
         cli_note = render.load("instructions/fragments/copilot/cli-note.md")
     return render.fill("instructions/agents.md",
+                       ask_tool=ASK_TOOL[harness],
                        cli_note=cli_note,
                        entry_note=entry_note,
                        gen_begin=GEN_BEGIN,
@@ -532,6 +533,7 @@ def render_task_part(part: str, harness: str = "claude") -> str:
                      "Read work.md again, then Findings, and go on.", True) +
         "\"`.\n")
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
+                       ask_tool=ASK_TOOL[harness],
                        worker_placement=placement)
 
 def render_tool_tasks() -> str:
