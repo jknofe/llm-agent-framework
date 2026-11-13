@@ -105,21 +105,23 @@ task; do not work it here.
      exists, filing declined).
 
    Done-when criteria by type:
-   - `change`: the user's criteria, plus one that the project's full
-     test and lint commands pass, never only the test the task names: a
-     fix that satisfies one test and breaks another is not done, and a
-     criterion that names one test invites exactly that. Where a linter
+   - `change`: the user's criteria, plus one that the tests covering
+     the change and lint on the changed files pass, never only the test
+     the task names: a fix that satisfies one test and breaks another is
+     not done, and a criterion that names one test invites exactly that. Where a linter
      or policy check for the ecosystem you touch would catch a
      wrong-but-working result (eslint, mypy/ruff, clippy, shellcheck,
      lintian, a schema validator), name it and make passing it a
      criterion. A criterion about a declarative file (a manifest, a
-     workflow, a build file, configuration) names the check that reads
-     it (the snap builds, `actionlint` passes, the plan shows the
-     change, the service starts on the target), never "has a test".
+     workflow, a build file, configuration) names the linter or validator
+     that reads that file (`actionlint` passes, the schema validates,
+     `terraform validate` passes), never "has a test", and never a
+     build, a CI run or a start on the target unless the user asks for
+     it.
    - `bug`: the root cause stated with evidence; a reproduction (a
      failing test where the code allows one, exact steps otherwise)
-     that fails before the fix and passes after; the full test and lint
-     commands pass. If the user wants the cause only, or the fix is out
+     that fails before the fix and passes after; the covering tests and
+     lint pass. If the user wants the cause only, or the fix is out
      of reach, replace the fix criteria with a write-up another person
      could act on.
    - `investigation`: the question answered in Outcome, every claim
@@ -128,12 +130,12 @@ task; do not work it here.
      naming what was ruled out and what would decide it. No code change
      unless the user asks for one.
    - `test`: every named scenario run and its result recorded with
-     evidence; tests written by the task pass together with the full
-     suite. A failure found is a finding, not something to fix silently.
-   Any task that ends up changing code takes the full test and lint
-   criterion, whatever its type. It is met by one run on the final
-   code: a green CI run on the last push, or one local run; write it
-   so, not as a check after every step.
+     evidence; tests written by the task pass with the tests that cover the
+     same code. A failure found is a finding, not something to fix silently.
+   Any task that ends up changing code takes the covering tests and
+   lint criterion, whatever its type, met on the final code. The full
+   suite is never a criterion or a step unless the user asks for it: CI
+   or the user's run on the target covers it.
 
    Steps by type: for a `change`, the edits in order with their files.
    A step that adds something with siblings in the code (another app in

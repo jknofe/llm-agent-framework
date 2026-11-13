@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-12, v12.12.** The framework rests on four premises, stated in
+**State: 2026-11-13, v12.13.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -126,14 +126,16 @@ The type decides what done means:
 
 | `type` | Done when |
 |---|---|
-| `change` | the user's criteria, plus the full test and lint suite green |
-| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; suite green. Or, cause only, a write-up another person can act on |
+| `change` | the user's criteria, plus the tests covering the change and lint on the changed files green |
+| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; covering tests green. Or, cause only, a write-up another person can act on |
 | `investigation` | the question in Goal answered, every claim citing its evidence, or an explicit "inconclusive" naming what was ruled out. Covers research |
-| `test` | every named scenario run and its result recorded with evidence; new tests pass with the full suite |
+| `test` | every named scenario run and its result recorded with evidence; new tests pass with the tests that cover the same code |
 
-Any task that ends up changing code takes the full-suite criterion,
-whatever its type, met by one run on the final code: a green CI run on the
-last push, or one local run before `done` (section 63). For bugs and investigations the steps are hypotheses,
+Any task that ends up changing code takes the covering-tests criterion,
+whatever its type: every test that exercises the changed code, not only one
+the task names, and lint on the changed files, green on the final code. The
+full suite is not the framework's: CI on a push or the owner's run on the
+target covers it (section 75). For bugs and investigations the steps are hypotheses,
 each with how to confirm or rule it out, and the plan is expected to change.
 
 `/task do <id>` works the steps, appends each finding to the task file as it
@@ -210,23 +212,30 @@ commits `.ai` with the relative `git -C .ai` (section 44).
 
 Rules that came from failures, not from theory:
 
-- A code-changing task always includes a criterion that the project's full
-  test and lint commands pass. A criterion naming a single test is what
-  produced the one correctness loss the framework has ever caused (Part II,
-  sequence round). The full suite runs once per task, on the final code;
-  iterating and each review round take only the covering tests and lint
-  on the changed files, and a review reads and runs nothing. On one task
-  with a 4-minute suite the worker ran the full suite 34 times and the
-  reviewer 10 times, about an hour between them (section 63).
+- A code-changing task always includes a criterion that the tests
+  covering the change, every one that exercises the changed code, and lint
+  on the changed files pass, never only the test the task names. A
+  criterion naming a single test is what produced the one correctness loss
+  the framework has ever caused (Part II, sequence round): the fix passed
+  the named test and failed the others on the same code. The full suite is
+  not run by the framework at all. On one task with a 4-minute suite the
+  worker ran it 34 times and the reviewer 10 times (section 63); 12.1 cut
+  that to one run, and section 75 drops the last one, because in the
+  owner's projects CI on the push or the owner's own run on the target
+  already covers it. What that leaves uncaught inside the session, a break
+  in code the change does not touch, CI catches before a merge. A review
+  reads and runs nothing.
 - Tests are for logic. A declarative file (configuration, manifest, build
-  file, CI workflow) is checked by the tool that reads it, never by a test
-  that compares its values to literals: such a change-detector test fails
-  only on an intended edit. Agents wrote them in two projects (section 72).
+  file, CI workflow) is checked by its linter or validator on that file,
+  never by a test that compares its values to literals: such a
+  change-detector test fails only on an intended edit. Agents wrote them in
+  two projects (section 72). A build, a CI run, a plan or a start on the
+  target is CI's or the owner's, like the full suite (section 75).
 - `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
 - Neither command ever starts on its own. The default path is direct: read,
-  do the task, run the full suite if code changed, note what is durable,
+  do the task, run the covering tests if code changed, note what is durable,
   commit `.ai`.
 
 `status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
@@ -360,10 +369,10 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
-2. When code changed, tests and lint must pass, the whole suite, not only the
-   test a task names, once on the final code (a green CI run counts).
-   Done = checks green. While iterating, the covering tests suffice; docs
-   or comments only need no suite run. When the task is a question,
+2. When code changed, the tests that cover the change, not only the one a
+   task names, and lint on the changed files must pass on the final code.
+   Done = those checks green. The full suite is CI's or the owner's, not
+   the agent's (section 75); docs or comments only need no test run. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
@@ -498,6 +507,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.13 (2026-11-13, the full suite is CI's, section 75. Every changed
+file gets the cheap check that reads only it: the tests covering changed
+logic plus lint, a linter or validator for a declarative file. No agent
+runs the full suite, a build, CI or a start on the target unless the task
+asks for it. `tasks.py` counts only a `Review:` line as the review
+record.)
 
 v12.12 (2026-11-12, a workaround is not a pattern, section 74. A
 workaround for a denied permission is recorded with its cause and the
@@ -5228,3 +5244,65 @@ supervisor does not retry a denied action itself, which auto mode treats
 as a bypass.
 
 **Not run.** Layer 1.
+
+## 75. The full suite is CI's (2026-11-13, v12.13)
+
+**Source.** Reviewing the test rules as one list (which check runs for
+which file type, and when), the owner dropped the full-suite run: in nearly
+all their projects CI on the push or their own final test on the target
+covers it, and that is not the framework's job. Only the rule on what
+changed stays.
+
+**Change.** A code change is checked by the tests that cover it, every test
+that exercises the changed code and not only one a criterion names, and
+lint on the changed files, recorded on the final code. No agent runs the
+project's full test command: not the worker before `done`, not the
+supervisor, not the reviewer, and `/task create` writes no full-suite
+criterion or step unless the user asks for one. When a step waits for CI,
+its result is recorded and the supervisor reads its status, as before.
+Templates: `agents.md` rule 2, `do.md` step 2's `done` and step 5,
+`work.md` step 2, `create.md`'s criteria by type, `reviewer.md`.
+
+The same holds for declarative files, asked as a follow-up: section 72 gave
+them "the tool that reads them", which listed a build, a plan, a CI run and
+a start on the target next to a linter, and `create.md`'s examples ("the
+snap builds", "the service starts on the target") made such a run a
+criterion. Those are the same whole-project checks the owner keeps for CI
+and the target. A changed declarative file now gets its linter or
+validator on that file (`actionlint`, `yamllint`, a schema validator,
+`hadolint`, `terraform validate`); a build, CI run, plan or start on the
+target runs only when the user writes it into the task. The reviewer's
+coverage line and its change-detector advice name a linter or validator
+only.
+
+**The measurement this has to answer.** Part I listed the full-suite
+criterion among the rules that came from a failure: the 2026-09-14
+sequence round lost correctness on a criterion that named a single test.
+That failure was the narrowing, a fix that passed the named test and broke
+others on the same code, and the covering-tests rule still forbids it: the
+criterion names every test that exercises the changed code, never one. What
+the full run added beyond that was a break in code the change does not
+touch; in the owner's projects CI runs on every push and blocks the merge,
+and changes that only show on the target are tested there by the owner. The
+cost side is measured: section 63's 4-minute suite was run 44 times in one
+task before 12.1 cut it to one.
+
+**Left open.** A project with neither CI nor a test run of its own now
+learns of such a break later than before. No such project was seen.
+
+**Run live (OpenCode 2.2.7, 2026-11-13).** The calc benchmark again, main
+session and worker on GPT-6.1 Sol, GPT-6.1 Terra and GPT-6 Luna, reviewer
+GPT-6.1 Sol, with an unrelated 45-second test beside the covering one and a
+CI workflow step. None of the nine agent sessions ran the full suite or
+the slow test; every worker ran `python3 -m unittest tests.test_calc`,
+`ruff` on the changed Python files and `actionlint` on the workflow, and no
+test reads the workflow. All three results pass the hidden suite.
+
+**Also found, and fixed.** `tasks.py` took any Findings line containing
+"review" for the gate's record, and a worker's report status is `review`
+(`Worker round 1: review: ...`), so a delegated task always passed: the
+Luna run finished `done` without a `Review:` line, unflagged. Only a line
+labeled `Review:` after its date counts now, for the `/task list` flag and
+for `finish done`; `test_tasks_table.py` covers it. In the owner's six
+projects this flags two done tasks of cleaning-dev-ops, both without a
+review record.

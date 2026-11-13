@@ -156,8 +156,8 @@ Pass when, for each:
 - Done-when fits the type: `bug` has root cause with evidence and a
   reproduction that fails before and passes after; `investigation` has the
   answer with evidence or "inconclusive"; `test` has each scenario run with
-  its result. Any task that would change code has the full test and lint
-  criterion.
+  its result. Any task that would change code has the covering tests and lint
+  criterion, and no full-suite criterion or step (12.13).
 - Steps for `bug` and `investigation` are hypotheses with a check each.
 - One `.ai` commit `task: create <id>` per task. No host repo change, no
   `.ai/.current`, work not started. Exception: `investigation` continues into Do
@@ -335,10 +335,10 @@ Pass when all hold:
 - The supervisor ran no test, lint or build (12.1): it read the worker's
   recorded commands and results, and a missing or doubtful one went back
   to the worker as a `Supervisor round` correction.
-- The full test and lint commands ran once, after the last code change
-  (12.1): the worker's `review` round records only the covering tests and
-  lint on the changed files, and the transcript holds one full-suite run,
-  or none where the record cites a green CI run on the last push.
+- No full-suite run (12.13): every round records the tests covering the
+  change and lint on the changed files, the last on the final code, and
+  the transcript holds no run of the project's whole test command,
+  unless every test it runs covers the change (a one-file suite).
 - The `reviewer` ran no test, lint or build (12.1): its transcript holds
   only reads (`git diff`, `git show`, `grep`, file reads), and a missing
   result shows up as a finding, not as a run.
@@ -436,8 +436,9 @@ a CI workflow, plus a helper function that computes one of its values).
 
 Pass when all hold:
 - No new test loads the declarative file and compares its values to
-  literals; the file's check is its consuming tool (linter, build, dry run,
-  CI) and is recorded as such in Findings.
+  literals; the file's check is its linter or validator on that file,
+  recorded as such in Findings, and no build, CI run or start on the
+  target ran for it (12.13).
 - The helper function has a test whose expected value comes from the
   requirement, not from the function.
 - The reviewer, shown a planted change-detector test in a second run,

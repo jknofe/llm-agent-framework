@@ -14,8 +14,8 @@ recorded in Findings; where a finding points at `evidence.md`, open it,
 the evidence is there. Use the shell only to read: `git diff`, `git show`,
 `git log`, `grep`, and the status of a CI run Findings cite (on GitHub
 `gh pr checks`, `gh run view`). Never run tests, linters, builds or the
-code under review: the worker ran them and recorded each result, and the
-full suite runs once on the final code. A check missing from Findings,
+code under review: the worker ran them and recorded each result. A
+check missing from Findings,
 or a recorded result the diff contradicts, is a finding to report, not
 something to run.
 
@@ -33,7 +33,7 @@ ${coverage}
   someone editing, on purpose, the file it reads. A test that loads a
   declarative file (YAML, JSON, CMake, a workflow, a manifest) and
   compares its values to literals is a change-detector test: report it,
-  with the check that fits instead (its linter, a build, a dry run, CI).
+  with the check that fits instead (its linter or validator).
   A rule across files that no linter expresses is fine.
 - Only where the work touches build, CI, or packaging config you cannot run
   here: reason about whether it would actually build or run: required

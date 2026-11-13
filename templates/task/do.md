@@ -96,16 +96,14 @@ round <n>` correction. Then answer by the report:
   production, delete data, or decide what the task file leaves open and
   you cannot. Write their answer into Notes and point the worker to it
   in the `Supervisor round <n>` line.
-- `done`: check the evidence for every step, and that the one full test
-  and lint run (step 5) is recorded and ran on the final code. When it
-  was a CI run, read its status yourself (on GitHub `gh pr checks <n>`
-  or `gh run view <id>`): reading is not running, and a CI result is the
-  one claim you can check without a run. Without CI the worker's
-  recorded result line is the only record; take it as given. If
+- `done`: check the evidence for every step, and that the covering
+  tests and lint (step 5) are recorded and ran on the final code; take
+  the worker's result line as given. When a step waited for CI, read
+  its status yourself (on GitHub `gh pr checks <n>` or `gh run view
+  <id>`): reading is not running. Never ask for the full suite. If
   something is missing or wrong, append a `Supervisor round <n>`
   correction. If code changed after the last accepted review, run the
-  gate again first. A `review` report needs only the covering tests:
-  do not ask for the full suite before then.
+  gate again first.
 - `stuck`, or the same correction needed a third time: ask the user how
   to go on: another round with a new direction, you taking over, or
   `blocked`. Take over only when they say so, and say so in one line
@@ -180,13 +178,12 @@ a bypass.
    <reason in one line>`: it sets `status: blocked` and the `blocked:`
    line `/task list` shows, and keeps the pointer. `tasks.py start`
    clears the block when the task resumes.
-5. Whenever the task changes code, whatever its type: iterate with the
-   tests that cover the change and lint on the changed files; that is
-   also all a review round needs. Run the project's full test and lint
-   commands once, on the final code, not after every change: a green CI
-   run on the last push is that run; without CI, run them locally after
-   the last code change, before `done`. While a task runs in
-   parallel, the suite also sees its unfinished edits: a failure in a
+5. Whenever the task changes code, whatever its type: run the tests
+   that cover the change, every one that exercises the changed code and
+   not only one a criterion names, and lint on the changed files; that
+   is also all a review round needs. The project's full suite is not the
+   task's: CI on a push or the user's run on the target covers it. While
+   a task runs in parallel, those tests also see its unfinished edits: a failure in a
    file that task claimed is not yours to fix; record it in Findings and
    rerun once that task finishes.
    What gets a test: tests are for logic, code that computes, branches or
@@ -194,8 +191,10 @@ a bypass.
    that stays in the suite; running it once by hand is not a test. Declarative files only state what they are:
    configuration, manifests, build files, CI workflows, package metadata,
    data (YAML, JSON, TOML, XML, CMake, Dockerfiles, workflow files and
-   the like). Their check is the tool that reads them: a linter or schema
-   validator, a build, a plan or dry run, a CI run, a start on the target.
+   the like). Their check is the linter or validator that reads the changed file
+   (`actionlint`, `yamllint`, a schema validator, `hadolint`, `terraform
+   validate`). A build, a CI run, a plan or a start on the target is CI's
+   or the user's, never the task's unless the user asks for it.
    Before you keep any test, ask: could this assertion fail for a reason
    other than someone editing, on purpose, the file it reads? If not, it
    is a change-detector test: do not write it. A test that loads a
@@ -240,7 +239,7 @@ a bypass.
    - A review reads and runs nothing: no test, lint, build or run of the
      code. It judges the diff, the task file, the results recorded in
      Findings and the `evidence.md` a finding points at; a missing or contradicted result is a finding for the
-     worker, and the full suite runs once by step 5.
+     worker.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Gaps that affect
