@@ -37,6 +37,7 @@ def render_agents_md(project_name: str, description: str = "",
     if harness == "copilot":
         cli_note = render.load("instructions/fragments/copilot/cli-note.md")
     return render.fill("instructions/agents.md",
+                       ask_tool=ASK_TOOL[harness],
                        cli_note=cli_note,
                        entry_note=entry_note,
                        gen_begin=GEN_BEGIN,
@@ -316,9 +317,10 @@ def render_reviewer_agent() -> str:
     checks whichever the task produced."""
     return render.fill(
         "agents/reviewer.md",
-        coverage=("- Every Done-when criterion is met and, where testable, "
-                  "covered by a test\n  in the diff or a result recorded "
-                  "in Findings.\n"
+        coverage=("- Every Done-when criterion is met and covered by the check "
+                  "that fits it,\n  in the diff or as a result recorded in "
+                  "Findings: a test for logic, its\n  linter or validator "
+                  "for a declarative file.\n"
                   "- Every claim in Outcome cites evidence in Findings, the "
                   "evidence was\n  produced in this task rather than "
                   "inferred, and the answer fits the\n  question in Goal. "
@@ -356,7 +358,7 @@ def render_worker_agent() -> str:
     return render.fill(
         "agents/worker.md",
         desc=("Works the steps of a task for /task do, which supervises it. "
-              "Spawned by /task do only."),
+              "Spawned by /task do and by init-agent's model check only."),
         task_dir=TASK_DIR)
 
 def render_opencode_worker() -> str:
@@ -374,7 +376,7 @@ def render_updater_agent(harness: str) -> str:
         "agents/updater.md",
         desc=("Runs this project's framework update for /framework-update, "
               "which hands it over and checks the result. Spawned by "
-              "/framework-update only."),
+              "/framework-update and by init-agent's model check only."),
         update_file=UPDATE_FILES[harness])
 
 def render_opencode_updater() -> str:
@@ -527,9 +529,11 @@ def render_task_part(part: str, harness: str = "claude") -> str:
         "  session, continue it instead of opening another. Its report is\n"
         "  the `Worker round` line in the task file; continue it with\n"
         "  `herdr agent prompt <name> \"" +
-        herdr_prompt(harness, "worker", "Read Findings and go on.", True) +
+        herdr_prompt(harness, "worker",
+                     "Read work.md again, then Findings, and go on.", True) +
         "\"`.\n")
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
+                       ask_tool=ASK_TOOL[harness],
                        worker_placement=placement)
 
 def render_tool_tasks() -> str:

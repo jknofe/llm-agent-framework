@@ -13,12 +13,14 @@ yourself.
 
 ## Execution
 - When a step needs no input, keep going; put status notes in the same
-  message as the next action. Stop and ask only when blocked on the user, when
+  message as the next action. Stop and ask, all questions together with
+  `${ask_tool}`, only when blocked on the user, when
   a workflow says so, or before anything destructive nobody asked for:
   deleting data, force-pushing the default branch, changing anything
   outside this repository.
 - An answered question is settled unless the user reopens it.
-- End every run with the headings Blocked on me, Changed, Found.
+- End every run with the headings Blocked on me (never an open question),
+  Changed, Found.
 
 ## Protocol
 1. Read `.ai/notes.md` first. Append durable knowledge there, telegraphic:
@@ -27,9 +29,12 @@ yourself.
    `.ai/notes/` that a task needs. When the user corrects you, or a check
    fails for a reason the code does not explain, record it there before
    moving on.
-2. Code changed: iterate on the covering tests; before done, the whole test
-   and lint suite, not one named test, passes once on the final code
-   (green CI counts). Docs or comments only: no suite run. A question:
+2. Changed files: before done, each passes its own check. Logic: the
+   tests that exercise it, not only one a task names, and lint. Tests are
+   for logic. A declarative file (YAML, JSON, CMake, a workflow): its
+   linter or validator, never a test that compares its values. The full
+   suite, builds, CI and the target are the user's, not yours. Docs or
+   comments only: no test run. A question:
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
 3. After changing `.ai/`, commit it in its own repo: `git -C .ai add <paths

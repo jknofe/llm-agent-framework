@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-11, v12.8.** The framework rests on four premises, stated in
+**State: 2026-11-13, v12.14.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -126,14 +126,16 @@ The type decides what done means:
 
 | `type` | Done when |
 |---|---|
-| `change` | the user's criteria, plus the full test and lint suite green |
-| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; suite green. Or, cause only, a write-up another person can act on |
+| `change` | the user's criteria, plus the tests covering the change and lint on the changed files green |
+| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; covering tests green. Or, cause only, a write-up another person can act on |
 | `investigation` | the question in Goal answered, every claim citing its evidence, or an explicit "inconclusive" naming what was ruled out. Covers research |
-| `test` | every named scenario run and its result recorded with evidence; new tests pass with the full suite |
+| `test` | every named scenario run and its result recorded with evidence; new tests pass with the tests that cover the same code |
 
-Any task that ends up changing code takes the full-suite criterion,
-whatever its type, met by one run on the final code: a green CI run on the
-last push, or one local run before `done` (section 63). For bugs and investigations the steps are hypotheses,
+Any task that ends up changing code takes the covering-tests criterion,
+whatever its type: every test that exercises the changed code, not only one
+the task names, and lint on the changed files, green on the final code. The
+full suite is not the framework's: CI on a push or the owner's run on the
+target covers it (section 75). For bugs and investigations the steps are hypotheses,
 each with how to confirm or rule it out, and the plan is expected to change.
 
 `/task do <id>` works the steps, appends each finding to the task file as it
@@ -210,19 +212,30 @@ commits `.ai` with the relative `git -C .ai` (section 44).
 
 Rules that came from failures, not from theory:
 
-- A code-changing task always includes a criterion that the project's full
-  test and lint commands pass. A criterion naming a single test is what
-  produced the one correctness loss the framework has ever caused (Part II,
-  sequence round). The full suite runs once per task, on the final code;
-  iterating and each review round take only the covering tests and lint
-  on the changed files, and a review reads and runs nothing. On one task
-  with a 4-minute suite the worker ran the full suite 34 times and the
-  reviewer 10 times, about an hour between them (section 63).
+- A code-changing task always includes a criterion that the tests
+  covering the change, every one that exercises the changed code, and lint
+  on the changed files pass, never only the test the task names. A
+  criterion naming a single test is what produced the one correctness loss
+  the framework has ever caused (Part II, sequence round): the fix passed
+  the named test and failed the others on the same code. The full suite is
+  not run by the framework at all. On one task with a 4-minute suite the
+  worker ran it 34 times and the reviewer 10 times (section 63); 12.1 cut
+  that to one run, and section 75 drops the last one, because in the
+  owner's projects CI on the push or the owner's own run on the target
+  already covers it. What that leaves uncaught inside the session, a break
+  in code the change does not touch, CI catches before a merge. A review
+  reads and runs nothing.
+- Tests are for logic. A declarative file (configuration, manifest, build
+  file, CI workflow) is checked by its linter or validator on that file,
+  never by a test that compares its values to literals: such a
+  change-detector test fails only on an intended edit. Agents wrote them in
+  two projects (section 72). A build, a CI run, a plan or a start on the
+  target is CI's or the owner's, like the full suite (section 75).
 - `/task do` records a failing test as pre-existing only after it fails on
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
 - Neither command ever starts on its own. The default path is direct: read,
-  do the task, run the full suite if code changed, note what is durable,
+  do the task, run the covering tests if code changed, note what is durable,
   commit `.ai`.
 
 `status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
@@ -295,9 +308,11 @@ default, a Herdr tab only when asked.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 534 words on claude, 532 on
-  opencode, 650 on copilot, where the balance is that harness's own CLI note.
-  `check_templates` fails above 650. The number is a tripwire against
+- `AGENTS.md` before the generated section: 562 words on claude, 560 on
+  opencode, 678 on copilot, where the balance is that harness's own CLI note.
+  `check_templates` fails above 700 (650 until 12.10, raised for the test
+  rule of section 72, which saves more tokens than it costs). The number is
+  a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
@@ -354,10 +369,10 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 
 
 1. Read `.ai/notes.md`. Open only the leaves the task needs.
-2. When code changed, tests and lint must pass, the whole suite, not only the
-   test a task names, once on the final code (a green CI run counts).
-   Done = checks green. While iterating, the covering tests suffice; docs
-   or comments only need no suite run. When the task is a question,
+2. When code changed, the tests that cover the change, not only the one a
+   task names, and lint on the changed files must pass on the final code.
+   Done = those checks green. The full suite is CI's or the owner's, not
+   the agent's (section 75); docs or comments only need no test run. When the task is a question,
    done = an answer citing its evidence, or "inconclusive" with what was
    ruled out.
 3. Commit `.ai` in its own repo after changing it. Never commit `.ai` content
@@ -492,6 +507,36 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.14 (2026-11-13, ask with the question tool, section 76. AGENTS.md
+names each harness's question tool and asks all open questions together;
+Blocked on me never holds a question; a worker asks its supervisor, never
+the user.)
+
+v12.13 (2026-11-13, the full suite is CI's, section 75. Every changed
+file gets the cheap check that reads only it: the tests covering changed
+logic plus lint, a linter or validator for a declarative file. No agent
+runs the full suite, a build, CI or a start on the target unless the task
+asks for it. `tasks.py` counts only a `Review:` line as the review
+record.)
+
+v12.12 (2026-11-12, a workaround is not a pattern, section 74. A
+workaround for a denied permission is recorded with its cause and the
+normal way is tried again, instead of standing for the rest of the task.)
+
+v12.11 (2026-11-12, follow the existing pattern, section 73. Create names
+the sibling a new part copies; a user redirect drops the old design and its
+pending review; a correction names a source only after reading it; a
+continued worker re-reads `work.md`.)
+
+v12.10 (2026-11-12, tests are for logic, section 72. No change-detector
+tests for declarative files; their check is the tool that reads them. The
+reviewer asks of every assertion whether it could fail other than by an
+intended edit. AGENTS.md tripwire raised from 650 to 700 words.)
+
+v12.9 (2026-11-12, the OpenCode paths run live, section 71. The model
+check reaches worker and updater; an update makes one `.ai` commit and
+writes no note, and step 0 checks both.)
 
 v12.8 (2026-11-11, review fixes for 12.2 to 12.7, section 70. OpenCode's
 Herdr tab starts plain and spawns the role as a sub-agent; the update
@@ -4980,3 +5025,333 @@ the read-only allowlist.
 other two keep theirs. `test_tasks_table.py`: a long `Supervisor round`
 line and a done task's long line are not flagged. Both sets fail on 12.7.
 
+## 71. The OpenCode paths, run live (2026-11-12, v12.9)
+
+**Source.** After 12.8 the owner asked what was left for OpenCode and had it
+tested in a new Herdr tab, worker `github-copilot/gpt-6.1-terra`, reviewer
+`github-copilot/gpt-6.1-sol`. OpenCode 2.2.7 (`~/.opencode/bin`, started
+through the owner's `opencode` shell function and launcher), a scratch
+stdlib-Python project, the supervisor session on the default model, GPT-6.1
+Terra. The updater got `gpt-6.1-terra` as well.
+
+**Found and fixed.**
+
+- `init-agent --models` failed for worker and updater: the parent refused to
+  spawn them, quoting "Spawned by /task do only"; a sentence in the test
+  prompt did not outweigh the description. The descriptions now name
+  init-agent's model check as allowed. Then the sub-agents followed their
+  own contract instead of replying: the worker asked for a task id, the
+  updater started a real update and wrote a backup. The test prompt now
+  says it is a model check and not a task, and both bodies give that check
+  the one-word reply and nothing else. All three roles then passed, the
+  model read back from each sub-agent's session.
+- The updater in a Herdr tab (`gpt-6.1-terra`) wrote a note into
+  `.ai/notes.md` (and shifted a line of the stub's comment) and split the
+  update over three `.ai` commits. Step 0's check read only the last commit
+  message and passed it. The body now says: one `.ai` commit for the whole
+  update, no note and no task edit beyond a named migration; step 0 notes
+  the start commit and checks `log <start>..HEAD` and `diff <start> --
+  notes.md notes tasks`.
+
+**Passed, live.**
+
+- `/framework-models`: the gate, the setup line and `opencode models` (62
+  names), verbatim, no name suggested.
+- `/task do calc-ops`: one `worker` sub-agent, its session on
+  `github-copilot/gpt-6.1-terra`; `Worker round 1: done`, an inline review,
+  `Delegation:` naming the model, `finish done`, 3 tests OK; every Findings
+  line short, no flag. The supervisor's one edit was its own Review and
+  Outcome in the task file.
+- `/task do calc-ops2 herdr`: tab `worker-calc-ops2`, plain `opencode`
+  spawning the worker (12.8's start), the same record, 5 tests OK; the
+  supervisor ran herdr commands and no sub-agent of its own.
+- Turn-end check on 2.2.7: an uncommitted line in `.ai/notes.md` held the
+  turn end; the agent inspected it and left it, not its own change.
+- `/framework-update` from a scaffold staged at 12.7: an `updater`
+  sub-agent asked `UPDATE QUESTION` (pull a framework checkout with
+  uncommitted edits?), the supervisor relayed it, the answer continued the
+  same updater session, stamp 12.8, every framework file equal to a fresh
+  render but the three `model:` lines.
+- `/framework-update herdr`: tab `update-062212`, `UPDATE DONE: 12.7 ->
+  12.8`, the same result (and the notes slip above).
+
+**Not run.** The reviewer on `gpt-6.1-sol`: both tasks were under the
+inline threshold, so no review reached it beyond its model check. Copilot's
+Herdr paths remain unrun.
+
+## 72. Tests are for logic (2026-11-12, v12.10)
+
+**Source.** The owner found a worker in tfa-rpu-ws had added
+`scripts/test_mpc3_snap_app.py` for task BEGLRV-11591, whose first test loads
+`snap/snapcraft.yaml` and asserts its fields against the literals just
+written (command, `daemon: simple`, `restart-delay: 2s`, five plugs, even
+the feature-branch pin in `fa_core_stack.repos`). The worker had reported
+"covering tests" on its own; no correction asked for them. The same pattern
+was found in DART: `dart-iac/tests/terraform/test_prefect_docker_proxy.py`
+(a JSON job template's env dict, value by value), `test_sagemaker_ecr.py`
+(regex for literal lines of `main.tf`), and two `test_deploy.py` tests that
+count strings in a workflow YAML. Two other DART tests read config and are
+worth keeping: `test_rds_storage_sizing.py` asserts a rule across every
+`modules/rds` caller, written after a prod outage (#945), and
+`test_the_cleanup_workflow_deletes_every_deployment_...` checks that a
+workflow and the deploy script agree.
+
+**Why the framework produced them.** `do.md` step 5 said to iterate with the
+tests that cover the change; a YAML change has none, so the agent wrote one.
+The reviewer's checklist asked that each criterion be "covered by a test in
+the diff or a result recorded in Findings", and since 12.1 the reviewer runs
+nothing, so a test in the diff was the cheap way through. Nothing said what
+a test is for.
+
+**Prior art (web, 2026-11-12).** Google's Testing on the Toilet,
+"Change-Detector Tests Considered Harmful" (2015): tests that fail when the
+code changes, not when behavior is wrong. *Software Engineering at Google*
+ch. 12: test behavior, not implementation. On agents: Matt Pocock (AIHero)
+calls these tautological tests; SpecStory states that a test catches a wrong
+answer only when its expected value comes from a source that stays fixed
+when the code changes, and cites a 2026 study of 86,156 agent test-file
+changes, 80.2% with weak or no real check of the result; digdir-agents
+issue #302 found a written rule was not enough and added the self-review
+question "could each new or changed assertion fail if the code under test
+broke?" and a separate reviewer. Simon Willison holds red/green TDD for
+agent code and has agents run what they build; red/green alone does not
+stop a config change-detector, which also fails first. IaC practice:
+unit-test the logic (templates, conditionals, generated values), check
+standards with linters and policy-as-code (tflint, Checkov, conftest),
+ideally on the resolved plan.
+
+**Change.**
+
+- `do.md` step 5, which the worker follows too, states what gets a test:
+  logic, code that computes, branches or transforms. A declarative file is
+  checked by the tool that reads it (linter or schema validator, build,
+  plan or dry run, CI, a start on the target). Before keeping a test: could
+  this assertion fail for a reason other than an intended edit of the file
+  it reads? If not, it is a change-detector test and is not written. The
+  expected value comes from the requirement. Code inside a declarative file
+  (`run:` steps) and code that rewrites one is logic. A rule across files
+  that no linter expresses is a policy check and stays.
+- `work.md` points at it in one sentence; `/task create` makes a criterion
+  about a declarative file name its consuming check, never "has a test".
+- The reviewer's coverage line asks for "the check that fits" (a test for
+  logic, the consuming tool for a declarative file) instead of "a test in
+  the diff", and a new check asks the "could it fail" question of every new
+  or changed assertion; a change-detector test is a finding. In `do.md`
+  it and new logic without a test are the two review findings outside the
+  criteria that go back to the worker rather than into a `Not sent back`
+  line.
+- AGENTS.md rule 2 says it for the direct path in two sentences. That puts
+  copilot's AGENTS.md at 678 words; the owner accepted the cost, so
+  `check_templates`' tripwire moves from 650 to 700.
+
+**Not done.** Mutation testing and per-test labels, both suggested in the
+sources, need tooling per language. Existing change-detector tests in the
+projects are left to their owners.
+
+**Live test, 2026-11-12 (TC-D11, Claude Code, Sonnet supervisor, Haiku
+worker, outside Herdr).** A task adding an `exporter` entry to
+`config/services.yaml` and a `next_free_port(services)` function.
+
+- Run 1, the rule as first written: no test read the YAML, `yamllint
+  config/` was its recorded check. But `next_free_port` got no test at all:
+  the worker ran it once by hand ("Check: ... gives 8002"), and the
+  supervisor filed the gap as `Not sent back: no unit test covers
+  next_free_port ... not a Done-when criterion`. The rule said what may be
+  tested, not that new logic must be.
+- Fix: logic the task adds or changes gets a test that stays in the suite,
+  a run by hand is not one (`do.md` step 5, `work.md`, the reviewer); and
+  new logic without a test is the second test finding that goes back to the
+  worker, beside a change-detector test.
+- Run 2: two tests for `next_free_port` with their own fixtures and
+  expected values from the requirement, one for the highest-not-last case
+  (9000, 8000 -> 9001); no test reads the YAML; `yamllint` recorded; the
+  inline review noted "tests cover logic"; 2 tests OK.
+
+Not run: the reviewer shown a planted change-detector test (TC-D11's third
+check), Copilot and OpenCode.
+
+## 73. Follow the existing pattern (2026-11-12, v12.11)
+
+**Source.** The owner found tfa-rpu-ws task `BEGLRV-11591-mpc3-event-logger-poc`
+right in result but slow: 21.6 h wall, 19 worker rounds, 13 Supervisor
+rounds, 6 reviews, 8 User rounds, for a 20-line snap integration
+(`447a8b7`, 2 files) on top of a 2,411-line PoC import into a new repo. A
+read-only sub-agent reconstructed it from the supervisor (Kimi K3), worker
+(gpt-6.1-sol) and three reviewer transcripts; the test churn, the 20-line
+result and the classifier denials were checked by hand.
+
+**Finding.** Agents were active 3.1 h; 15.8 h overnight, 72 min waiting for
+the user's push and 49 min for the create Q&A were idle. Of the active
+time:
+
+- S4, the snap integration, took three designs in 57 min: a custom native
+  wrapper (round 13), the `ros2` CLI direct (round 14), the sibling apps'
+  `ros2-wrapper.sh` (round 15). The create plan's S4 never said how the new
+  app launches, and the worker invented a wrapper instead of copying the
+  apps beside it.
+- The supervisor started the round-13 reviewer 7 s after the user's
+  redirect was queued and wrote its advice ("must NOT route through
+  ros2-wrapper.sh") into Findings; the worker built round 14 on it and the
+  user reversed it (User round 2).
+- A Supervisor round asked to mirror LICENSE files from a sibling repo
+  without checking; there were none, costing a worker round.
+- A change-detector test was edited ten times, run eight times and deleted
+  (12.10 covers it); it had also pushed the diff past the inline-review
+  size, forcing two reviewer runs.
+- The supervisor read `do.md` once and ran 12.6 throughout; 12.7's short
+  Findings never reached either agent, and 75 of 92 Findings lines exceed
+  300 characters. Once the worker re-read `work.md` under 12.10 (07:32), its
+  lines dropped to 167-349 characters.
+- External, not changed here: the auto-mode classifier denied nine
+  actions (pushes, repo creation, docker, delegation messages), and four
+  pushes went to the user; the user's CI-only validation added two
+  fix-push-CI cycles. The owner's `autoMode.environment` can name the
+  company GitHub orgs as trusted.
+
+A minimal path: about five worker rounds, one review, 1.5 h active.
+
+**Change.**
+
+- `create.md`: a step that adds something with siblings in the code names
+  the sibling it copies and how, from reading it (file and line); new parts
+  follow the existing pattern unless the user asks otherwise.
+- `do.md`: a user redirect of how something is built drops the old design:
+  no review of it starts, a running one stops where the harness can, none
+  of its findings carry over, and a `Dropped:` line records it (not a
+  `Review:` line, which `tasks.py` would count as the review `finish`
+  needs).
+- `do.md`: a correction that tells the worker to copy or follow something
+  names it only after the supervisor has read it.
+- `work.md` and the continue prompts (sub-agent and Herdr tab): a continued
+  worker re-reads `work.md` first, so rule changes reach a running task.
+
+**Not run.** Layer 1. A replay of this task in a sandbox (the owner's
+proposal of a no-push replay) is the live check.
+
+## 74. A workaround is not a pattern (2026-11-12, v12.12)
+
+**Source.** After the owner fixed their auto-mode settings (company GitHub
+orgs trusted, `$defaults` restored), the cleaning-dev-ops session still
+asked them to run every push with `!`. It never tried itself: its
+supervisor had written into the task's Findings (round 12, line 1590)
+"publishing follows the session pattern: user pushes the branch
+(`!`-run)", after the worker's push had been denied twice (line 1339) and
+its own retry had been blocked as "Auto-Mode Bypass". The workaround fit
+the denials; written as a pattern, it outlived them, and every later round
+followed it. The framework has no such rule: `work.md` has the worker
+commit, push and open the pull request after an accepted review.
+
+**Change.** `do.md`: a workaround for a denied permission is recorded with
+its cause (`Workaround: <what>, because <the denial>`), the worker takes
+the normal way again in the next round, a new session or after a settings
+change, and the workaround is dropped once that goes through. The
+supervisor does not retry a denied action itself, which auto mode treats
+as a bypass.
+
+**Not run.** Layer 1.
+
+## 75. The full suite is CI's (2026-11-13, v12.13)
+
+**Source.** Reviewing the test rules as one list (which check runs for
+which file type, and when), the owner dropped the full-suite run: in nearly
+all their projects CI on the push or their own final test on the target
+covers it, and that is not the framework's job. Only the rule on what
+changed stays.
+
+**Change.** A code change is checked by the tests that cover it, every test
+that exercises the changed code and not only one a criterion names, and
+lint on the changed files, recorded on the final code. No agent runs the
+project's full test command: not the worker before `done`, not the
+supervisor, not the reviewer, and `/task create` writes no full-suite
+criterion or step unless the user asks for one. When a step waits for CI,
+its result is recorded and the supervisor reads its status, as before.
+Templates: `agents.md` rule 2, `do.md` step 2's `done` and step 5,
+`work.md` step 2, `create.md`'s criteria by type, `reviewer.md`.
+
+The same holds for declarative files, asked as a follow-up: section 72 gave
+them "the tool that reads them", which listed a build, a plan, a CI run and
+a start on the target next to a linter, and `create.md`'s examples ("the
+snap builds", "the service starts on the target") made such a run a
+criterion. Those are the same whole-project checks the owner keeps for CI
+and the target. A changed declarative file now gets its linter or
+validator on that file (`actionlint`, `yamllint`, a schema validator,
+`hadolint`, `terraform validate`); a build, CI run, plan or start on the
+target runs only when the user writes it into the task. The reviewer's
+coverage line and its change-detector advice name a linter or validator
+only.
+
+**The measurement this has to answer.** Part I listed the full-suite
+criterion among the rules that came from a failure: the 2026-09-14
+sequence round lost correctness on a criterion that named a single test.
+That failure was the narrowing, a fix that passed the named test and broke
+others on the same code, and the covering-tests rule still forbids it: the
+criterion names every test that exercises the changed code, never one. What
+the full run added beyond that was a break in code the change does not
+touch; in the owner's projects CI runs on every push and blocks the merge,
+and changes that only show on the target are tested there by the owner. The
+cost side is measured: section 63's 4-minute suite was run 44 times in one
+task before 12.1 cut it to one.
+
+**Left open.** A project with neither CI nor a test run of its own now
+learns of such a break later than before. No such project was seen.
+
+**Run live (OpenCode 2.2.7, 2026-11-13).** The calc benchmark again, main
+session and worker on GPT-6.1 Sol, GPT-6.1 Terra and GPT-6 Luna, reviewer
+GPT-6.1 Sol, with an unrelated 45-second test beside the covering one and a
+CI workflow step. None of the nine agent sessions ran the full suite or
+the slow test; every worker ran `python3 -m unittest tests.test_calc`,
+`ruff` on the changed Python files and `actionlint` on the workflow, and no
+test reads the workflow. All three results pass the hidden suite.
+
+**Also found, and fixed.** `tasks.py` took any Findings line containing
+"review" for the gate's record, and a worker's report status is `review`
+(`Worker round 1: review: ...`), so a delegated task always passed: the
+Luna run finished `done` without a `Review:` line, unflagged. Only a line
+labeled `Review:` after its date counts now, for the `/task list` flag and
+for `finish done`; `test_tasks_table.py` covers it. In the owner's six
+projects this flags two done tasks of cleaning-dev-ops, both without a
+review record.
+
+## 76. Ask with the question tool (2026-11-13, v12.14)
+
+**Source.** The owner saw the OpenCode session in cleaning-dev-ops put its
+questions into the closing summary instead of asking. Its export (GPT-6.1
+Terra, 70 turns, framework 12.12) holds no call of OpenCode's `question`
+tool; three turns ended with the three headings and a question under
+Blocked on me: "May I retry the failed jobs ... once?", "Is
+`snapshot-artifactory-mirror` a suitable task ID?", and `/task create`'s
+tracker and dependency questions. Every harness has a dialog tool for
+this: `AskUserQuestion` on Claude Code, `ask_user` on Copilot (its
+changelog; one question per call), `question` on OpenCode 2.2.7 (in the
+binary, rendered by the TUI). The framework named none of them. Claude
+Code's and Copilot's own prompts push theirs; whether OpenCode's does for
+GPT models was not established.
+
+**Change.** AGENTS.md's stop-and-ask line asks all open questions together
+with the harness's tool (`ASK_TOOL` in `const.py`, the `${ask_tool}`
+slot), and the closing line says Blocked on me never holds an open
+question. `/task create` asks its type, tracker, criteria and dependency
+questions together with the tool, and `/task do`'s supervisor asks the
+user with it. `work.md` says a worker asks with a `question` report,
+never with a question tool: the user talks to the supervisor. Copilot's
+AGENTS.md stays under its 700 words (689) by folding the rule into the
+existing two lines instead of adding a third.
+
+**Run live (OpenCode 2.2.7, GPT-6.1 Terra, 12.13 against 12.14, fresh
+sessions).**
+
+- `/task create` with the type left open: both asked four questions in one
+  dialog.
+- `/task create` with the type named (the cleaning case): 12.14 asked the
+  similar-task, tracker and dependency questions in one dialog; 12.13 in two
+  dialogs, one after the other. Neither wrote a question as text.
+- Push and open a pull request with no remote: both asked for the
+  repository in a dialog.
+- A resume pointer with an unrelated request: both did the request and
+  mentioned the pointer under Found, no question asked; that is
+  the rule (offer, do not block).
+
+**What this does not show.** The fresh sessions did not reproduce the
+text questions on 12.13; they appeared only deep in a long session, so the
+measured gain is the batching. That the new lines stop the late-session
+habit is expected, not measured: TC-E3 in a long session decides it.

@@ -271,11 +271,13 @@ def load(path):
         # Optional: comma-separated ids of tasks this one waits on.
         "depends": [d.strip() for d in (fm.get("depends") or "").split(",")
                     if d.strip()],
-        # /task do ends its review gate with a Findings line naming the
-        # review; a done task without one skipped the gate.
         # Findings lines over LONG_FINDING characters: (count, longest).
         "long": long_findings(section(text, "Findings")),
-        "reviewed": bool(re.search(r"^\s*[-*].*\breview",
+        # /task do ends its review gate with `- <date> Review: <kind>: ...`;
+        # a done task without one skipped the gate. Only that label counts:
+        # "review" elsewhere in a line (a worker's `review` report, a
+        # supervisor's "reviewer passed") is not the gate's record.
+        "reviewed": bool(re.search(r"^\s*[-*]\s+(?:\S+\s+)?review:",
                                    section(text, "Findings"), re.M | re.I)),
     }
 

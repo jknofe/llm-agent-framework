@@ -75,32 +75,35 @@ round <n>` correction. Then answer by the report:
   you checked>`; the worker then commits, pushes and opens the pull
   request. An accepted round is accepted as it is: attach no fixes to it.
   If not, append `- <today> Supervisor round <n>: <each correction: file,
-  what is wrong, what done looks like>`. A correction is only what keeps
+  what is wrong, what done looks like>`. A correction that tells the
+  worker to copy or follow something (a file, a sibling repository, a
+  pattern) names it only after you have read it: it exists and says what
+  you claim. A correction is only what keeps
   a Done-when criterion from being met or breaks something outside the
-  task. Everything else the review finds (a nicer structure, an extra
-  test, robustness beyond the criteria, style) is one line, `- <today>
-  Not sent back: <finding>`, and stays there unless the user asks for it.
+  task, and two test findings of step 5, which go back too: a
+  change-detector test, and new or changed logic without a test.
+  Everything else the review finds (a nicer structure, an extra test,
+  robustness beyond the criteria, style) is one line, `- <today> Not
+  sent back: <finding>`, and stays there unless the user asks for it.
 - `question`: answer it as the user would, from the Goal, the Notes, the
   criteria and what the user told you, in a `Supervisor round <n>` line.
   Between options, take the smallest one that meets the Goal; never the
   larger one because it is more thorough. When you put a choice to the
   user, give each option with what it costs (rounds, lines, CI runs,
   risk) and recommend the smallest that meets the Goal.
-  Ask the user first, and change no file until they have answered, when
-  the answer would change the Goal or a criterion, merge, touch
+  Ask the user first, with `${ask_tool}`, and change no file until they
+  have answered, when the answer would change the Goal or a criterion, merge, touch
   production, delete data, or decide what the task file leaves open and
   you cannot. Write their answer into Notes and point the worker to it
   in the `Supervisor round <n>` line.
-- `done`: check the evidence for every step, and that the one full test
-  and lint run (step 5) is recorded and ran on the final code. When it
-  was a CI run, read its status yourself (on GitHub `gh pr checks <n>`
-  or `gh run view <id>`): reading is not running, and a CI result is the
-  one claim you can check without a run. Without CI the worker's
-  recorded result line is the only record; take it as given. If
+- `done`: check the evidence for every step, and that the covering
+  tests and lint (step 5) are recorded and ran on the final code; take
+  the worker's result line as given. When a step waited for CI, read
+  its status yourself (on GitHub `gh pr checks <n>` or `gh run view
+  <id>`): reading is not running. Never ask for the full suite. If
   something is missing or wrong, append a `Supervisor round <n>`
   correction. If code changed after the last accepted review, run the
-  gate again first. A `review` report needs only the covering tests:
-  do not ask for the full suite before then.
+  gate again first.
 - `stuck`, or the same correction needed a third time: ask the user how
   to go on: another round with a new direction, you taking over, or
   `blocked`. Take over only when they say so, and say so in one line
@@ -114,7 +117,7 @@ round <n>` correction. Then answer by the report:
 
 Commit `.ai`, then continue the same worker with its context (its Herdr
 tab, or a sub-agent your harness can send a message to after it
-reported); tell it to read Findings and go on. Otherwise spawn a fresh worker with the same
+reported); tell it to read `work.md` again, then Findings, and go on. Otherwise spawn a fresh worker with the same
 prompt: the file holds everything it needs. When the worker reports
 `done` and you accept it, append `- <today> Delegation: <model>,
 <reports> report(s), <done|taken over|blocked>` to Findings, where
@@ -130,6 +133,18 @@ costs. Fold it into this task only when the user says so; then write it
 into Notes and the criteria with their words, and log it as `- <today>
 User round <n>: <the ask>`, so Findings show the user's changes apart
 from corrections.
+A user redirect of how something is built makes the old design moot,
+whether or not it changes a criterion: start no review of it, stop one
+that is still running where your harness can, and carry none of its
+findings into the new direction. Record it as `- <today> Dropped: the
+round <n> design, replaced by User round <m>`.
+A workaround for a denied permission (the user runs a push with `!`, does
+a step by hand) is not a pattern for the rest of the task: record it with
+its cause, `- <today> Workaround: <what>, because <the denial>`, and let
+the worker take the normal way again in the next round, a new session or
+after the user changed a setting; drop the workaround once that goes
+through. Do not retry a denied action yourself: auto mode treats that as
+a bypass.
 
 2. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
@@ -163,15 +178,35 @@ from corrections.
    <reason in one line>`: it sets `status: blocked` and the `blocked:`
    line `/task list` shows, and keeps the pointer. `tasks.py start`
    clears the block when the task resumes.
-5. Whenever the task changes code, whatever its type: iterate with the
-   tests that cover the change and lint on the changed files; that is
-   also all a review round needs. Run the project's full test and lint
-   commands once, on the final code, not after every change: a green CI
-   run on the last push is that run; without CI, run them locally after
-   the last code change, before `done`. While a task runs in
-   parallel, the suite also sees its unfinished edits: a failure in a
+5. Whenever the task changes code, whatever its type: run the tests
+   that cover the change, every one that exercises the changed code and
+   not only one a criterion names, and lint on the changed files; that
+   is also all a review round needs. The project's full suite is not the
+   task's: CI on a push or the user's run on the target covers it. While
+   a task runs in parallel, those tests also see its unfinished edits: a failure in a
    file that task claimed is not yours to fix; record it in Findings and
    rerun once that task finishes.
+   What gets a test: tests are for logic, code that computes, branches or
+   transforms, and every piece of logic the task adds or changes gets one
+   that stays in the suite; running it once by hand is not a test. Declarative files only state what they are:
+   configuration, manifests, build files, CI workflows, package metadata,
+   data (YAML, JSON, TOML, XML, CMake, Dockerfiles, workflow files and
+   the like). Their check is the linter or validator that reads the changed file
+   (`actionlint`, `yamllint`, a schema validator, `hadolint`, `terraform
+   validate`). A build, a CI run, a plan or a start on the target is CI's
+   or the user's, never the task's unless the user asks for it.
+   Before you keep any test, ask: could this assertion fail for a reason
+   other than someone editing, on purpose, the file it reads? If not, it
+   is a change-detector test: do not write it. A test that loads a
+   declarative file and compares its values to literals is one. A
+   test's expected value comes from the requirement, never from the file
+   or the code under test. Code inside a declarative file (a workflow's
+   `run:` step, a CMake function with logic) and code that generates or
+   rewrites one is logic and gets tested like other code. A rule across
+   files that no linter expresses is a policy check, not a change
+   detector, and is kept: it asserts a rule, not a value (every database
+   module passes its storage size; the cleanup workflow removes every
+   deployment the deploy script registers).
 6. Review gate, sized to the result: before code ships (step 2) and
    before declaring the task done, check it against every Done-when
    criterion.
@@ -204,7 +239,7 @@ from corrections.
    - A review reads and runs nothing: no test, lint, build or run of the
      code. It judges the diff, the task file, the results recorded in
      Findings and the `evidence.md` a finding points at; a missing or contradicted result is a finding for the
-     worker, and the full suite runs once by step 5.
+     worker.
    If the diff touches build, test, or CI wiring, also cross-check
    captured constraints: for each build, test, or CI gotcha in
    `.ai/notes.md`, confirm the diff honors it. Gaps that affect

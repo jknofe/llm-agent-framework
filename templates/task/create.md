@@ -53,8 +53,8 @@ task; do not work it here.
    Take the type only from the user. If they did not name it, ask which
    of the four it is, and in the same message the tracker question of
    step 2 and the questions step 4 would ask for a `change`, `bug` or
-   `test`; then wait for the answer. One message, not a type question
-   first and the rest after. Do not infer it
+   `test`; then wait for the answer. Ask them together with `${ask_tool}`,
+   not a type question first and the rest after. Do not infer it
    from the title, the id, or the code: the type decides what done
    means, and that is the user's call. In an autonomous run with no
    human, pick one and record it as a numbered assumption in Notes, as
@@ -105,18 +105,23 @@ task; do not work it here.
      exists, filing declined).
 
    Done-when criteria by type:
-   - `change`: the user's criteria, plus one that the project's full
-     test and lint commands pass, never only the test the task names: a
-     fix that satisfies one test and breaks another is not done, and a
-     criterion that names one test invites exactly that. Where a linter
+   - `change`: the user's criteria, plus one that the tests covering
+     the change and lint on the changed files pass, never only the test
+     the task names: a fix that satisfies one test and breaks another is
+     not done, and a criterion that names one test invites exactly that. Where a linter
      or policy check for the ecosystem you touch would catch a
      wrong-but-working result (eslint, mypy/ruff, clippy, shellcheck,
      lintian, a schema validator), name it and make passing it a
-     criterion.
+     criterion. A criterion about a declarative file (a manifest, a
+     workflow, a build file, configuration) names the linter or validator
+     that reads that file (`actionlint` passes, the schema validates,
+     `terraform validate` passes), never "has a test", and never a
+     build, a CI run or a start on the target unless the user asks for
+     it.
    - `bug`: the root cause stated with evidence; a reproduction (a
      failing test where the code allows one, exact steps otherwise)
-     that fails before the fix and passes after; the full test and lint
-     commands pass. If the user wants the cause only, or the fix is out
+     that fails before the fix and passes after; the covering tests and
+     lint pass. If the user wants the cause only, or the fix is out
      of reach, replace the fix criteria with a write-up another person
      could act on.
    - `investigation`: the question answered in Outcome, every claim
@@ -125,14 +130,18 @@ task; do not work it here.
      naming what was ruled out and what would decide it. No code change
      unless the user asks for one.
    - `test`: every named scenario run and its result recorded with
-     evidence; tests written by the task pass together with the full
-     suite. A failure found is a finding, not something to fix silently.
-   Any task that ends up changing code takes the full test and lint
-   criterion, whatever its type. It is met by one run on the final
-   code: a green CI run on the last push, or one local run; write it
-   so, not as a check after every step.
+     evidence; tests written by the task pass with the tests that cover the
+     same code. A failure found is a finding, not something to fix silently.
+   Any task that ends up changing code takes the covering tests and
+   lint criterion, whatever its type, met on the final code. The full
+   suite is never a criterion or a step unless the user asks for it: CI
+   or the user's run on the target covers it.
 
    Steps by type: for a `change`, the edits in order with their files.
+   A step that adds something with siblings in the code (another app in
+   the same manifest, a module beside others, a CI job beside others)
+   names the sibling it copies and how, from reading it (file and line):
+   new parts follow the existing pattern unless the user asks otherwise.
    For a `bug` or an `investigation`, hypotheses, each with how to
    confirm or rule it out (`- [ ] H1: <hypothesis> - check: <how>`),
    cheapest check first; the plan is expected to change as they

@@ -22,7 +22,9 @@ step says to, or after step 3 with `dry-run`.
      it.
    - Note what the check below compares against: the version and the
      `framework_files` in `${framework_json}`, the `model:` line of each
-     agent file, and the content between AGENTS.md's GENERATED markers.
+     agent file, the content between AGENTS.md's GENERATED markers, and
+     the `.ai` commit the update starts from (`git -C .ai rev-parse
+     HEAD`).
 ${handoff}   - Wait for its last line. `UPDATE QUESTION`: put the question to the
      user, change nothing yourself, and pass their answer on: continue
      the same updater where your harness can message one that has
@@ -31,8 +33,11 @@ ${handoff}   - Wait for its last line. `UPDATE QUESTION`: put the question to th
      not from its report. `${framework_json}` records the new version
      (after `dry-run`, the old one and nothing changed); every path in
      its `framework_files` exists; every old framework file it no longer
-     lists is gone; `git -C .ai log -1 --format=%s` reads `update:
-     framework <old> -> <new>` and `git -C .ai status --short` is empty;
+     lists is gone; `git -C .ai log --format=%s <start>..HEAD` is one
+     commit, `update: framework <old> -> <new>` (a `pre-update snapshot`
+     before it may be the only other), and `git -C .ai status --short` is
+     empty; `git -C .ai diff <start> -- notes.md notes tasks` is empty
+     unless a migration named those files;
      every `model:` line you noted is still there; the GENERATED section
      still holds the project's content; and no merge lost what the
      project added: for each file the updater's table reports as merged,
@@ -186,9 +191,12 @@ ${verify_extra}   - AGENTS.md still holds this project's context between its
    - Print one row per file: added / updated / merged (with what was
      kept) / retired / migrated / untouched, then anything left for the
      user to decide.
-   - Commit `.ai` (`update: framework <old> -> <new>`). Leave the
-     host-repo files uncommitted for the user to review; this framework
-     never commits the host project repo.
+   - Commit `.ai` once for the whole update (`update: framework <old>
+     -> <new>`), after the snapshot of step 1: no commit in between. An
+     update writes no note and edits no task file beyond what a migration
+     in step 4 names; a gotcha you met goes into the report, not into
+     `notes.md`. Leave the host-repo files uncommitted for the user to
+     review; this framework never commits the host project repo.
    - Delete the temp reference directory. Keep
      `.ai/agent/.update-backup/` until the user confirms the result.
 

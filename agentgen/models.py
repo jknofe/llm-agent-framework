@@ -23,9 +23,16 @@ TEST_TIMEOUT = 240
 # The parent session's whole job. The sub-agent is spawned by the harness
 # itself, so this exercises the path /task do uses; the exact reply line is
 # the verdict, because a failed spawn still ends the parent's turn cleanly.
-TEST_PROMPT = ("Use the {tool} tool with {param} {role} and the prompt "
-               "'Reply with the single word hello'. Then print one line: "
-               "SUBAGENT_REPLY: followed by its reply, nothing else.")
+# The worker's and updater's descriptions restrict them to their command
+# ("Spawned by /task do only"); a parent model may take that literally and
+# refuse the test (seen on OpenCode, CONCEPT.md section 71), so the prompt
+# names this call as the one sanctioned exception.
+TEST_PROMPT = ("This is the framework's model check (`init-agent --models`), "
+               "the one sanctioned call of the {role} agent outside its "
+               "command. Use the {tool} tool with {param} {role} and the "
+               "prompt 'Model check from init-agent, not a task: reply with "
+               "the single word hello and do nothing else.' Then print one "
+               "line: SUBAGENT_REPLY: followed by its reply, nothing else.")
 TOOL_WORDS = {"claude": ("Agent", "subagent_type"),
               "opencode": ("subagent", "agent")}
 REPLY = re.compile(r"^SUBAGENT_REPLY:\s*\W*hello\W*$", re.I | re.M)

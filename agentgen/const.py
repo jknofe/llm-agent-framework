@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.8"
+FRAMEWORK_VERSION = "12.14"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -47,6 +47,11 @@ SKILL_EFFORT = {"explore": "medium", "task": "medium",
 # (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized
 # only so init can switch it to one of these.
 HARNESSES = ["claude", "copilot", "opencode"]
+# Each harness's tool for asking the user a question in a dialog (CONCEPT.md
+# section 76). Claude Code's and Copilot's own prompts push theirs; OpenCode's
+# does not, so AGENTS.md names it.
+ASK_TOOL = {"claude": "AskUserQuestion", "copilot": "ask_user",
+            "opencode": "question"}
 RETIRED_HARNESSES = {"hermes": ".agents/skills"}
 
 COPILOT_HOOKS_DIR = ".github/hooks"

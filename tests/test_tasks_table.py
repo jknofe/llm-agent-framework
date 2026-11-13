@@ -112,6 +112,13 @@ def main():
         task(root, "unrev", "unrev", "No review", "change", "done", OLD,
              done_when="- [x] c", findings="- found x, see Notes\n",
              extra="")
+        # A worker's `review` report and a supervisor naming the reviewer
+        # are not the gate's `Review:` line.
+        task(root, "wround", "wround", "Worker said review", "change", "done",
+             NEW, done_when="- [x] c",
+             findings=(f"- {NEW} Worker round 1: review: ready.\n"
+                       f"- {NEW} Supervisor check: round 1 accepted: "
+                       "reviewer passed.\n"))
         task(root, "plan", "plan", "Planned", "test", "planned", NEW)
         task(root, "typo", "typo", "Typo type", "bugg", "planned", NEW)
         task(root, "quoted", "quoted", '"Quoted: title"', "'bug'", "planned",
@@ -131,7 +138,7 @@ def main():
                  if ln.startswith("| ") and " | " in ln
                  and not ln.startswith("| | ID")]
         check(order == ["stale", "fresh", "noreason", "why", "plan",
-                        "quoted", "typo", "unrev", "full", "half"],
+                        "quoted", "typo", "unrev", "full", "half", "wround"],
               f"sort order: {order}")
 
         # Emoji only for known type and status; unknown value stays text.
@@ -186,11 +193,13 @@ def main():
               "unreviewed flag")
         check("❗ half: done without a review line" not in out,
               "reviewed task flagged as unreviewed")
+        check("❗ wround: done without a review line in Findings." in out,
+              "worker review report taken for the review line")
         for quiet in ("fresh", "full", "plan"):
             check(f"❗ {quiet}:" not in out, f"{quiet} flagged")
 
         # Footer summary in status order.
-        check("🔄 2 in-progress, ⛔ 2 blocked, 📋 3 planned, ✅ 3 done; "
+        check("🔄 2 in-progress, ⛔ 2 blocked, 📋 3 planned, ✅ 4 done; "
               "1 archived (not listed)." in out, "footer summary")
 
         # No ANSI through a pipe, which is how the agent reads it.

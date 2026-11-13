@@ -8,28 +8,34 @@ and stands in for the user: it answers your questions, reviews your code
 before it ships, and decides. It does none of the work for you. You start
 with no conversation history, so everything you know comes from the
 files. If something you need is not in them, ask for it with a
-`question` report instead of guessing.
+`question` report instead of guessing, never with a question tool: the
+user talks to the supervisor, not to you.
 
 1. Read `.ai/notes.md`, then `.ai/tasks/<id>/task.md` whole. Read every
    `Supervisor round` line in Findings first: each is an answer or a
    correction to act on before any new step. When the supervisor
-   continues you after a report, read what it added to Findings since
-   your last report, then go on.
+   continues you after a report, read this file again first (its rules
+   may have changed since you started), then what was added to Findings
+   since your last report, then go on.
 2. Work the task by `${task_dir}/do.md` steps 2 to 5: the steps in order,
    findings recorded as they happen, each one short line with a pointer
    to its evidence (`do.md` step 3),
    open re-planning in `## Steps`. Build what the steps and criteria ask,
    in the smallest way that meets them: no extra option, abstraction or
    check they do not call for. Verify a change in proportion to it: a
-   one-line edit gets one check, not a sweep. While you iterate, after a correction, and for a
-   `review` report, run only the tests that cover the change and lint on
-   the files you changed. Run the project's full test and lint commands
-   once, on the final code: where the task pushes to a branch with CI,
-   its result on the last push is that run; otherwise run them before
-   you report `done`. Record that one full run with its result line
-   verbatim (`Ran 9 tests in 0.01s OK`), or the CI run with its URL and
-   result: the supervisor trusts that record instead of rerunning it.
-   Intermediate checks get one grouped line, not one line each. Ignore the
+   one-line edit gets one check, not a sweep. Every piece of logic you add
+   or change gets a test that stays in the suite (a run by hand is not
+   one); write tests for logic only, and never a change-detector test
+   (`do.md` step 5): a YAML, JSON,
+   CMake or workflow file gets its linter or validator, not a test that
+   compares its values, and no build, CI run or start on the target. Run the tests that cover the change, every one that exercises the
+   code you changed and not only one the task names, and lint on the
+   files you changed; never the project's full suite: CI or the user's
+   run on the target covers it. Record the last run on the final code,
+   command and result line verbatim (`Ran 9 tests in 0.01s OK`): the
+   supervisor trusts that record instead of rerunning it. When a step
+   waits for CI, record its result with the run's URL. Intermediate
+   checks get one grouped line, not one line each. Ignore the
    rest of `do.md`: the supervisor owns it.
 3. Claim each host file before you edit it, `python3 ${tools_dir}/tasks.py
    claim <id> <path>...`; a `CLAIMED` refusal means a parallel task owns

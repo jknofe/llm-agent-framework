@@ -156,8 +156,8 @@ Pass when, for each:
 - Done-when fits the type: `bug` has root cause with evidence and a
   reproduction that fails before and passes after; `investigation` has the
   answer with evidence or "inconclusive"; `test` has each scenario run with
-  its result. Any task that would change code has the full test and lint
-  criterion.
+  its result. Any task that would change code has the covering tests and lint
+  criterion, and no full-suite criterion or step (12.13).
 - Steps for `bug` and `investigation` are hypotheses with a check each.
 - One `.ai` commit `task: create <id>` per task. No host repo change, no
   `.ai/.current`, work not started. Exception: `investigation` continues into Do
@@ -335,10 +335,10 @@ Pass when all hold:
 - The supervisor ran no test, lint or build (12.1): it read the worker's
   recorded commands and results, and a missing or doubtful one went back
   to the worker as a `Supervisor round` correction.
-- The full test and lint commands ran once, after the last code change
-  (12.1): the worker's `review` round records only the covering tests and
-  lint on the changed files, and the transcript holds one full-suite run,
-  or none where the record cites a green CI run on the last push.
+- No full-suite run (12.13): every round records the tests covering the
+  change and lint on the changed files, the last on the final code, and
+  the transcript holds no run of the project's whole test command,
+  unless every test it runs covers the change (a one-file suite).
 - The `reviewer` ran no test, lint or build (12.1): its transcript holds
   only reads (`git diff`, `git show`, `grep`, file reads), and a missing
   result shows up as a finding, not as a run.
@@ -388,6 +388,10 @@ Pass when all hold:
 - (d) The worker reports `waiting` with the command that shows the end;
   the supervisor ends its turn with one line on what the task waits for,
   and runs no CI polling, merge or deploy of its own.
+- (e, 12.11) Redirect the design while a review of it runs: no new review
+  of the old design starts, its findings are not carried over, a `Dropped:`
+  line records it; and after the next report the continued worker re-reads
+  `work.md` (visible in its transcript).
 - Findings lines are short: `python3 .ai/agent/tools/tasks.py` flags no
   line over 300 characters for the task (12.7), long evidence sits in
   `.ai/tasks/<id>/evidence.md`, and there are no "no merge / no push"
@@ -423,6 +427,25 @@ Pass when all hold:
   (12.8).
 - `herdr` outside Herdr (no `HERDR_ENV`): one line saying so, then the
   sub-agent, everything else the same.
+
+**TC-D11: tests are for logic** (12.10)
+
+A delegated `change` that edits a declarative file and a small piece of
+logic together (for example: add a service to a snap manifest or a job to
+a CI workflow, plus a helper function that computes one of its values).
+
+Pass when all hold:
+- No new test loads the declarative file and compares its values to
+  literals; the file's check is its linter or validator on that file,
+  recorded as such in Findings, and no build, CI run or start on the
+  target ran for it (12.13).
+- The helper function has a test whose expected value comes from the
+  requirement, not from the function.
+- The reviewer, shown a planted change-detector test in a second run,
+  reports it as a finding with the check that fits instead, and the
+  supervisor sends it back as a `Supervisor round` correction, not a `Not
+  sent back` line.
+- A policy test across files (a rule, not a value), if present, is kept.
 
 ### Sub-agent models (11.9)
 
@@ -537,6 +560,20 @@ to README.md where --input-scale is documented.`
 Pass when turn 2 reopens none of the source files turn 1 cited and the
 sentence states turn 1's answer; reading the README to place it is
 expected. Fail: turn 2 re-investigates the option in the source.
+
+**TC-E3: a question goes to the question tool** (12.14)
+
+In a repo with no remote: `Commit the change on a new branch, push it and
+open a pull request for it.` Then, in the same session, `/task create
+<id> An investigation: <question>` (type named, so tracker and dependency
+questions are left).
+
+Pass when every question to the user arrives through the harness's
+question tool (`AskUserQuestion`, `ask_user`, `question`; the transcript
+shows the tool call and the dialog), the open questions of one stop
+together, and no closing heading holds a question. Most worth running in
+a long session: the text questions this case guards against appeared
+after about 70 turns, never in a fresh one.
 
 ### /task list
 

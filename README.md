@@ -30,7 +30,7 @@ notes carry real gotchas between sessions for almost nothing.
 
 **This framework does not make a session cheaper.** Every round measured
 more tokens, by design. It is economical about its own text (`AGENTS.md`
-under 650 words, everything else read on demand), which is a different
+under 700 words, everything else read on demand), which is a different
 claim. Untested: weak models, projects dense in non-derivable context, and
 sessions where a human answers the questions.
 
@@ -128,7 +128,7 @@ file list retires nothing and prints what to remove by hand.
    letting it run unattended gets you most of the cost and little of the
    benefit.
 2. **Work**: ask for what you want. The agent reads what it needs, does it,
-   runs the project's full test and lint commands if code changed, notes
+   runs the tests that cover what it changed and lint on those files, notes
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
    path for every task.
 3. **Opt in to a plan** when you want a task written down and reviewed:
@@ -170,16 +170,22 @@ What counts as done, by type:
 
 | `type` | Done when |
 |---|---|
-| `change` | your criteria, plus the full test and lint suite green |
-| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; suite green (or, cause only, a write-up someone can act on) |
+| `change` | your criteria, plus the tests covering the change and lint on the changed files green |
+| `bug` | root cause with evidence; a reproduction that fails before the fix and passes after; covering tests green (or, cause only, a write-up someone can act on) |
 | `investigation` | the question answered with every claim citing evidence, or "inconclusive" naming what was ruled out; covers research |
-| `test` | every named scenario run and its result recorded; new tests pass with the full suite |
+| `test` | every named scenario run and its result recorded; new tests pass with the tests beside them |
 
-The full suite runs once per task, on the final code: a green CI run on the
-last push counts, otherwise the agent runs it locally before `done`. While
-working, and for each review round, only the tests that cover the change and
-lint on the changed files run, so a slow suite costs one run, not one per
-round. The review runs nothing: it judges the diff and the results the
+Every changed file gets the cheap check that reads only that file:
+
+| Changed file | The agent runs | Left to CI or you |
+|---|---|---|
+| Logic (code that computes, branches or transforms) | every test that exercises it, not only one the task names, plus lint | the full suite |
+| A declarative file (YAML, JSON, TOML, CMake, a Dockerfile, a CI workflow, a manifest) | its linter or validator (`actionlint`, `yamllint`, a schema validator, `hadolint`, `terraform validate`), never a test that compares its values | the build, the CI run, a plan, the start on the target |
+| Docs or comments only | nothing | |
+
+Tests are for logic; logic inside a declarative file (a workflow's `run:`
+step) counts as logic. The agent runs a build, a CI run or a start on the
+target only when you put it into the task. The review runs nothing: it judges the diff and the results the
 worker recorded.
 
 The framework is model-agnostic: it never picks a model. The session runs on
@@ -241,7 +247,7 @@ Every harness invokes them the same way, under the same names:
 | Command | What it does |
 |---|---|
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
-| `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes the full suite green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
+| `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes its covering tests and lint green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
 | `/task do [<id>] [inline\|herdr]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision (`herdr`: in a Herdr tab instead); a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
@@ -262,7 +268,7 @@ for a planned task its done-when criteria), make the agent show it in
 output, and cap the turns:
 
 ```
-/goal the transcript shows the full test and lint commands exiting 0; or
+/goal the transcript shows the covering tests and lint exiting 0; or
 stop after 20 turns
 ```
 
