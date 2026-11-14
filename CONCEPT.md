@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-13, v12.14.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.15.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -159,7 +159,8 @@ framework's `worker` agent, defined beside `reviewer` on every harness
 own when the user asks for `herdr`, on every harness (section 68): on the model its agent file names, which the user sets per
 project (`init-agent --models`, section 59) and which `/task do` refuses to
 work without, never a default and never the session's, and it knows
-only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`. It works
+only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`, which points
+it to the working steps in `.ai/agent/task/steps.md` (section 77). It works
 every step the task names: the code, the tests, then the branch, commit,
 push, pull request, the wait for CI, a dev run, a tracker comment. Before
 code ships it reports `review`; it also stops at `question`, `waiting`,
@@ -320,11 +321,12 @@ default, a Herdr tab only when asked.
   `tasks.py`: 1198 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, and
   `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 17 framework files, a copilot one 17, an opencode
-  one 18 (its plugin is the extra entry point), counting the three `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 18 framework files, a copilot one 18, an opencode
+  one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
-  verdict sends the agent there (section 42).
+  verdict sends the agent there (section 42). The worker reads `work.md`
+  and `steps.md` (about 1,760 words), not `do.md` (section 77).
 
 ## What the framework does not claim
 
@@ -507,6 +509,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.15 (2026-11-14, the worker reads only its own steps, section 77.
+`do.md` splits: the working steps and the escalation rule move to
+`steps.md`, which the worker and a session working inline both read; the
+worker no longer loads the supervisor protocol.)
 
 v12.14 (2026-11-13, ask with the question tool, section 76. AGENTS.md
 names each harness's question tool and asks all open questions together;
@@ -5355,3 +5362,39 @@ sessions).**
 text questions on 12.13; they appeared only deep in a long session, so the
 measured gain is the batching. That the new lines stop the late-session
 habit is expected, not measured: TC-E3 in a long session decides it.
+
+## 77. The worker reads only its own steps (2026-11-14, v12.15)
+
+**Source.** The review in `fable-review-results.md`. `work.md` told the
+worker to work "by `do.md` steps 2 to 5" and to ignore the rest, so every
+worker round loaded all of `do.md` (about 3,470 words rendered) to use
+about 800 of them, and read the supervisor's models gate, review gate and
+hand-off rules beside its own.
+
+**Change.** `templates/task/do.md` is split in two, text moved and not
+rewritten:
+
+- `templates/task/steps.md`, written to `.ai/agent/task/steps.md`: the four
+  working steps (work, findings, re-plan, tests; they were steps 2 to 5)
+  and the escalation rule that closed `do.md`. Both roles need them.
+- `do.md` keeps the supervisor's part: the models gate (step 0), start
+  (1), the review gate (now 2), record (3), tick (4), and the hand-off,
+  continuation and user-ask rules between steps 1 and 2. Where it needs
+  the working steps it points at `steps.md`: a session that works a task
+  itself (`inline`, no sub-agent possible, or a small task) reads it
+  first. `Create` still sends an investigation to `do.md`, which sends
+  it on.
+- `work.md` points at `steps.md` and no longer mentions `do.md`. Its
+  `stuck` report cites the escalation rule at the end of `steps.md`.
+
+Only references changed: the old "step 6", "step 5" and "step 7" in `do.md`
+are now step 2, `steps.md` step 4 and step 3, and the one phrase in the
+working steps that named step 6 now says "the review gate". `steps.md` is
+rendered by `render_task_part("steps")`, written beside the other three
+parts, and so recorded in `framework_files` automatically; a claude
+scaffold records 18 files, copilot 18, opencode 19.
+
+**Size (rendered, claude).** `do.md` 3,474 to 2,717 words, `steps.md` new at
+816, `work.md` 952 to 942. A worker loads `work.md` and `steps.md`, 1,758
+words, where it loaded `work.md` and `do.md`, 4,426. All three harnesses
+write the same files.

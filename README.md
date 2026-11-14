@@ -354,7 +354,8 @@ whole job; the session you talk to is its lead and stands in for you.
   names (see [Sub-agent models](#sub-agent-models)). A small
   task, where at most one step edits a file, gets no worker: the
   session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
-  `.ai/agent/task/work.md`. It does every step the task names: the code,
+  `.ai/agent/task/work.md`, which points it to the working steps in
+  `.ai/agent/task/steps.md`. It does every step the task names: the code,
   the tests, and after them the branch, commit, push, pull request,
   waiting for CI, dev runs, a tracker comment. Before code ships it asks
   for a review. It reports with a `Worker round <n>` line in Findings:

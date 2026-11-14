@@ -60,7 +60,7 @@ def rendered_artifacts():
             out.append((f"{harness} skill:{name} desc", desc))
         out.append((f"{harness} AGENTS.md",
                     content.render_agents_md("p", "d", harness)))
-    for part in ("create", "do", "work"):
+    for part in ("create", "do", "work", "steps"):
         for harness in HARNESSES:
             out.append((f"{harness} task part:{part}",
                         content.render_task_part(part, harness)))
@@ -242,11 +242,20 @@ def check_budget():
                                "into /task in 9.0")
 
 
+def check_worker_files():
+    """CONCEPT section 77: the worker reads work.md and steps.md only, so
+    neither names do.md, the supervisor's part."""
+    for harness in HARNESSES:
+        for part in ("work", "steps"):
+            if "do.md" in content.render_task_part(part, harness):
+                fail("worker", f"{harness} {part}.md names do.md")
+
+
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
                   check_json, check_opencode_syntax, check_register, check_names,
                   check_reference,
-                  check_budget):
+                  check_budget, check_worker_files):
         check()
     if failures:
         print(f"FAIL ({len(failures)})")
@@ -254,7 +263,7 @@ def main():
             print("  " + f)
         return 1
     print(f"ok: {len(all_templates())} templates, "
-          f"{len(rendered_artifacts())} rendered artifacts, 10 checks passed")
+          f"{len(rendered_artifacts())} rendered artifacts, 11 checks passed")
     return 0
 
 
