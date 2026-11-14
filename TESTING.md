@@ -23,6 +23,7 @@ themselves.
    python3 tests/test_session_hook.py
    python3 tests/test_inject.py
    python3 tests/test_worker_contract.py
+   python3 tests/test_opencode_config.py
    python3 tests/test_opencode_plugin.py
    ```
    The reviewer guard test feeds the Claude reviewer's hook allowed and
@@ -53,6 +54,10 @@ themselves.
    with the model-check guard first, Copilot's is the pointer, the spawn
    prompt in `do.md` differs accordingly, step 1 reads three files in one
    turn, and a `model:` line survives a forced re-init once.
+   The OpenCode config test checks `instructions` in the generated
+   `opencode.json` (section 86): the hub by default, a user's entries and
+   their order kept on a forced re-init, the hub added once, a bad value
+   replaced, and the update body's merge case.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

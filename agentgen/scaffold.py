@@ -49,6 +49,28 @@ def write_settings(path: Path, content: str, force: bool, created: list,
         content = json.dumps(data, indent=2) + "\n"
     write(path, content, force, created, skipped)
 
+def write_opencode_config(path: Path, content: str, force: bool,
+                          created: list, skipped: list):
+    """`.opencode/opencode.json`: framework-owned like any other file, except
+    the entries of `instructions` a user already has, which survive a
+    regeneration in their order, with the notes hub added once when missing
+    (CONCEPT.md section 86). A value that is not a list of strings, or an
+    unreadable file, is replaced."""
+    kept = None
+    if path.is_file():
+        try:
+            kept = json.loads(path.read_text(encoding="utf-8")).get(
+                "instructions")
+        except (ValueError, AttributeError):
+            kept = None
+    if isinstance(kept, list) and all(isinstance(e, str) for e in kept):
+        data = json.loads(content)
+        data["instructions"] = kept + ([NOTES_INSTRUCTION]
+                                       if NOTES_INSTRUCTION not in kept
+                                       else [])
+        content = json.dumps(data, indent=2) + "\n"
+    write(path, content, force, created, skipped)
+
 def has_agents_import(text: str) -> bool:
     """Does this CLAUDE.md import AGENTS.md? Claude Code skips fenced code
     blocks and code spans when it parses imports, so a mention in either is
@@ -565,8 +587,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_ai_repo_clean(), force, created, skipped)
         write(opencode / "hooks" / "git_guard.py",
               render_hook_git_guard(), force, created, skipped)
-        write(opencode / "opencode.json",
-              render_opencode_config(), force, created, skipped)
+        write_opencode_config(opencode / "opencode.json",
+                              render_opencode_config(), force, created,
+                              skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}", "${input:ticket}")).items():

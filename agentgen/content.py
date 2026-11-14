@@ -103,6 +103,9 @@ def render_update_body(harness: str, arg: str) -> str:
             f"     - `{OPENCODE_DIR}/opencode.json`: permission rules and other\n"
             "       settings a user added are not framework state. Union them\n"
             "       with the reference's; drop only rules the reference retired.\n"
+            f"     - `instructions` in `{OPENCODE_DIR}/opencode.json`: entries the\n"
+            "       project already has stay, in their order. The reference's\n"
+            "       `.ai/notes.md` is added once when missing, never twice.\n"
             f"     - `{OPENCODE_DIR}/plugins/llm-agent.js`: a hook a user added\n"
             "       here, such as a lint gate, is not framework state. Keep it.\n"
             "     - AGENTS.md outside the GENERATED markers: project-specific\n"
@@ -668,4 +671,6 @@ def render_opencode_config() -> str:
         command = entry[len("Bash("):-len(":*)")]
         rules.append({"action": "shell", "resource": f"{command} *",
                       "effect": "allow"})
-    return json.dumps({"permissions": rules}, indent=2) + "\n"
+    # The notes hub in every session's instructions (CONCEPT.md section 86).
+    return json.dumps({"permissions": rules,
+                       "instructions": [NOTES_INSTRUCTION]}, indent=2) + "\n"

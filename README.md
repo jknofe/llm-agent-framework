@@ -334,8 +334,10 @@ obedience:
   skips it. Capped at 100 lines or 8,000 bytes, with the freshness flags
   above (at most three lines) under it; nothing for a missing or untouched
   hub. The leaves are still read on demand. This adds up to about 2,000
-  tokens to every session (CONCEPT.md Part I, Property 4). OpenCode and
-  Copilot read the hub themselves.
+  tokens to every session (CONCEPT.md Part I, Property 4). On OpenCode the
+  generated `.opencode/opencode.json` lists `.ai/notes.md` under
+  `instructions`, which loads it whole, with no cap and no flags; your own
+  entries there survive a re-init and an update. Copilot reads the hub itself.
 - `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
   has uncommitted changes, so notes and task files are not silently dropped. Not
   absolute: every harness overrides a turn-end block after a few consecutive

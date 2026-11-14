@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.23"
+FRAMEWORK_VERSION = "12.24"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -18,6 +18,10 @@ TOOLS_DIR = ".ai/agent/tools"
 # (CONCEPT.md section 42): one harness-neutral copy beside the tools, so
 # `/task list` loads only the dispatcher.
 TASK_DIR = ".ai/agent/task"
+
+# The `instructions` entry that puts the notes hub in every OpenCode session
+# (CONCEPT.md section 86), relative to the project root.
+NOTES_INSTRUCTION = ".ai/notes.md"
 
 # The one line a Claude Code project's CLAUDE.md must hold for AGENTS.md to
 # load in every case (CONCEPT.md section 81).

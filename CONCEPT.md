@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.23.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.24.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -66,9 +66,10 @@ writing one costs on every session that loads it.
 
 ### Where it lives
 - `.ai/notes.md`, the hub. Appended, telegraphic. Read at the start of a
-  session: by the agent on Copilot and OpenCode, put into the context by a
-  SessionStart hook on Claude Code (section 83), so it is also there after a
-  compaction. Capped at 100 lines and 8,000 bytes when loaded.
+  session: by the agent on Copilot; put into the context on Claude Code by a
+  SessionStart hook (section 83), so it is also there after a compaction,
+  capped at 100 lines and 8,000 bytes, and on OpenCode by the `instructions`
+  key of its config (section 86), whole and uncapped.
 - `.ai/notes/<topic>.md`, optional leaves, each linked from the hub with a
   one-line pointer. Split only once the hub passes one to two screens.
 - The `GENERATED:project-context` block in `AGENTS.md`, cap ~300 tokens: the
@@ -341,8 +342,9 @@ default, a Herdr tab only when asked.
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
-- The notes hub on Claude Code: up to 100 lines and 8,000 bytes (about
-  2,000 tokens) in the context of every session, from the project's own
+- The notes hub on Claude Code (up to 100 lines and 8,000 bytes, about
+  2,000 tokens) and on OpenCode (the whole file, no cap) in the context of
+  every session, from the project's own
   `.ai/notes.md`. Argued below.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: about 1,480 lines: the task table, the dependency tree, the
@@ -580,6 +582,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.24 (2026-11-14, the notes hub in context on OpenCode too, section 86.
+`.opencode/opencode.json` gets `instructions: [".ai/notes.md"]`; a user's own
+entries survive a re-init and an update. Corrects section 83's "not shipped".)
 
 v12.23 (2026-11-14, the worker's contract is in its agent file, section 85.
 On Claude Code and OpenCode the body of the `worker` file is rendered from
@@ -6071,3 +6077,61 @@ report; a continued worker reads `work.md` and `steps.md` again; `init-agent
 --models` still gets `hello` from the longer worker; a `claude --agent
 worker` Herdr tab behaves as a sub-agent does. A Copilot worker still reads
 `work.md` first.
+
+## 86. The notes hub in context on OpenCode (2026-11-14, v12.24)
+
+**Source.** Section 83 did not ship the OpenCode half because the docs did not
+say what a relative `instructions` path resolves against. That is now seen
+live, so the section's "OpenCode: not shipped" and "Where. Claude Code only"
+no longer hold; this section replaces them (83 is left as written, a record of
+what was known then). The Part I argument of Property 4 applies unchanged.
+
+**Facts.** Verified by the supervisor on OpenCode 2.2.5 in a TUI session in a
+scratch scaffold (session model sonnet): with `"instructions": [".ai/notes.md"]`
+in the generated `.opencode/opencode.json`, a fresh session answered a
+question whose answer exists only in `.ai/notes.md` with no tool call. So the
+key is honored in the project config at `.opencode/opencode.json`, and the
+relative path resolves against the project root. `opencode debug config` in a
+scratch scaffold lists the key. https://opencode.ai/docs/config/: "Declare
+additional instruction files, globs, or HTTP(S) URLs. OpenCode loads them
+alongside discovered `AGENTS.md` files." **Not verified, open points:** what a
+missing file does (the scaffold always writes `.ai/notes.md`, and the hub is
+never deleted by the framework), whether sub-agents receive the instructions,
+and any size limit.
+
+**Change.**
+
+- `render_opencode_config` writes `"instructions": [".ai/notes.md"]`
+  (`const.NOTES_INSTRUCTION`).
+- `scaffold.write_opencode_config`, as `write_settings` does for
+  `autoMemoryEnabled`: a forced re-init reads the existing file first; when
+  `instructions` is a list of strings it is kept, in order, with `.ai/notes.md`
+  appended once if it is not there. Any other value (not a list, a non-string
+  entry) and an unreadable file are replaced by the default. Every other key
+  is regenerated as before; a bare re-init skips the file.
+- `/framework-update`: the opencode merge case says entries the project has
+  stay in their order and the reference's `.ai/notes.md` is added once, which
+  is also how a scaffold older than 12.24 gets it.
+- `tests/test_opencode_config.py`.
+
+**What differs from Claude Code.**
+
+- No cap. The key loads the file whole. A hub over 100 lines or 8,000 bytes
+  is loaded in full; the `tasks.py notes` size flag (section 82) is what says
+  so, in `/task list`.
+- No stub suppression: the untouched stub, with its authoring comment, is
+  loaded (about 170 words) until the hub holds something. HTML comments are
+  not stripped either.
+- The freshness flags are not shown at session start, only in `/task list`
+  and `tasks.py notes`.
+- The worker on OpenCode still reads the hub itself, per `work.md`. Whether
+  its sub-agent session also receives `instructions` is the open point
+  above; if it does, the read is a duplicate of a small file. `work.md` is
+  unchanged.
+- The texts say "unless in context" and needed no change; nothing says an
+  OpenCode session must read the hub itself. Copilot stays skipped.
+
+**What a live run must show.** A new OpenCode session answers from the hub
+with no tool call (seen once); after a user's own `instructions` entry and a
+`init-agent -y` it still loads both; whether a `/task do` worker sub-agent
+has the hub in its first turn.
