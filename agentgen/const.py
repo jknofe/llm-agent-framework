@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.18"
+FRAMEWORK_VERSION = "12.19"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -18,6 +18,10 @@ TOOLS_DIR = ".ai/agent/tools"
 # (CONCEPT.md section 42): one harness-neutral copy beside the tools, so
 # `/task list` loads only the dispatcher.
 TASK_DIR = ".ai/agent/task"
+
+# The one line a Claude Code project's CLAUDE.md must hold for AGENTS.md to
+# load in every case (CONCEPT.md section 81).
+AGENTS_IMPORT = "@AGENTS.md"
 
 GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
              "(source: /explore, requirements only, max 300 tokens) -->")

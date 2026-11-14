@@ -17,6 +17,7 @@ themselves.
    python3 tests/test_git_guard.py
    python3 tests/test_reviewer_guard.py
    python3 tests/test_settings.py
+   python3 tests/test_claude_md.py
    python3 tests/test_models.py
    python3 tests/test_opencode_plugin.py
    ```
@@ -27,6 +28,10 @@ themselves.
    The settings test scaffolds a claude project and checks that auto memory
    is off, that a user's own `autoMemoryEnabled` survives `-y`, and that
    OpenCode and Copilot get no such key.
+   The CLAUDE.md test covers the `@AGENTS.md` import on the claude harness:
+   absent, present without the import, present with it, re-init, the
+   `--ensure-agents-import` flag, and that the file is never a recorded
+   framework file.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

@@ -279,11 +279,15 @@ Four commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
 same bodies, on every harness; only the entry files differ (Agent Skills
 under `.claude/skills/`, prompt files under `.github/prompts/`, commands under
 `.opencode/commands/`). `AGENTS.md` is the one instructions file and every
-harness reads it natively; since 7.1 no `CLAUDE.md` pointer is written. The
-condition on claude: no `CLAUDE.md` or `CLAUDE.local.md` in the project
-directory or above it, and a session that can load `AGENTS.md` (not Bedrock,
-not telemetry-off). Where that fails the user adds a one-line `@AGENTS.md`
-import themselves. A name that collides with a harness built-in is
+harness reads it natively except Claude Code in some cases: it reads
+`AGENTS.md` only when no `CLAUDE.md` or `CLAUDE.local.md` exists in the
+project directory or above it, and in a session that can load it (not
+Bedrock or telemetry-off before 2.1.281). So the claude scaffold makes sure
+the project root has a `CLAUDE.md` importing `@AGENTS.md`, created, appended
+to or left alone, by `init-agent` and, through `--ensure-agents-import`, by
+`/framework-update` (section 81; 7.1 had retired the pointer, see its version log entry).
+That file is the user's, never recorded as framework output and never
+retired. A name that collides with a harness built-in is
 renamed on **every** harness, which is why the update command is
 `/framework-update` everywhere (Hermes reserved `/update`; the name outlived
 Hermes support, section 43).
@@ -519,6 +523,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.19 (2026-11-14, AGENTS.md loads on Claude Code in every case, section
+81. The claude scaffold makes sure the project root's `CLAUDE.md` imports
+`@AGENTS.md`, from `init-agent` and from `/framework-update`; the file is
+the user's and is never retired.)
 
 v12.18 (2026-11-14, one memory on Claude Code, section 80. The generated
 `.claude/settings.json` sets `autoMemoryEnabled: false`; a user's own value
@@ -5569,3 +5578,69 @@ default (a bare re-init without `-y` skips an existing file, as before). In
 a value the project already has stays and the reference's `false` fills only
 a file with no such key, which is also how a scaffold older than 12.18 gets
 the default. `tests/test_settings.py` pins all of it.
+
+## 81. AGENTS.md loads on Claude Code in every case (2026-11-14, v12.19)
+
+**Source.** The review in `fable-review-results.md`: one real project lost
+its instructions. 7.1 (see its version log entry) dropped the
+generated `CLAUDE.md` pointer because Claude Code 2.1.277 reads `AGENTS.md`
+itself, and left the parent-directory case to the update agent's judgment.
+In that project a `CLAUDE.md` sat in the parent workspace directory and none
+in the project, so Claude Code read the parent's file only and never
+`AGENTS.md`. Until 7.1 the generator wrote `CLAUDE.md` as "Canonical agent
+instructions live in AGENTS.md (vendor-neutral).\n@AGENTS.md\n" through the
+ordinary `write()`, so it was recorded as a framework file.
+
+**Facts, read in the docs on 2026-11-14.**
+https://code.claude.com/docs/en/memory:
+
+- "An `AGENTS.md`, and no `CLAUDE.md` or `CLAUDE.local.md` in your working
+  directory or above it: Your `AGENTS.md`"; "An `AGENTS.md` and a
+  `CLAUDE.md` or `CLAUDE.local.md` in your working directory or above it:
+  Your `CLAUDE.md` files only"; "A `CLAUDE.md` that already imports
+  `AGENTS.md`: Your `CLAUDE.md`, with `AGENTS.md` included through the
+  import".
+- Loaded once, not twice: "A `CLAUDE.md` containing `@AGENTS.md`: you can
+  leave it. Keeping the import never makes Claude read `AGENTS.md` twice,
+  whichever Project instructions value you use." So the default setting
+  does not double-load it, and neither do the other values.
+- Import parsing "skips Markdown code spans and fenced code blocks", and a
+  project CLAUDE.md may live in `./CLAUDE.md` or `./.claude/CLAUDE.md`. A
+  `CLAUDE.md` symlinked to `AGENTS.md` is read once.
+- Copilot and OpenCode read `AGENTS.md` natively and have no such file;
+  this change is claude only.
+
+**Change.**
+
+- `scaffold.ensure_agents_import(root)`: no root `CLAUDE.md`, write the
+  single line `@AGENTS.md`; one without the import, append the line and
+  leave every other byte; one with it (outside code spans and fences), a
+  symlink to `AGENTS.md`, or a `.claude/CLAUDE.md` that imports it, change
+  nothing. It returns `created`, `appended` or `unchanged`, so a second
+  run changes nothing.
+- `init-agent` calls it on the claude harness, in a re-init too. The
+  update's reference scaffold has no `CLAUDE.md`, because the update
+  restores it on the project, not by diffing.
+- `/framework-update` does it by a script, not by the updater's judgment:
+  the new CLI flag `init_agent.py --ensure-agents-import` (beside
+  `--detect` and `--emit-reference`) runs `ensure_agents_import` in the
+  project and prints `CLAUDE.md: created|appended|unchanged`. The claude
+  update body runs it in step 5 (verify), puts the line in the report, and
+  backs up `CLAUDE.md` with the other host files in step 1. The 7.1
+  migration note in `content.py`, which said to delete the pointer unless the
+  user added text or a parent `CLAUDE.md` existed, now says the file is
+  never retired and that step 5 restores it.
+- Recorded file list: **no.** `CLAUDE.md` is written outside `write()`, so
+  it is not in `framework_files`. Once it holds anything beyond the import
+  line it is the user's, and a retire deletes what the list names. A
+  harness switch away from claude reports it as left behind instead of
+  moving it (`HARNESS_ENTRY_PATHS` names it). A pre-7.1 scaffold's list
+  still names `CLAUDE.md`; the update note says it is not retired.
+- `tests/test_claude_md.py` covers absent, present without the import, present
+  with it, what counts as an import, a symlink, re-init twice, the flag, the
+  recorded list, a switch, the other harnesses and the reference.
+
+**What this does not do.** It adds a file to a claude project that did not
+have one (the one line), and changes a `CLAUDE.md` the user wrote by one
+appended line. That is the price of loading `AGENTS.md` deterministically; a
+user who does not want it deletes the line, and a later re-init adds it again.

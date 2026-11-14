@@ -70,7 +70,7 @@ def render_update_body(harness: str, arg: str) -> str:
     """
     if harness == "claude":
         reference_skill = ".claude/skills/framework-update/SKILL.md"
-        backup_paths = "AGENTS.md and `.claude/`"
+        backup_paths = "AGENTS.md, CLAUDE.md and `.claude/`"
         merge_cases = (
             "     - `.claude/settings.json`: permission entries and hooks a user\n"
             "       added are not framework state. Union them with the\n"
@@ -87,7 +87,13 @@ def render_update_body(harness: str, arg: str) -> str:
             "       than assuming either way.\n")
         verify_extra = (
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
-            "     it names points at a file that exists.\n")
+            "     it names points at a file that exists.\n"
+            "   - `CLAUDE.md` imports AGENTS.md. Do not judge it: run\n"
+            "     `python3 \"$LLM_AGENT_HOME/init_agent.py\" --ensure-agents-import`\n"
+            "     in the project root and put its one line (`CLAUDE.md: created`,\n"
+            "     `appended` or `unchanged`) in the report. It is the user's\n"
+            "     file, not framework output: never delete it, and never merge\n"
+            "     or overwrite it from the reference.\n")
     elif harness == "opencode":
         reference_skill = f"{OPENCODE_DIR}/commands/framework-update.md"
         backup_paths = f"AGENTS.md and `{OPENCODE_DIR}/`"
@@ -178,16 +184,18 @@ def render_update_body(harness: str, arg: str) -> str:
         "       `task: <id>` and point at the moved `task.md`.\n"
         f"     - Run `python3 {TOOLS_DIR}/tasks.py`: every migrated spec\n"
         "       must appear in the table with type `change`.\n"
-        "   - Framework 7.1 retires the `CLAUDE.md` pointer on the claude\n"
-        "     harness: Claude Code 2.1.277 and later reads AGENTS.md itself\n"
-        "     when no CLAUDE.md exists in the working directory or above it.\n"
-        "     Delete the pointer only if it holds nothing but the `@AGENTS.md`\n"
-        "     import; text the user added below the import makes it the\n"
-        "     user's file, so keep it. Keep it too, and say why, when a\n"
-        "     CLAUDE.md or CLAUDE.local.md sits in a parent directory or the\n"
-        "     sessions run without AGENTS.md support (Amazon Bedrock,\n"
-        "     telemetry disabled): there Claude never reads AGENTS.md on its\n"
-        "     own and the import is what loads it.\n"
+        "   - Framework 7.1 stopped writing the `CLAUDE.md` pointer on the\n"
+        "     claude harness, and 12.19 writes it again: Claude Code reads\n"
+        "     AGENTS.md itself only when no CLAUDE.md or CLAUDE.local.md exists\n"
+        "     in the working directory or above it, so a CLAUDE.md in a parent\n"
+        "     directory left a project without its instructions. A claude\n"
+        "     project's CLAUDE.md is never retired, whatever the recorded file\n"
+        "     list says (a scaffold from before 7.1 records it as a framework\n"
+        "     file): it holds the `@AGENTS.md` import, and the user may have\n"
+        "     added text. Step 5 runs `init_agent.py --ensure-agents-import`,\n"
+        "     which creates it, appends the import to one that lacks it, or\n"
+        "     leaves one that has it. Claude Code loads AGENTS.md once either\n"
+        "     way.\n"
         "   - Framework 7.0 retires `.ai/notes/map.md` as framework output.\n"
         "     Do not delete it and do not remove its pointer from\n"
         "     `.ai/notes.md`: the moment the framework stopped generating it\n"

@@ -7,6 +7,7 @@ section so /explore output survives a regeneration.
 """
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -47,6 +48,51 @@ def write_settings(path: Path, content: str, force: bool, created: list,
         data["autoMemoryEnabled"] = kept
         content = json.dumps(data, indent=2) + "\n"
     write(path, content, force, created, skipped)
+
+def has_agents_import(text: str) -> bool:
+    """Does this CLAUDE.md import AGENTS.md? Claude Code skips fenced code
+    blocks and code spans when it parses imports, so a mention in either is
+    not one."""
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith(("```", "~~~")):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        line = re.sub(r"`[^`]*`", "", line)
+        if re.search(r"(?<![\w/.@])" + re.escape(AGENTS_IMPORT) + r"(?![\w.])",
+                     line):
+            return True
+    return False
+
+def ensure_agents_import(root: Path) -> str:
+    """Claude harness only (CONCEPT.md section 81): make sure the project
+    root's CLAUDE.md imports AGENTS.md, so Claude Code loads it also where
+    it would not read AGENTS.md itself (a CLAUDE.md in a parent directory).
+    None there: write the one line. One there without the import: append the
+    line and leave the rest. One there with it, a symlink to AGENTS.md, or
+    a `.claude/CLAUDE.md` that imports it: nothing. Returns `created`,
+    `appended` or `unchanged`. The file is the user's once it holds more than
+    the line, so it is never recorded as a framework file and never
+    retired."""
+    target = root / "CLAUDE.md"
+    agents = root / "AGENTS.md"
+    if target.exists():
+        if agents.exists() and target.resolve() == agents.resolve():
+            return "unchanged"
+        text = target.read_text(encoding="utf-8")
+        if has_agents_import(text):
+            return "unchanged"
+        sep = "" if not text or text.endswith("\n") else "\n"
+        target.write_text(text + sep + AGENTS_IMPORT + "\n", encoding="utf-8")
+        return "appended"
+    inner = root / ".claude" / "CLAUDE.md"
+    if inner.is_file() and has_agents_import(
+            inner.read_text(encoding="utf-8")):
+        return "unchanged"
+    target.write_text(AGENTS_IMPORT + "\n", encoding="utf-8")
+    return "created"
 
 def write_agent(path: Path, content: str, force: bool, created: list,
                 skipped: list):
@@ -491,6 +537,14 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_reviewer_guard(), force, created, skipped)
         write_settings(root / ".claude" / "settings.json",
                        render_settings_json(), force, created, skipped)
+        # Not `write()`: the file is not recorded as framework output, so a
+        # retire or a harness switch never deletes it (section 81). The
+        # reference scaffold of an update has none: the update runs
+        # `init_agent.py --ensure-agents-import` on the project instead.
+        if not reference:
+            how = ensure_agents_import(root)
+            if how != "unchanged":
+                created.append(root / "CLAUDE.md")
     elif harness == "opencode":
         opencode = root / OPENCODE_DIR
         for fname, content in render_opencode_commands(

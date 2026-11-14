@@ -281,16 +281,20 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). Every harness reads it natively; no `CLAUDE.md` is written.
-Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
-or `CLAUDE.local.md` exists in the project directory or any directory
-above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
-`CLAUDE.md` in a parent folder, or run Claude Code through Amazon Bedrock
-or with telemetry disabled, add a `CLAUDE.md` containing `@AGENTS.md`
-yourself, or set the Claude Code project-instructions option to
-`claude-md-and-agents-md` in `~/.claude/settings.json`. Scaffolds from 7.0
-and earlier carry the pointer; `/framework-update` retires it where it is
-safe to.
+section). Copilot and OpenCode read it natively. Claude Code reads
+`AGENTS.md` since 2.1.277, but only when no `CLAUDE.md` or
+`CLAUDE.local.md` exists in the project directory or any directory above it
+(a personal `~/.claude/CLAUDE.md` does not count), and before 2.1.281 not
+at all through Amazon Bedrock or with telemetry disabled. So on the
+claude harness `init-agent` makes sure the project root has a `CLAUDE.md`
+containing `@AGENTS.md`: none there, it writes that one line; one there
+without the import, it appends the line and leaves the rest; one there with
+it, nothing changes. `/framework-update` does the same through
+`init-agent --ensure-agents-import`. The file is yours, not framework
+output: it is not in the recorded file list and no update or harness switch
+deletes it, so add your Claude-specific notes below the import. Claude Code
+loads `AGENTS.md` once either way. Scaffolds from 7.0 and earlier carried the
+same pointer; 7.1 to 12.18 wrote none.
 
 ## One memory on Claude Code
 
