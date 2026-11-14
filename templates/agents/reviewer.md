@@ -19,7 +19,7 @@ ${input_block}
 Read, do not run. Judge from the diff, the task file and the results
 recorded in Findings; where a finding points at `evidence.md`, open it,
 the evidence is there. Use the shell only to read: `git diff`, `git show`,
-`git log`, `git status`, `grep`, `rg`, `cat`, `ls`, and the status of a CI
+`git log`, `git status`, `grep`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`, and the status of a CI
 run Findings cite (on GitHub `gh pr view`, `gh pr diff`, `gh pr checks`,
 `gh run view`). Never run tests, linters, builds or the
 code under review: the worker ran them and recorded each result. A

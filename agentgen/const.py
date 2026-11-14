@@ -95,8 +95,8 @@ TASK_ROLES = ("worker", "reviewer")
 # OpenCode's reviewer rules are written from this list; the Claude hook
 # templates/hooks/reviewer_guard.py carries a copy and a test keeps them equal.
 REVIEWER_SHELL = ["git diff", "git show", "git log", "git status", "grep",
-                  "rg", "cat", "ls", "gh pr view", "gh pr diff",
-                  "gh pr checks", "gh run view"]
+                  "rg", "cat", "ls", "head", "tail", "wc", "gh pr view",
+                  "gh pr diff", "gh pr checks", "gh run view"]
 ROLE_TURNS = {"worker": 200, "reviewer": 50, "updater": 100}
 AGENT_FILES = {
     "claude": {"worker": ".claude/agents/worker.md",

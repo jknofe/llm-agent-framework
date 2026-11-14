@@ -9,7 +9,8 @@ outside the read-only list is blocked, exit 2 with the reason on stderr, and
 the reason tells the reviewer to report what it could not check.
 
 Allowed: `git diff|show|log|status` (optionally `git -C <dir> ...`),
-`grep`, `rg`, `cat`, `ls`, `gh pr view|diff|checks`, `gh run view`, behind
+`grep`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`,
+`gh pr view|diff|checks`, `gh run view`, behind
 a leading `rtk` or `rtk proxy` as git_guard.py accepts them. A compound
 command (`&&`, `||`, `;`, `|`) passes only when every part is allowed.
 Blocked whatever the command: a redirect to a file, a command or process
@@ -26,7 +27,7 @@ import sys
 # permission rules are written from; tests/test_reviewer_guard.py keeps the
 # two equal.
 ALLOWED = ["git diff", "git show", "git log", "git status", "grep", "rg",
-           "cat", "ls", "gh pr view", "gh pr diff", "gh pr checks",
+           "cat", "ls", "head", "tail", "wc", "gh pr view", "gh pr diff", "gh pr checks",
            "gh run view"]
 
 SEPARATORS = ("&&", "||", ";", "|")
@@ -122,7 +123,7 @@ def check(command):
 
 def block(reason):
     msg = (f"Blocked: {reason} is outside the reviewer's read-only shell "
-           "(git diff|show|log|status, grep, rg, cat, ls, gh pr "
+           "(git diff|show|log|status, grep, rg, cat, ls, head, tail, wc, gh pr "
            "view|diff|checks, gh run view). A review reads and runs "
            "nothing: report what you could not check instead of running "
            "it.")

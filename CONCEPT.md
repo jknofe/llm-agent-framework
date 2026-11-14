@@ -5511,9 +5511,9 @@ the reviewer's body says "Read, do not run".
   Claude default allows nesting, so the text rule alone was all there was.
   OpenCode needs nothing, its default depth is 1.
 - Reviewer: the list of what its shell may run is `const.REVIEWER_SHELL`:
-  `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`, `gh pr
+  `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`, `gh pr
   view|diff|checks`, `gh run view`. The body now names exactly these (it
-  named four before; `git status`, `rg`, `cat`, `ls`, `gh pr view` and
+  named four before; `git status`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`, `gh pr view` and
   `gh pr diff` are added because a reviewer that may not run anything still
   reads files and the pull request). `tasks.py` is not on the list, the body
   never asks for it.

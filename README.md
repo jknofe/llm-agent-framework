@@ -348,7 +348,7 @@ stdout; only where they live and how they are registered differs:
   does the steps. The roles are enforced by the harness where it can: the
   Claude Code worker may not spawn agents (`disallowedTools: Agent`), the
   Claude Code reviewer's own `reviewer_guard.py` hook blocks any shell
-  command outside `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`,
+  command outside `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`,
   `gh pr view|diff|checks` and `gh run view`, and the OpenCode reviewer
   carries the same list as `shell` rules. Their agent files are `.claude/agents/{reviewer,worker}.md`,
   `.opencode/agents/{reviewer,worker}.md` and
