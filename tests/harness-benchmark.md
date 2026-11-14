@@ -74,6 +74,37 @@ sub-agent from the transcripts (Claude Code) or the server (OpenCode).
 `summarize.py` reports medians and ranges, and an estimated cost at list
 prices.
 
+### What a run records for cost
+
+Word and token counts alone mislead. arXiv 2607.12161 cut tool-output
+tokens by 38.4% and got 6.8% higher billed cost, because cache writes and
+cache reads dominate the bill. So every run records, besides the tokens:
+
+- **Billed cost including cache**, per session and per sub-agent: input,
+  output, cache writes and cache reads, each at its own price, as one dollar
+  figure for the run. Claude Code: `claude -p --output-format json` returns
+  `total_cost_usd` and a per-model breakdown in `modelUsage`; the docs call
+  both "client-side estimates" that "can differ from your actual bill", and
+  on a subscription they are not what was charged. OpenCode: the session
+  objects of `opencode api GET /api/session` carry a `cost` field and
+  `tokens` with `cache.read` and `cache.write` (`metrics.py` reads the
+  tokens already). `cost` read 0 on a fresh session; whether it is filled
+  under the "Claude Agent" login was not checked, and `opencode session
+  export` was not checked for a per-message cost. Until it is, an OpenCode
+  run's cost is computed from its tokens at list prices, as `summarize.py`
+  does for both harnesses now, with the same cache multipliers, and the
+  report says which source each figure has.
+- **Whether the task succeeded**, from `grade.py`: its status, the ticked
+  criteria and the reference answer. A run that failed its task is not
+  cheap; its cost goes in the table and out of the comparison figure.
+- **Cost per successful task**: the cost of the runs of one harness or
+  profile divided by the number of tasks that succeeded in them. This is
+  the figure two arms are compared on, next to the success count, not the
+  token or word totals.
+
+This records what a run cost. It makes no claim that the framework is
+cheaper (CONCEPT.md Part I, "What the framework does not claim").
+
 Decision rule, fixed before a round: a cost or time difference counts only
 when all runs of one harness beat all runs of the other; a correctness
 difference only at two or more tasks.
