@@ -21,6 +21,7 @@ themselves.
    python3 tests/test_models.py
    python3 tests/test_notes.py
    python3 tests/test_session_hook.py
+   python3 tests/test_inject.py
    python3 tests/test_opencode_plugin.py
    ```
    The reviewer guard test feeds the Claude reviewer's hook allowed and
@@ -41,6 +42,11 @@ themselves.
    Claude Code does: hub under its header, silence for a stub, no hub or a
    worker, fail open on a broken or hung tool, the output under the 10,000
    character cap, and the claude-only wiring in the generated settings.
+   The injection test checks the one `!`...`` command of `/framework-models`
+   (section 84): argument-free, alone on its line, pre-approved on Claude,
+   absent on Copilot, runs in a real scaffold with the roles unset (exit 0
+   with `--exit-zero`) and set, and that `check_templates` rejects a stray
+   or argument-carrying injection.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

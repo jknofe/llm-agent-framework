@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.21"
+FRAMEWORK_VERSION = "12.22"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -46,6 +46,11 @@ SKILLS = ["explore", "task", "framework-models", "framework-update"]
 # equivalent is documented for copilot.
 SKILL_EFFORT = {"explore": "medium", "task": "medium",
                 "framework-models": "low", "framework-update": "high"}
+
+# Claude Code `allowed-tools` per skill: the script a skill's injected command
+# runs, pre-approved for the turn (CONCEPT.md section 84), so a project whose
+# permission list lacks it does not abort the invocation.
+SKILL_ALLOWED_TOOLS = {"framework-models": "tasks.py"}
 
 # The harnesses this generator renders. Hermes was the third until 10.0
 # (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized

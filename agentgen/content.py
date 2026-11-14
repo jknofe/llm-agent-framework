@@ -248,6 +248,9 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
     drift.
     """
     hook_offer = render.load(f"skills/fragments/{harness}/hook-offer.md")
+    models_run = render.render(
+        render.load(f"skills/fragments/{harness}/models-run.md"),
+        tools_dir=TOOLS_DIR)
     specs = []
     for name in SKILLS:
         if name in COMPOSED_BODIES:
@@ -258,7 +261,7 @@ def command_specs(harness: str, arg_focus: str, arg_ticket: str) -> list:
             desc, body = _split_frontmatter(raw)
             body = render.render(body, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                                  arg_focus=arg_focus, arg_ticket=arg_ticket,
-                                 hook_offer=hook_offer)
+                                 hook_offer=hook_offer, models_run=models_run)
         specs.append((name, desc, body))
     return specs
 
@@ -289,11 +292,15 @@ def render_skills(specs) -> dict:
     for name, desc, body in specs:
         hint = ARG_HINTS.get(name)
         hint_line = f"argument-hint: \"{hint}\"\n" if hint else ""
+        allowed = SKILL_ALLOWED_TOOLS.get(name)
+        allowed_line = (f"allowed-tools: Bash(python3 {TOOLS_DIR}/{allowed} *)\n"
+                        if allowed else "")
         out[f"{name}/SKILL.md"] = (
             "---\n"
             f"name: {name}\n"
             f'description: "{desc}"\n'
             f"{hint_line}"
+            f"{allowed_line}"
             "disable-model-invocation: true\n"
             f"effort: {SKILL_EFFORT[name]}\n"
             "---\n"

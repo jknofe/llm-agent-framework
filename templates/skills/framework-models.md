@@ -6,11 +6,7 @@ Show the models of the two sub-agents of `/task do`, `worker` and
 the update to, and the command that sets them. Arguments:
 ${arg_ticket}
 
-Run `python3 ${tools_dir}/tasks.py models --list` followed by the
-arguments as given (`worker=<model>`, `reviewer=<model>`,
-`updater=<model>`, or the names in that order; none is fine), and reply
-with its complete output, verbatim, and nothing else. `--list` adds the
-models this harness or its backend can name, where it can list them.
+${models_run}
 
 Do not run the command it prints, do not edit an agent file, and do not
 suggest or pick a model name, from the list or otherwise: the choice is the user's, and the printed

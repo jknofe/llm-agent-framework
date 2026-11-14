@@ -141,16 +141,53 @@ def check_json():
             fail("json", f"{label} invalid: {e}")
 
 
-def check_opencode_syntax():
-    """An OpenCode command template runs !`...` in a shell before the prompt
-    is sent, outside the permission flow, and replaces $1, $2 with arguments.
-    Prose that merely quotes such text would do both silently."""
-    specs = content.command_specs("opencode", "$ARGUMENTS", "$ARGUMENTS")
-    for fname, text in content.render_opencode_commands(specs).items():
-        if "!`" in text or re.search(r"\$\d", text):
-            fail("opencode", f"{fname}: !`...` or $N would be expanded")
-        if "$ARGUMENTS" not in text:
-            fail("opencode", f"{fname}: no $ARGUMENTS, arguments get appended")
+# The one command a skill may run before the model sees it (CONCEPT.md
+# section 84): Claude Code and OpenCode run `!`...`` in a shell as the
+# command is rendered, outside the model's control, and abort or expand
+# arguments in ways prose that merely quotes the syntax would trigger.
+ALLOWED_INJECTIONS = {"claude": {"python3 .ai/agent/tools/tasks.py models "
+                                 "--list --exit-zero"},
+                      "opencode": {"python3 .ai/agent/tools/tasks.py models "
+                                   "--list --exit-zero"},
+                      "copilot": set()}
+INJECT_RE = re.compile(r"(?:^|(?<=\s))!`([^`\n]*)`")
+
+
+def check_injection_syntax():
+    """Every `!`...`` in a rendered command is a known, argument-free
+    injection; a stray one would run in a shell, and a command with `$`
+    in it could carry the user's arguments into the shell. Also: an
+    OpenCode command expands $1, $2 and needs $ARGUMENTS, and a Claude
+    skill with an injection pre-approves its script in `allowed-tools`."""
+    for harness in HARNESSES:
+        specs = content.command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")
+        if harness == "claude":
+            files = content.render_skills(specs)
+        elif harness == "opencode":
+            files = content.render_opencode_commands(specs)
+        else:
+            files = content.render_prompt_files(specs)
+        for fname, text in files.items():
+            found = INJECT_RE.findall(text)
+            if text.count("!`") != len(found) or "```!" in text:
+                fail("injection", f"{harness} {fname}: a !`...` or ```! "
+                                  "that is not a plain inline injection")
+            for command in found:
+                if command not in ALLOWED_INJECTIONS[harness]:
+                    fail("injection", f"{harness} {fname}: runs "
+                                      f"{command!r}, not an allowed command")
+                if "$" in command:
+                    fail("injection", f"{harness} {fname}: {command!r} could "
+                                      "carry arguments into the shell")
+            if found and harness == "claude" and "allowed-tools: Bash(" \
+                    not in text:
+                fail("injection", f"{fname}: injects without allowed-tools")
+            if harness == "opencode":
+                if re.search(r"\$\d", text):
+                    fail("opencode", f"{fname}: $N would be expanded")
+                if "$ARGUMENTS" not in text:
+                    fail("opencode", f"{fname}: no $ARGUMENTS, arguments "
+                                     "get appended")
 
 
 def check_register():
@@ -254,7 +291,7 @@ def check_worker_files():
 
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_opencode_syntax, check_register, check_names,
+                  check_json, check_injection_syntax, check_register, check_names,
                   check_reference,
                   check_budget, check_worker_files):
         check()

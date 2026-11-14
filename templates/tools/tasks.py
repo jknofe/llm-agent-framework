@@ -109,7 +109,10 @@ fail. Then the command that sets them, written for this scaffold's harness
 (`init-agent --models`, which also tests each name as a sub-agent):
 `models worker=<m> reviewer=<m> updater=<m>` fills in those names, else
 the current ones, else placeholders. /framework-models shows this output
-(CONCEPT.md section 62). Exit 1 when worker or reviewer is missing.
+(CONCEPT.md section 62). Exit 1 when worker or reviewer is missing, or 0
+with `--exit-zero`, which /framework-models passes where the harness runs
+the command before the model sees the skill (CONCEPT.md section 84): a
+non-zero exit would abort the whole invocation there.
 With `--list` (what /framework-models passes, never the /task do gate) it
 then lists the models this harness or its backend can name, to choose
 from (CONCEPT.md section 65): `opencode models` on OpenCode, the backend's
@@ -742,7 +745,7 @@ def trackers():
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
          "| tasks.py trackers | tasks.py notes [--session] | "
-         "tasks.py models [--list] [worker=<m>] "
+         "tasks.py models [--list] [--exit-zero] [worker=<m>] "
          "[reviewer=<m>] [updater=<m>] | "
          "tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
@@ -805,7 +808,11 @@ def models_args(args):
 def models(args=()):
     root = AI.parent
     listing = "--list" in args
-    args = [a for a in args if a != "--list"]
+    # For a caller that must not abort on the gate's exit 1 (a skill that
+    # runs this before the model sees it, CONCEPT.md section 84): the first
+    # line still says MODELS OK or MODELS MISSING.
+    exit_zero = "--exit-zero" in args
+    args = [a for a in args if a not in ("--list", "--exit-zero")]
     wanted = models_args(args)
     if wanted is None:
         print(f"Unknown argument in {' '.join(args)!r}. {USAGE}")
@@ -846,7 +853,7 @@ def models(args=()):
     if listing:
         print()
         print("\n".join(available(stamp_harness())))
-    return 1 if problems else 0
+    return 1 if problems and not exit_zero else 0
 
 
 def stamp_harness():

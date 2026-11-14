@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.21.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.22.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -285,8 +285,10 @@ that one task waits on another; it schedules nothing.
 ## Property 3: one command set
 
 Four commands: `/explore`, `/task` (`create`, `do`, `list`, `tree`),
-`/framework-models`, `/framework-update`. Same names,
-same bodies, on every harness; only the entry files differ (Agent Skills
+`/framework-models`, `/framework-update`. Same names on every harness, and
+the same bodies but for what the harness needs (the update body, and
+`/framework-models` where the harness runs a command before the model sees
+the skill, section 84); only the entry files differ (Agent Skills
 under `.claude/skills/`, prompt files under `.github/prompts/`, commands under
 `.opencode/commands/`). `AGENTS.md` is the one instructions file and every
 harness reads it natively except Claude Code in some cases: it reads
@@ -575,6 +577,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.22 (2026-11-14, script output without a model round trip, section 84.
+On Claude Code and OpenCode `/framework-models` carries the output of
+`tasks.py models --list --exit-zero` in its body, run by the harness before
+the model sees it. `/task` is not changed. Copilot keeps the old body.)
 
 v12.21 (2026-11-14, the notes hub is in context at session start on Claude
 Code, section 83. A `SessionStart` hook prints the capped hub and the
@@ -5880,3 +5887,93 @@ hook runs without `--bare` (https://code.claude.com/docs/en/headless: "Without
 `--bare`, a `-p` session runs the hooks in a project's `.claude/settings.json`
 ... even in a folder you've never trusted"), and not with it, so a `--bare`
 run reads the hub itself, as the text allows.
+
+## 84. Script output without a model round trip (2026-11-14, v12.22)
+
+**Source.** The review in `fable-review-results.md`, Priority 2, item 8.
+`/framework-models` only prints what `tasks.py models --list` computes, and
+the model spent a turn calling it.
+
+**Facts, read in the docs on 2026-11-14.**
+
+- Claude Code, https://code.claude.com/docs/en/skills: "The `` !`<command>` ``
+  syntax runs shell commands before the skill content is sent to Claude. The
+  command output replaces the placeholder"; "The inline form is only
+  recognized when `!` appears at the start of a line or immediately after
+  whitespace"; "Substitution runs once ... Command output is inserted as
+  plain text and is not re-scanned". Failure: "A failed command aborts the
+  entire skill invocation ... Claude never sees the skill content for that
+  invocation", and "any non-zero exit code counts as a failure", with
+  `|| true` named as the way out. stderr is merged into stdout.
+- Permissions, same page: "Injected commands never prompt for permission
+  while the skill renders. Claude Code checks each one against your
+  permission rules first", and outside auto mode "when a command's permission
+  check returns anything other than allow, Claude Code aborts the
+  invocation. To keep an unmatched command from aborting, pre-approve it with
+  `allowed-tools`". So the project's own allow list (`Bash(python3
+  .ai/agent/tools/tasks.py:*)` in `permissions.txt`) covers the command, and
+  the skill also carries `allowed-tools: Bash(python3
+  .ai/agent/tools/tasks.py *)` (the page's own example form, a grant for the
+  turn) for a project whose list was edited. `disableSkillShellExecution`
+  turns the whole feature off by policy; the command is then replaced by
+  `[shell command execution disabled by policy]`, and the body then tells the
+  model to run the script itself, as it does with arguments.
+- Arguments, same page: "`$ARGUMENTS` always expands to the full argument
+  string as typed" and an argument containing `$1` is inserted literally.
+  Nothing says an argument is shell-escaped where it lands inside a `!`...``
+  command; the page does not address it.
+- OpenCode, https://opencode.ai/docs/commands/: "Wrap a shell command in `!`
+  followed by backticks to insert its output before the prompt is
+  submitted"; "OpenCode runs each block with the configured shell in the
+  active project location and inserts its combined output"; "Shell blocks run
+  when OpenCode evaluates the command, outside the agent's tool permission
+  flow"; "Argument placeholders are expanded first" and "Do not place
+  untrusted arguments inside shell blocks". What a failing command does is
+  not stated.
+- Copilot: skipped. No injection form was verified for prompt files.
+
+**Change.** `/framework-models`, on Claude Code and OpenCode: the body
+carries `` !`python3 .ai/agent/tools/tasks.py models --list --exit-zero` `` on
+a line of its own and says to reply with that output verbatim; with
+arguments (they only change the printed command) it runs the script again
+with them, as before. The line has no `$ARGUMENTS`, so nothing the user types
+reaches a shell. Copilot keeps the old body, so the bodies of this command
+differ by harness while the names stay equal. The text comes from
+`templates/skills/fragments/<harness>/models-run.md`.
+
+**The wrapper is a flag, not `|| true`.** `tasks.py models` exits 1 to say a
+role is unset, and that would abort the invocation. `|| true` makes a
+compound command, and a compound passes the permission check only when every
+part is allowed: `true` is not in the allow list. So `tasks.py models` takes
+`--exit-zero`: exit 0 always, the first line still `MODELS OK` or `MODELS
+MISSING`. `/task do`'s gate does not pass it and still gets exit 1.
+
+**Not changed: `/task`.** The dispatcher starts with `tasks.py resolve
+<arguments>`. The arguments are free text (`create fix the parser; it's
+broken`, quotes, backticks). Neither harness's docs show them reaching the
+shell safely (Claude Code's page is silent, OpenCode's warns against it), so
+nothing that carries them is injected. An argument-free injection of the
+`/task list` table was considered and rejected: the injection runs on every
+`/task`, `create` and `do` included, and the dispatcher cannot make it
+conditional on its first word, so every `create` and `do` would carry the
+table (a few hundred tokens, more with flags) and the model would have to
+ignore it, to save one tool call on `list`. Splitting `/task list` into a
+command of its own would change the command set of Property 3. `/task list`
+and `/task tree` keep running the script themselves.
+
+**No `model:` field.** The review suggested one on skills; the framework
+knows no model names, so none is written.
+
+**Check.** `check_templates.check_injection_syntax` replaces the OpenCode
+syntax check: every `!`...`` or ```` ```! ```` in a rendered command, on any
+harness, must be the one allowed command with no `$` in it, and a Claude
+skill with an injection must pre-approve it. `tests/test_inject.py` runs the
+command through a shell in a real scaffold with the roles unset and set.
+
+**What a live run must show.** `/framework-models` on Claude Code answers
+with the script's output with no tool call, in a project whose allow list
+has the rule and in one whose list lacks it (the `allowed-tools` grant), and
+with `worker=<m>` arguments runs the script once more; the same on OpenCode,
+where the failure behavior is unknown and `--exit-zero` makes it moot; a
+session with `disableSkillShellExecution` set shows the policy notice and
+falls back to running the script.
