@@ -8,7 +8,8 @@ Stdlib only. Scaffolds an opencode project with the real init_agent.py: a
 fresh one has `instructions: [".ai/notes.md"]` and the permissions; a forced
 re-init keeps a user's own entries in their order and adds the hub once;
 never twice; a value that is not a list of strings and an unreadable file
-are replaced; the other keys are regenerated; claude and copilot have no
+are replaced; `permissions` is regenerated and any other key a user added
+(`compaction`, a model, MCP servers) survives, section 87; claude and copilot have no
 such file; the update body names the merge case.
 """
 import json
@@ -82,6 +83,22 @@ def main():
     init(root)
     check(json.loads(f.read_text())["instructions"] == [".ai/notes.md"],
           "a JSON non-object is replaced")
+
+    # A user's own keys survive a forced re-init (section 87).
+    comp = {"auto": False, "keep": {"tokens": 20000}, "buffer": "10%"}
+    d = reinit(["docs/a.md"], {"compaction": comp, "model": "p/m",
+                               "mcp": {"x": {"type": "local"}}})
+    check(d.get("compaction") == comp, f"compaction kept: {d.get('compaction')}")
+    check(d.get("model") == "p/m" and d.get("mcp") == {"x": {"type": "local"}},
+          "other user keys kept")
+    check(d["permissions"], "permissions regenerated beside user keys")
+    init(root)
+    d2 = json.loads(f.read_text(encoding="utf-8"))
+    check(d2 == d, "a second re-init changes nothing")
+    f.write_text("{not json", encoding="utf-8")
+    init(root)
+    check("compaction" not in json.loads(f.read_text()),
+          "an unreadable file is replaced, nothing to keep")
 
     # An unforced re-init leaves the file alone.
     f.write_text(json.dumps({"instructions": ["mine.md"]}), encoding="utf-8")

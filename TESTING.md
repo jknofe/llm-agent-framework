@@ -57,7 +57,8 @@ themselves.
    The OpenCode config test checks `instructions` in the generated
    `opencode.json` (section 86): the hub by default, a user's entries and
    their order kept on a forced re-init, the hub added once, a bad value
-   replaced, and the update body's merge case.
+   replaced, a user's other keys (`compaction`, a model) kept (section 87),
+   and the update body's merge case.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

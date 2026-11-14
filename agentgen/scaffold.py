@@ -52,24 +52,30 @@ def write_settings(path: Path, content: str, force: bool, created: list,
 def write_opencode_config(path: Path, content: str, force: bool,
                           created: list, skipped: list):
     """`.opencode/opencode.json`: framework-owned like any other file, except
-    the entries of `instructions` a user already has, which survive a
+    what a user already has in it. The entries of `instructions` survive a
     regeneration in their order, with the notes hub added once when missing
-    (CONCEPT.md section 86). A value that is not a list of strings, or an
-    unreadable file, is replaced."""
-    kept = None
+    (CONCEPT.md section 86); a value that is not a list of strings is
+    replaced. Every top-level key the framework does not generate
+    (`compaction`, a model, MCP servers) is carried over as it is (section
+    87); `permissions` is regenerated. An unreadable file is replaced."""
+    old = {}
     if path.is_file():
         try:
-            kept = json.loads(path.read_text(encoding="utf-8")).get(
-                "instructions")
-        except (ValueError, AttributeError):
-            kept = None
+            old = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            old = {}
+        if not isinstance(old, dict):
+            old = {}
+    kept = old.get("instructions")
+    data = json.loads(content)
     if isinstance(kept, list) and all(isinstance(e, str) for e in kept):
-        data = json.loads(content)
         data["instructions"] = kept + ([NOTES_INSTRUCTION]
                                        if NOTES_INSTRUCTION not in kept
                                        else [])
-        content = json.dumps(data, indent=2) + "\n"
-    write(path, content, force, created, skipped)
+    for key, value in old.items():
+        if key not in data:
+            data[key] = value
+    write(path, json.dumps(data, indent=2) + "\n", force, created, skipped)
 
 def has_agents_import(text: str) -> bool:
     """Does this CLAUDE.md import AGENTS.md? Claude Code skips fenced code

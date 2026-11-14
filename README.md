@@ -337,7 +337,8 @@ obedience:
   tokens to every session (CONCEPT.md Part I, Property 4). On OpenCode the
   generated `.opencode/opencode.json` lists `.ai/notes.md` under
   `instructions`, which loads it whole, with no cap and no flags; your own
-  entries there survive a re-init and an update. Copilot reads the hub itself.
+  entries there survive a re-init and an update, as does any other key you
+  add to that file (`compaction`, a model). Copilot reads the hub itself.
 - `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
   has uncommitted changes, so notes and task files are not silently dropped. Not
   absolute: every harness overrides a turn-end block after a few consecutive
@@ -503,6 +504,17 @@ Claude Code's slash commands:
   asks about shell commands
 - hooks: the two scripts in `.opencode/hooks/`, run by
   `.opencode/plugins/llm-agent.js` (needs `python3`)
+
+Long sessions: OpenCode compacts the conversation automatically, and its
+config has a `compaction` block for it (`auto`, `keep.tokens`, `buffer`, the
+share of the context window kept free before compaction starts; see
+https://opencode.ai/docs/config/). The framework leaves the harness default:
+no measurement shows it hurting, so any value written here would be a guess.
+Consider changing it in `.opencode/opencode.json` when a long `/task do`
+supervising session visibly loses what it should remember after a
+compaction (a larger `keep.tokens`) or compacts too late for the model's
+window (a larger `buffer`); the block survives a re-init and an update.
+Claude Code's own settings differ and are not touched.
 
 Two differences from Claude Code: OpenCode has no per-command `effort`, and a
 sub-agent cannot be given a model when it is spawned, so both sub-agents take

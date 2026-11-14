@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.24.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.25.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -582,6 +582,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.25 (2026-11-14, a forced re-init keeps the keys a user added to
+`.opencode/opencode.json`, section 88. `compaction` was dropped before.
+The harness's compaction default stays; README says when to change it.)
 
 v12.24 (2026-11-14, the notes hub in context on OpenCode too, section 86.
 `.opencode/opencode.json` gets `instructions: [".ai/notes.md"]`; a user's own
@@ -6247,3 +6251,38 @@ names (a gitignored link in `.claude/rules/` with `paths:` loads on a read,
 also in a sub-agent), and a run where an agent missed a gotcha that sat in a
 leaf. Then the design above is sound as sketched; build it as version 12.x
 with tests for the link step.
+
+## 88. Compaction on OpenCode, and a user's keys survive a re-init (2026-11-14, v12.25)
+
+**Source.** The review's item on `compaction.keep.tokens` and
+`compaction.buffer` for long OpenCode sessions, "set once a real session shows
+the default hurting".
+
+**Facts**, https://opencode.ai/docs/config/: the example is
+`"compaction": {"auto": true, "keep": {"tokens": 15000}, "buffer": "15%"}`;
+"`buffer` is the share of the model's context window kept free before
+automatic compaction starts"; "Top-level `compaction.auto: false` disables
+new automatic compaction without discarding installed checkpoints." **Not
+stated:** the defaults. The example values are an example, not a documented
+default, so the README does not give any.
+
+**Not built: values in the generated config.** No measurement shows the
+default hurting; a number shipped into every scaffold would be a guess, and
+with the premise of Part II that the value is organizational, not speed, there
+is no run to tune against. The README says the framework leaves the default,
+names the three keys and when a user might change them. Claude Code is
+skipped (its compaction is not configured this way), and Copilot.
+
+**A bug found while checking, fixed.** `write_opencode_config` (section 86)
+kept the user's `instructions` on a forced re-init and regenerated every other
+key from the template, so a user's `compaction` block was dropped, and with it
+a `model` or `mcp` entry. The update body already says settings a user added
+are not framework state and are kept, so only the CLI path lost them. Now
+every top-level key the generator does not itself write is carried over;
+`permissions` is regenerated, `instructions` merges as before, and an
+unreadable file or a non-object is replaced. A fresh scaffold is
+byte-identical. `tests/test_opencode_config.py` gains the cases, and fails on
+the old code.
+
+**What a live run must show.** `opencode debug config` in a scaffold with a
+`compaction` block, after `init-agent -y`, still lists it.
