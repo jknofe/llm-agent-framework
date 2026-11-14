@@ -533,6 +533,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "hooks" / "git_guard.py",
               render_hook_git_guard(), force, created, skipped)
+        write(root / ".claude" / "hooks" / "notes_session.py",
+              render_hook_notes_session(), force, created, skipped)
         write(root / ".claude" / "hooks" / "reviewer_guard.py",
               render_hook_reviewer_guard(), force, created, skipped)
         write_settings(root / ".claude" / "settings.json",

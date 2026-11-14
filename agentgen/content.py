@@ -74,7 +74,9 @@ def render_update_body(harness: str, arg: str) -> str:
         merge_cases = (
             "     - `.claude/settings.json`: permission entries and hooks a user\n"
             "       added are not framework state. Union them with the\n"
-            "       reference's; drop only entries the reference retired.\n"
+            "       reference's; drop only entries the reference retired. A\n"
+            "       framework hook the project lacks, such as `SessionStart`\n"
+            "       (the notes hub, 12.21), is added with its script.\n"
             "     - `autoMemoryEnabled` in `.claude/settings.json`: a value the\n"
             "       project already has, `true` or `false`, is the user's and\n"
             "       stays. The reference's `false` only fills a file that has\n"
@@ -422,6 +424,9 @@ def render_opencode_plugin() -> str:
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
 
+def render_hook_notes_session() -> str:
+    return render.load("hooks/notes_session.py")
+
 def render_hook_reviewer_guard() -> str:
     return render.load("hooks/reviewer_guard.py")
 
@@ -573,7 +578,8 @@ def render_settings_json() -> str:
     the two git guardrails deterministically. Compound commands
     (a && b) prompt unless every part of the chain matches a rule, so common
     chain members (cd, echo, pwd, read-only git) are included as well. It also
-    turns Claude Code's auto memory off for the project (section 80)."""
+    turns Claude Code's auto memory off for the project (section 80) and loads
+    the notes hub at session start (section 83)."""
     allow = render.sectioned_list("config/permissions.txt",
                                   sections=("shared",), tools_dir=TOOLS_DIR)
     hooks = {
@@ -599,7 +605,23 @@ def render_settings_json() -> str:
                     }
                 ],
             }
-        ]
+        ],
+        # The notes hub in context without a tool call (section 83). `fork`
+        # is left out: a forked session already holds it. The timeout is
+        # short because the default is 600 seconds and this blocks the start.
+        "SessionStart": [
+            {
+                "matcher": "startup|resume|clear|compact",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": 'python3 "$CLAUDE_PROJECT_DIR/'
+                                   '.claude/hooks/notes_session.py"',
+                        "timeout": 15,
+                    }
+                ],
+            }
+        ],
     }
     # One memory (CONCEPT.md section 80): Claude Code's auto memory is a
     # second store beside .ai/notes.md. A user's own value survives a re-init

@@ -328,6 +328,14 @@ obedience:
   file paths are checked, and a line that says a path was removed or is
   planned is skipped. The same lines close the `/task list` output when
   there are any.
+- `notes_session.py` (Claude Code, session start) puts the notes hub
+  `.ai/notes.md` into the session's context, on start, resume, clear and
+  after a compaction, so the agent neither spends a turn reading it nor
+  skips it. Capped at 100 lines or 8,000 bytes, with the freshness flags
+  above (at most three lines) under it; nothing for a missing or untouched
+  hub. The leaves are still read on demand. This adds up to about 2,000
+  tokens to every session (CONCEPT.md Part I, Property 4). OpenCode and
+  Copilot read the hub themselves.
 - `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
   has uncommitted changes, so notes and task files are not silently dropped. Not
   absolute: every harness overrides a turn-end block after a few consecutive

@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.20.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.21.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -65,7 +65,10 @@ An overview does not help an agent find anything (Part II, ETH round), and
 writing one costs on every session that loads it.
 
 ### Where it lives
-- `.ai/notes.md`, the hub. Appended, telegraphic. Read at the start of a task.
+- `.ai/notes.md`, the hub. Appended, telegraphic. Read at the start of a
+  session: by the agent on Copilot and OpenCode, put into the context by a
+  SessionStart hook on Claude Code (section 83), so it is also there after a
+  compaction. Capped at 100 lines and 8,000 bytes when loaded.
 - `.ai/notes/<topic>.md`, optional leaves, each linked from the hub with a
   one-line pointer. Split only once the hub passes one to two screens.
 - The `GENERATED:project-context` block in `AGENTS.md`, cap ~300 tokens: the
@@ -326,24 +329,65 @@ default, a Herdr tab only when asked.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 562 words on claude, 560 on
-  opencode, 678 on copilot, where the balance is that harness's own CLI note.
+- `AGENTS.md` before the generated section: 572 words on claude, 570 on
+  opencode, 688 on copilot, where the balance is that harness's own CLI note.
   `check_templates` fails above 700 (650 until 12.10, raised for the test
   rule of section 72, which saves more tokens than it costs). The number is
   a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
+- The notes hub on Claude Code: up to 100 lines and 8,000 bytes (about
+  2,000 tokens) in the context of every session, from the project's own
+  `.ai/notes.md`. Argued below.
 - `probe.py`: 199 lines, commands and documentation detection only.
   `tasks.py`: about 1,480 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, the notes check, and
   `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 19 framework files, a copilot one 18, an opencode
+- A claude scaffold records 20 framework files, a copilot one 18, an opencode
   one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42). The worker reads `work.md`
   and `steps.md` (about 1,760 words), not `do.md` (section 77).
+
+### Why the notes hub may be always-loaded on Claude Code (section 83)
+
+Property 4 caps the always-loaded text; 12.21 adds to it, so the case is made
+here, before the template changes.
+
+- **What is added.** The hub `.ai/notes.md`, never the leaves, comments
+  stripped, cut at 100 lines or 8,000 bytes (about 2,000 tokens at most),
+  plus at most three freshness flags. It sits in the cached prefix of the
+  session, as `AGENTS.md` does.
+- **What it replaces.** Protocol rule 1 already said "Read `.ai/notes.md`
+  first", and a hub read whole is those same tokens. What changes is who
+  reads it: no read turn at the start of a session and after each compaction
+  (the earlier read survives a compaction only as far as its summary does),
+  and no session in which the agent did not read it. Where an agent would
+  have skipped the read, the hub now costs tokens it did not cost before;
+  that is the price, and the cap bounds it. No run measured how often the
+  read was skipped, so this is an argument and not a number.
+- **Not a digest.** What Part II measured and rejected is the
+  LLM-generated overview of the code (ETH round: success -0.5% and -2%,
+  cost +20% to +23%, no faster to the first relevant file). The hub is the
+  other kind of content, developer-written and about what the repository
+  cannot state (Pillar 1, "The test"), the arm Part II records as the only
+  one that measured positive: a rule stated by the user landed verbatim and
+  a tool named in the always-loaded block got used. No round in Part II
+  loaded such content and came out worse. The risk is real all the same: a
+  hub that drifts into a code summary would now be paid for in every
+  session. Two things guard it: the cap, and `tasks.py notes` (section 82),
+  which flags a hub over the cap and a note citing a path that is gone, and
+  whose flags the hook prints with the hub.
+- **Claims unchanged.** This is not a saving. "Not cheaper" and "Not
+  amortizing" stand; nothing here is argued from speed.
+- **Where.** Claude Code only. OpenCode's `instructions` key could load the
+  file, but its relative-path base, its behavior on a missing file and
+  whether sub-agents get it are not stated in its docs, and the version
+  installed here (2.2.5) shows nothing for them without a model call, so
+  none of it is shipped. Copilot has no verified equivalent. They keep
+  reading the hub themselves.
 
 ## What the framework does not claim
 
@@ -387,7 +431,8 @@ headings Blocked on me, Changed, Found. Most direct tasks add nothing to
 `.ai/notes.md`.
 
 
-1. Read `.ai/notes.md`. Open only the leaves the task needs.
+1. Read `.ai/notes.md` unless the harness put it in context (Claude Code,
+   section 83). Open only the leaves the task needs.
 2. When code changed, the tests that cover the change, not only the one a
    task names, and lint on the changed files must pass on the final code.
    Done = those checks green. The full suite is CI's or the owner's, not
@@ -530,6 +575,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.21 (2026-11-14, the notes hub is in context at session start on Claude
+Code, section 83. A `SessionStart` hook prints the capped hub and the
+freshness flags. OpenCode and Copilot: not shipped, reasons in the section.
+Argued in Part I, Property 4.)
 
 v12.20 (2026-11-14, a freshness check for the notes, section 82.
 `tasks.py notes` flags a hub over 100 lines or 8,000 bytes, a cited path
@@ -5723,3 +5773,110 @@ same file on each.
 **Tests.** `tests/test_notes.py`: clean notes, each flag, each deliberate
 silence, the exit codes, the list line, a missing, binary, unreadable and
 non-UTF-8 hub, a dangling leaf, and no repository.
+
+## 83. The notes hub is in context at session start (2026-11-14, v12.21)
+
+**Source.** The review in `fable-review-results.md`, Priority 2, item 6.
+Rule 1 of `AGENTS.md` told the agent to read `.ai/notes.md`: one tool call per
+session and after each compaction, and only if the agent did it. The case for
+adding it to what is always loaded is in Part I, Property 4.
+
+**Facts, read in the docs on 2026-11-14.**
+
+- https://code.claude.com/docs/en/hooks, SessionStart: "Runs when Claude Code
+  starts a new session or resumes an existing session." Matchers: `startup`,
+  `resume`, `clear`, `compact` ("Auto or manual compaction") and `fork`.
+  Output: "A hook that only adds context can print it without building JSON,
+  because Claude Code adds a SessionStart hook's plain-text stdout to
+  Claude's context"; `additionalContext` is the JSON form, "added to Claude's
+  context at the start of the conversation, before the first prompt". So the
+  script prints plain text. Cap: "A hook's `additionalContext`,
+  `systemMessage`, and `initialUserMessage` strings, and its plain stdout,
+  are capped at 10,000 characters", over which the output becomes a file path
+  and a preview of 2,000 characters; "keep anything Claude must always see
+  within the cap". The hub cap (8,000 bytes) plus header, cut line and three
+  flag lines stays under it (tested).
+- Same page, the `timeout` field: "Seconds before canceling", default 600 for
+  a command hook. The entry sets 15, because this hook blocks the start.
+- Same page: SessionStart is listed as a per-session event and sub-agents
+  have their own, `SubagentStart` ("Runs when Claude spawns a subagent with
+  the Agent tool"). No sentence says outright that a sub-agent does not run
+  SessionStart; it is a session event and a sub-agent is not a session. The
+  worker therefore reads the hub itself, as `work.md` says. The one case the
+  hook would reach a worker is a session started as `claude --agent worker`
+  (the Herdr tab): its payload carries `agent_type`, "present when you start
+  Claude Code with `claude --agent <name>`", and the script prints nothing for
+  `worker`.
+- Matcher choice: `fork` is left out of
+  the matcher: a forked session carries the conversation, hub included.
+  `resume` is in, because a session resumed from before this version has no
+  hub and AGENTS.md now says not to read it, and a refresh after notes
+  changed elsewhere is the documented use ("run again on resume ... so they
+  can refresh their context").
+
+**OpenCode: not shipped.** The plan was `instructions: [".ai/notes.md"]` in
+`.opencode/opencode.json`. https://opencode.ai/docs/config/ and
+https://opencode.ai/docs/rules/ confirm the key ("Declare additional
+instruction files, globs, or HTTP(S) URLs", "OpenCode loads them alongside
+discovered `AGENTS.md` files") and show project-relative examples
+(`"CONTRIBUTING.md"`, `"docs/guidelines/*.md"`), but say nothing on what a
+relative path resolves against (the config sits in `.opencode/`, not the
+project root), on a missing file, on a size limit, or on whether sub-agents
+get the file. `opencode debug config` (2.2.5) prints the key as written and
+resolves nothing; `opencode api` creates a session but its context is empty
+until a prompt, which is a model call. The rule is that an unverified fact
+does not ship, so nothing was written for OpenCode: no `instructions` entry,
+no merge logic in the config writer, and the text keeps the agent reading the
+hub itself. A run that shows the file in a session's instructions, from the
+project root and from a subdirectory, is what would let a later change add it;
+it would also need its own cap, since the key has none (section 82's flag
+covers a hub over the cap, nothing cuts it).
+
+**Copilot: skipped.** No verified equivalent of a session-start context hook
+(its hooks in `.github/hooks/llm-agent.json` are `preToolUse` and
+`agentStop`).
+
+**Change (claude).**
+
+- `templates/hooks/notes_session.py`, written to `.claude/hooks/` and
+  recorded as a framework file (claude scaffolds record 20 files, copilot 18,
+  opencode 19). It runs `tasks.py notes --session` and prints its stdout, so
+  the cap, the header and the flags have one source (section 82). Fails open:
+  any error, a missing or slow `tasks.py` (10 seconds) prints nothing, exit 0.
+- `tasks.py notes --session` prints: a header naming `.ai/notes.md`, the hub
+  with HTML comments removed (the scaffold's authoring note is for whoever
+  writes the hub, not for the model), cut at 100 lines or 8,000 bytes with
+  one line saying so and that the rest is in the file, then at most three of
+  the section 82 flags ("... and N more" after them; the size flag is left
+  out when the cut line has said it). Nothing is printed for a missing hub, a
+  binary or unreadable one, or the untouched stub (nothing left but the title
+  once comments are gone). Exit 0 always.
+- `.claude/settings.json`: `SessionStart`, matcher
+  `startup|resume|clear|compact`, one command hook, `timeout` 15. In
+  `/framework-update` the settings merge case says a framework hook the
+  project lacks is added with its script, which is how a scaffold older than
+  12.21 gets it; the update's existing check that every hook command in
+  `settings.json` points at a file covers the script.
+- Texts made true. `AGENTS.md` rule 1: "Read `.ai/notes.md` first unless in
+  context." (one rule for every harness: where nothing loads the hub it is
+  never in context, so the agent reads it); to keep the word count from
+  growing, "Open only the leaves under `.ai/notes/` that a task needs" became
+  "Open only leaves a task needs" (`.ai/notes/` is still named under Tasks
+  layout). `create.md` step 1 and `do.md` step 1 say "unless it is in
+  context". `work.md` is unchanged: the worker reads the hub itself. `explore`
+  and the skills never told the session to read the hub. The notes stub's own
+  "Read at the start of a task" is user-owned once written and left alone.
+  AGENTS.md words before the generated section: claude 573 to 572, opencode
+  571 to 570, copilot 689 to 688 (Part I's figures were stale and are
+  corrected).
+
+**What a live run must show.** On Claude Code: a new session in a project
+with a filled hub starts with the hub text in context before the first
+prompt (ask what the notes say about a given line, with no tool call
+before), the same after `/compact` and `/clear`; a project with the stub
+gets nothing; `/task do` still works, with its worker reading the hub; a
+`claude --agent worker` tab gets no second copy. In a `-p` session the
+hook runs without `--bare` (https://code.claude.com/docs/en/headless: "Without
+`--bare`, a `-p` session runs the hooks in a project's `.claude/settings.json`
+... even in a folder you've never trusted"), and not with it, so a `--bare`
+run reads the hub itself, as the text allows.

@@ -23,11 +23,11 @@ yourself.
   Changed, Found.
 
 ## Protocol
-1. Read `.ai/notes.md` first. Append durable knowledge there, telegraphic:
+1. Read `.ai/notes.md` first unless in context. Append durable knowledge there, telegraphic:
    decisions and why, gotchas, unwritten rules, runbooks, sibling-repo
-   pointers. Never summarize code there. Open only the leaves under
-   `.ai/notes/` that a task needs. When the user corrects you, or a check
-   fails for a reason the code does not explain, record it there before
+   pointers. Never summarize code there. Open only leaves a task
+   needs. When the user corrects you, or a check fails for a reason the
+   code does not explain, record it there before
    moving on.
 2. Changed files: before done, each passes its own check. Logic: the
    tests that exercise it, not only one a task names, and lint. Tests are

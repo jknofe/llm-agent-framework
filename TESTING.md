@@ -20,6 +20,7 @@ themselves.
    python3 tests/test_claude_md.py
    python3 tests/test_models.py
    python3 tests/test_notes.py
+   python3 tests/test_session_hook.py
    python3 tests/test_opencode_plugin.py
    ```
    The reviewer guard test feeds the Claude reviewer's hook allowed and
@@ -36,6 +37,10 @@ themselves.
    The notes test runs the notes freshness check of `tasks.py` (section 82)
    on temp projects: each flag, each deliberate silence, exit codes, the
    `/task list` line, and odd input (missing, binary, unreadable).
+   The session-hook test runs the SessionStart hook script (section 83) as
+   Claude Code does: hub under its header, silence for a stub, no hub or a
+   worker, fail open on a broken or hung tool, the output under the 10,000
+   character cap, and the claude-only wiring in the generated settings.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

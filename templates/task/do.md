@@ -31,9 +31,10 @@ those are the forms the permission allowlist matches.
    with the files it claimed. Load `.ai/tasks/<id>/task.md`. Its
    `## Tracker` section is the task's issue, already fetched at create
    time: work from what it records, and query the tracker again only when
-   the task needs the issue's current state. Read `.ai/notes.md`, and any
-   leaf under `.ai/notes/` the task touches. Before you edit a host file,
-   claim it: `python3 ${tools_dir}/tasks.py claim <id> <path>...`.
+   the task needs the issue's current state. Read `.ai/notes.md` unless it
+   is in context, and any leaf under `.ai/notes/` the task touches.
+   Before you edit a host file, claim it:
+   `python3 ${tools_dir}/tasks.py claim <id> <path>...`.
    `CLAIMED ... by running task <other>` means a parallel task owns it:
    do not edit it; ask the user, or wait until that task finishes. If the
    session is compacted, the pointer and the Findings section are the
