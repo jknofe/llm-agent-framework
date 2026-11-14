@@ -292,6 +292,19 @@ yourself, or set the Claude Code project-instructions option to
 and earlier carry the pointer; `/framework-update` retires it where it is
 safe to.
 
+## One memory on Claude Code
+
+Claude Code keeps a second memory of its own, auto memory, whose
+`MEMORY.md` it loads every session beside `.ai/notes.md`. A durable fact can
+land in either, so the generated `.claude/settings.json` sets
+`"autoMemoryEnabled": false` for the project: this turns a Claude Code
+feature off in your project, and `.ai/notes.md` is the one memory. To turn
+it back on, put `"autoMemoryEnabled": true` in `.claude/settings.local.json`
+(it overrides the shared file and stays out of git), or change the line in
+`.claude/settings.json`: a re-init with `-y` and `/framework-update` keep a
+value you set there. OpenCode and Copilot have no second memory, so nothing
+changes on them.
+
 ## Deterministic tools and hooks
 
 Protocol rules that can be enforced mechanically are not left to model

@@ -83,6 +83,10 @@ the only arm that measured positive. `probe.py` runs first and prints detected
 build/test/lint commands and the documentation the repo already has, as a
 starting point for the questions. The user's answers override detection.
 
+On Claude Code the generated `.claude/settings.json` turns the harness's own
+auto memory off for the project, so `.ai/notes.md` is the only memory
+(section 80).
+
 Between explores, notes grow on correction: when the user corrects the agent,
 or a check fails for a reason the code does not explain, the agent records it
 before moving on. A correction is the cheapest signal that something was not
@@ -515,6 +519,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.18 (2026-11-14, one memory on Claude Code, section 80. The generated
+`.claude/settings.json` sets `autoMemoryEnabled: false`; a user's own value
+survives a re-init and an update.)
 
 v12.17 (2026-11-14, the sub-agent roles are enforced, section 79. The
 Claude Code worker may not spawn agents; the reviewer's shell is limited
@@ -5520,3 +5528,44 @@ Code); whether OpenCode's scanner sees a redirect target was not read in the
 docs. The hook is not in force in a `-p` session until the workspace is
 trusted. Both keep the body's text as the backstop, as every hook does
 (Part I, The protocol).
+
+## 80. One memory on Claude Code (2026-11-14, v12.18)
+
+**Source.** The review in `fable-review-results.md`. Claude Code's auto
+memory loads its own `MEMORY.md` at the start of every session beside the
+framework's `.ai/notes.md`, so a durable fact can be written to either, and
+the agent has no rule for which.
+
+**Facts, read in the docs on 2026-11-14.**
+
+- https://code.claude.com/docs/en/memory: "Auto memory is on by default in
+  local sessions", and "To turn it off for a single project, set
+  `autoMemoryEnabled` in that project's settings" with the example
+  `{ "autoMemoryEnabled": false }`. The `/memory` toggle saves the key "to
+  your user settings at `~/.claude/settings.json`".
+- https://code.claude.com/docs/en/settings-reference, settings index: the
+  `autoMemoryEnabled` row lists its scope as "Any file", so the committed
+  `.claude/settings.json` honors it. Precedence, from the settings page:
+  project local over shared project over user, so a project `false` beats a
+  user `true`, and a `true` in `.claude/settings.local.json` beats the
+  project `false`.
+- OpenCode has no second memory: its only persistent instructions are
+  `AGENTS.md` and the files the framework writes. Nothing to turn off there.
+  Copilot is skipped: no equivalent key was verified.
+
+**Change.** `render_settings_json` writes `"autoMemoryEnabled": false`.
+This turns a Claude Code feature off for the project, which is the point
+and also a decision the user may not want; the README section "One memory on
+Claude Code" says so and how to undo it: `"autoMemoryEnabled": true` in
+`.claude/settings.local.json` (untracked, wins over the shared file), or the
+same change in `.claude/settings.json`.
+
+**The user's own value survives.** `settings.json` is framework-owned and a
+re-init with `-y` regenerates it whole; that is unchanged for every other
+key. `scaffold.write_settings` reads the existing file first and, when it
+holds a boolean `autoMemoryEnabled`, writes that value instead of the
+default (a bare re-init without `-y` skips an existing file, as before). In
+`/framework-update` the updater merges the file, and its merge case now says
+a value the project already has stays and the reference's `false` fills only
+a file with no such key, which is also how a scaffold older than 12.18 gets
+the default. `tests/test_settings.py` pins all of it.

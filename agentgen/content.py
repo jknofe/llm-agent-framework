@@ -75,6 +75,10 @@ def render_update_body(harness: str, arg: str) -> str:
             "     - `.claude/settings.json`: permission entries and hooks a user\n"
             "       added are not framework state. Union them with the\n"
             "       reference's; drop only entries the reference retired.\n"
+            "     - `autoMemoryEnabled` in `.claude/settings.json`: a value the\n"
+            "       project already has, `true` or `false`, is the user's and\n"
+            "       stays. The reference's `false` only fills a file that has\n"
+            "       no such key.\n"
             "     - AGENTS.md outside the GENERATED markers: project-specific\n"
             "       rules a user appended below the framework text.\n"
             "     - skills, hooks, or sub-agents present here but not in the\n"
@@ -560,7 +564,8 @@ def render_settings_json() -> str:
     that enforces the .ai commit rule and the PreToolUse hook that enforces
     the two git guardrails deterministically. Compound commands
     (a && b) prompt unless every part of the chain matches a rule, so common
-    chain members (cd, echo, pwd, read-only git) are included as well."""
+    chain members (cd, echo, pwd, read-only git) are included as well. It also
+    turns Claude Code's auto memory off for the project (section 80)."""
     allow = render.sectioned_list("config/permissions.txt",
                                   sections=("shared",), tools_dir=TOOLS_DIR)
     hooks = {
@@ -588,7 +593,12 @@ def render_settings_json() -> str:
             }
         ]
     }
-    settings = {"permissions": {"allow": allow}, "hooks": hooks}
+    # One memory (CONCEPT.md section 80): Claude Code's auto memory is a
+    # second store beside .ai/notes.md. A user's own value survives a re-init
+    # (scaffold.write_settings) and an update (the merge case in the update
+    # body).
+    settings = {"autoMemoryEnabled": False,
+                "permissions": {"allow": allow}, "hooks": hooks}
     return json.dumps(settings, indent=2) + "\n"
 
 def render_opencode_config() -> str:

@@ -16,6 +16,7 @@ themselves.
    python3 tests/test_tasks_table.py
    python3 tests/test_git_guard.py
    python3 tests/test_reviewer_guard.py
+   python3 tests/test_settings.py
    python3 tests/test_models.py
    python3 tests/test_opencode_plugin.py
    ```
@@ -23,6 +24,9 @@ themselves.
    blocked shell commands (bare, behind `rtk`, compound), checks that it
    fails open on unparsable input, and that the OpenCode reviewer's shell
    rules name the same list.
+   The settings test scaffolds a claude project and checks that auto memory
+   is off, that a user's own `autoMemoryEnabled` survives `-y`, and that
+   OpenCode and Copilot get no such key.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

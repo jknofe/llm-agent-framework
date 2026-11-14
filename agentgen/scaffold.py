@@ -29,6 +29,25 @@ def write(path: Path, content: str, force: bool, created: list, skipped: list):
     path.write_text(content, encoding="utf-8")
     created.append(path)
 
+def write_settings(path: Path, content: str, force: bool, created: list,
+                   skipped: list):
+    """`.claude/settings.json`: framework-owned like any other file, except
+    the `autoMemoryEnabled` value a user already set, which survives a
+    regeneration (CONCEPT.md section 80). An unreadable file is replaced as
+    before."""
+    kept = None
+    if path.is_file():
+        try:
+            kept = json.loads(path.read_text(encoding="utf-8")).get(
+                "autoMemoryEnabled")
+        except (ValueError, AttributeError):
+            kept = None
+    if isinstance(kept, bool):
+        data = json.loads(content)
+        data["autoMemoryEnabled"] = kept
+        content = json.dumps(data, indent=2) + "\n"
+    write(path, content, force, created, skipped)
+
 def write_agent(path: Path, content: str, force: bool, created: list,
                 skipped: list):
     """A `worker`, `reviewer` or `updater` agent file: framework-owned like
@@ -470,8 +489,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_git_guard(), force, created, skipped)
         write(root / ".claude" / "hooks" / "reviewer_guard.py",
               render_hook_reviewer_guard(), force, created, skipped)
-        write(root / ".claude" / "settings.json",
-              render_settings_json(), force, created, skipped)
+        write_settings(root / ".claude" / "settings.json",
+                       render_settings_json(), force, created, skipped)
     elif harness == "opencode":
         opencode = root / OPENCODE_DIR
         for fname, content in render_opencode_commands(
