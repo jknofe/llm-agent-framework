@@ -328,7 +328,12 @@ stdout; only where they live and how they are registered differs:
 
 - `reviewer` and `worker` are the two sub-agents of `/task do`: the
   fresh-context adversarial reviewer of its review gate, and the worker that
-  does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`,
+  does the steps. The roles are enforced by the harness where it can: the
+  Claude Code worker may not spawn agents (`disallowedTools: Agent`), the
+  Claude Code reviewer's own `reviewer_guard.py` hook blocks any shell
+  command outside `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`,
+  `gh pr view|diff|checks` and `gh run view`, and the OpenCode reviewer
+  carries the same list as `shell` rules. Their agent files are `.claude/agents/{reviewer,worker}.md`,
   `.opencode/agents/{reviewer,worker}.md` and
   `.github/agents/{reviewer,worker}.agent.md`.
 
@@ -454,6 +459,7 @@ Claude Code's slash commands:
 - commands: `.opencode/commands/*.md`, invoked the same way (`/explore`,
   `/task do FEAT-42`, `/framework-update dry-run`)
 - reviewer: `.opencode/agents/reviewer.md`, a sub-agent that cannot edit
+  and whose shell is limited to read-only commands
 - permissions: `.opencode/opencode.json`, the same read-only list as `shell`
   rules. OpenCode allows by default, so these matter if your global config
   asks about shell commands

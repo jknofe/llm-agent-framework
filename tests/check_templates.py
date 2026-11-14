@@ -77,6 +77,7 @@ def rendered_artifacts():
     out.append(("opencode plugin", content.render_opencode_plugin()))
     for fn in ("render_tool_probe", "render_tool_tasks",
                "render_hook_ai_repo_clean", "render_hook_git_guard",
+               "render_hook_reviewer_guard",
                "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
     return out

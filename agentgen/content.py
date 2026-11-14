@@ -332,7 +332,7 @@ def render_reviewer_agent() -> str:
         desc=("Adversarial fresh-context review of a task's result (diff, "
               "Outcome, or both) against its Done-when criteria. Use for "
               "the review gate in /task do."),
-        max_turns=ROLE_TURNS["reviewer"],
+        max_turns=ROLE_TURNS["reviewer"], project_dir="$CLAUDE_PROJECT_DIR",
         input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
                      "Done when, Findings,\nOutcome) plus the code diff, "
                      "if the task changed code, and\n"
@@ -349,6 +349,9 @@ def render_opencode_reviewer() -> str:
             f"steps: {ROLE_TURNS['reviewer']}\n"
             "permissions:\n"
             '  - { action: edit, resource: "*", effect: deny }\n'
+            '  - { action: shell, resource: "*", effect: deny }\n'
+            + "".join(f'  - {{ action: shell, resource: "{cmd} *", '
+                      'effect: allow }\n' for cmd in REVIEWER_SHELL) +
             "---\n"
             f"{body}")
 
@@ -406,6 +409,9 @@ def render_opencode_plugin() -> str:
 
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
+
+def render_hook_reviewer_guard() -> str:
+    return render.load("hooks/reviewer_guard.py")
 
 def render_hook_git_guard() -> str:
     return render.load("hooks/git_guard.py")

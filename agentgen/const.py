@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.16"
+FRAMEWORK_VERSION = "12.17"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -87,6 +87,12 @@ ROLES = ("worker", "reviewer", "updater")
 TASK_ROLES = ("worker", "reviewer")
 # Turn limit of each role: `maxTurns` on Claude Code, `steps` on OpenCode
 # (CONCEPT.md section 78). A tripwire against a tool-call loop, not a budget.
+# The shell the reviewer may use, all of it read-only (CONCEPT.md section 79).
+# OpenCode's reviewer rules are written from this list; the Claude hook
+# templates/hooks/reviewer_guard.py carries a copy and a test keeps them equal.
+REVIEWER_SHELL = ["git diff", "git show", "git log", "git status", "grep",
+                  "rg", "cat", "ls", "gh pr view", "gh pr diff",
+                  "gh pr checks", "gh run view"]
 ROLE_TURNS = {"worker": 200, "reviewer": 50, "updater": 100}
 AGENT_FILES = {
     "claude": {"worker": ".claude/agents/worker.md",

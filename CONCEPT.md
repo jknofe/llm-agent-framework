@@ -189,7 +189,7 @@ a small task: at most one open step changes a host file, or none does
 (section 55). The
 Outcome, the notes, the Done-when ticks and `finish` are its own. The
 worker never ticks a done-when box, never writes Outcome, notes or the
-review line, and never commits on or merges into the default branch. Each sub-agent file
+review line, and never commits on or merges into the default branch. The roles are held by the harness where it can: section 79. Each sub-agent file
 carries a turn limit against tool-call loops: worker 200, reviewer 50,
 updater 100 (section 78).
 
@@ -323,7 +323,7 @@ default, a Herdr tab only when asked.
   `tasks.py`: 1198 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, and
   `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 18 framework files, a copilot one 18, an opencode
+- A claude scaffold records 19 framework files, a copilot one 18, an opencode
   one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
@@ -418,6 +418,10 @@ the tool's name and the registration differ:
   hooks and no warning, which is why the AGENTS.md note names the
   condition.
 
+The `reviewer` has a third hook script on claude, `reviewer_guard.py`,
+declared in its own agent file and not in `settings.json`, so it runs only
+while the reviewer does (section 79).
+
 Every harness overrides a turn-end block after a few consecutive passes and
 runs hooks only when the repository is the session's working directory, so
 the protocol text remains the guarantee the hooks merely back.
@@ -511,6 +515,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.17 (2026-11-14, the sub-agent roles are enforced, section 79. The
+Claude Code worker may not spawn agents; the reviewer's shell is limited
+to read-only commands by a hook in its own frontmatter on Claude Code and
+by `shell` rules on OpenCode.)
 
 v12.16 (2026-11-14, a turn limit on every sub-agent, section 78.
 `maxTurns` on Claude Code and `steps` on OpenCode: worker 200, reviewer 50,
@@ -5441,3 +5450,73 @@ At the limit the worker's round has no `Worker round` line. `do.md` tells
 the supervisor to treat that as an unfinished round: read Findings, then
 continue the worker. An OpenCode worker that reaches `steps` answers in
 text, which is the same case.
+
+## 79. The sub-agent roles are enforced by the harness (2026-11-14, v12.17)
+
+**Source.** The review in `fable-review-results.md`. Two role rules lived
+in text only: `work.md` says "Never hand the steps to another agent", and
+the reviewer's body says "Read, do not run".
+
+**Facts, read in the docs on 2026-11-14.**
+
+- Claude Code, https://code.claude.com/docs/en/sub-agents: "By default, a
+  subagent can spawn subagents of its own, up to three layers below the main
+  conversation", and to stop one, "omit `Agent` from its `tools` list or add
+  it to `disallowedTools`"; "In version 2.1.63, the Task tool was renamed to
+  Agent." `disallowedTools` is a frontmatter field: "Tools to deny, removed
+  from inherited or specified list."
+- Claude Code, same page: "Subagents can define hooks that run during the
+  subagent's lifecycle", declared in the agent file with the example
+  `hooks: PreToolUse: - matcher: "Bash" hooks: - type: command`, and the
+  script "exits with code 2 to block". These hooks "only run while that
+  specific subagent is active". Hooks reference, https://code.claude.com/docs/en/hooks:
+  `PreToolUse` exit 2 "Blocks the tool call", stderr goes to Claude.
+  Frontmatter hooks of a project agent run only after the workspace trust
+  dialog is accepted, and a `-p` session does not count as accepting it, so
+  a headless reviewer is not guarded by the hook.
+- OpenCode, https://opencode.ai/docs/config/: "`subagent_depth` sets how
+  deeply subagents can start their own subagents. Defaults to `1`, so a
+  subagent cannot start another subagent." Nothing is changed there.
+- OpenCode, https://opencode.ai/docs/permissions/: rules are an ordered
+  `permissions` list of `action`, `resource`, `effect`; "The last matching
+  rule wins, so the specific exceptions follow the broad rule"; the shell
+  action is `shell`; "A shell pattern ending in ` *` also matches the bare
+  command" (the page shows it for `git status`); shell checks run per
+  extracted subcommand of a compound command, and "Any `deny` denies the
+  operation". `opencode debug agents` in a scratch scaffold printed the
+  reviewer's rules in the written order, after the project's own.
+- Copilot: skipped. Neither a tool deny nor an agent-scoped hook was
+  verified for its agent files.
+
+**Change.**
+
+- Worker, Claude Code: `disallowedTools: Agent` in the agent file. The
+  Claude default allows nesting, so the text rule alone was all there was.
+  OpenCode needs nothing, its default depth is 1.
+- Reviewer: the list of what its shell may run is `const.REVIEWER_SHELL`:
+  `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`, `gh pr
+  view|diff|checks`, `gh run view`. The body now names exactly these (it
+  named four before; `git status`, `rg`, `cat`, `ls`, `gh pr view` and
+  `gh pr diff` are added because a reviewer that may not run anything still
+  reads files and the pull request). `tasks.py` is not on the list, the body
+  never asks for it.
+- OpenCode reviewer: `shell` `*` deny, then one `allow` per list entry
+  (`<cmd> *`), after the existing `edit` deny.
+- Claude Code reviewer: `templates/hooks/reviewer_guard.py`, written to
+  `.claude/hooks/` and declared in the reviewer's frontmatter only. It
+  accepts a leading `rtk` or `rtk proxy` (and `rtk run "<line>"`, and
+  `rtk read` as `cat`); a compound command passes only when every part
+  does; it blocks any redirect to a file (`2>&1` and `2>/dev/null` pass),
+  command and process substitution, `--output` and `--pre`, and
+  `git -c`. A block says to report what could not be checked. It fails open
+  like `git_guard.py`: input that is not a JSON tool call with a string
+  command, or a line the shell lexer cannot parse, passes.
+  `tests/test_reviewer_guard.py` pins allowed and blocked commands and that
+  the OpenCode list equals the hook's.
+
+**What this does not do.** The OpenCode rules match a command prefix, so
+`git diff --output=f` is not caught there (the hook catches it on Claude
+Code); whether OpenCode's scanner sees a redirect target was not read in the
+docs. The hook is not in force in a `-p` session until the workspace is
+trusted. Both keep the body's text as the backstop, as every hook does
+(Part I, The protocol).
