@@ -1,6 +1,7 @@
 ---
 name: updater
 description: ${desc}
+maxTurns: ${max_turns}
 ---
 You run this project's framework update. Read
 `${update_file}`

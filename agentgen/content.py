@@ -332,6 +332,7 @@ def render_reviewer_agent() -> str:
         desc=("Adversarial fresh-context review of a task's result (diff, "
               "Outcome, or both) against its Done-when criteria. Use for "
               "the review gate in /task do."),
+        max_turns=ROLE_TURNS["reviewer"],
         input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
                      "Done when, Findings,\nOutcome) plus the code diff, "
                      "if the task changed code, and\n"
@@ -345,6 +346,7 @@ def render_opencode_reviewer() -> str:
     return ("---\n"
             f'description: "{desc}"\n'
             "mode: subagent\n"
+            f"steps: {ROLE_TURNS['reviewer']}\n"
             "permissions:\n"
             '  - { action: edit, resource: "*", effect: deny }\n'
             "---\n"
@@ -359,13 +361,14 @@ def render_worker_agent() -> str:
         "agents/worker.md",
         desc=("Works the steps of a task for /task do, which supervises it. "
               "Spawned by /task do and by init-agent's model check only."),
-        task_dir=TASK_DIR)
+        max_turns=ROLE_TURNS["worker"], task_dir=TASK_DIR)
 
 def render_opencode_worker() -> str:
     """The worker as an OpenCode V2 sub-agent, with the default permissions
     of a sub-agent: it edits, runs the tests and commits."""
     desc, body = _split_frontmatter(render_worker_agent())
-    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+    return (f'---\ndescription: "{desc}"\nmode: subagent\n'
+            f"steps: {ROLE_TURNS['worker']}\n---\n{body}")
 
 def render_updater_agent(harness: str) -> str:
     """The updater sub-agent /framework-update hands the update to (CONCEPT.md
@@ -377,12 +380,13 @@ def render_updater_agent(harness: str) -> str:
         desc=("Runs this project's framework update for /framework-update, "
               "which hands it over and checks the result. Spawned by "
               "/framework-update and by init-agent's model check only."),
-        update_file=UPDATE_FILES[harness])
+        max_turns=ROLE_TURNS["updater"], update_file=UPDATE_FILES[harness])
 
 def render_opencode_updater() -> str:
     """The updater as an OpenCode V2 sub-agent: it edits and commits `.ai`."""
     desc, body = _split_frontmatter(render_updater_agent("opencode"))
-    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+    return (f'---\ndescription: "{desc}"\nmode: subagent\n'
+            f"steps: {ROLE_TURNS['updater']}\n---\n{body}")
 
 def render_copilot_agent(which: str) -> str:
     """worker, reviewer or updater as a Copilot custom agent (.github/agents/

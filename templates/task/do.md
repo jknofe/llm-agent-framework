@@ -115,6 +115,10 @@ round <n>` correction. Then answer by the report:
   for and how to check it, and end your turn. Do not watch it yourself
   and do not do the step yourself. When the user says go on, continue
   the worker.
+- No `Worker round` line because the worker hit its turn limit (the
+  harness returns its output cut off or marked partial): an unfinished
+  round, not a report. Read Findings for what it recorded, then continue
+  the worker.
 
 Commit `.ai`, then continue the same worker with its context (its Herdr
 tab, or a sub-agent your harness can send a message to after it

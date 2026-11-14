@@ -487,6 +487,11 @@ inheriting the session's model.
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
   (`gpt-6.1-sol`) works; `inherit` is not a model.
+- **Turn limits:** each sub-agent file carries a limit against tool-call
+  loops, `maxTurns` on Claude Code and `steps` on OpenCode: worker 200,
+  reviewer 50, updater 100. They are tripwires, not budgets; edit the
+  number in the agent file if a run legitimately needs more (a re-init
+  resets it). Copilot's agent files have none.
 - **OpenCode names** are written as `opencode models` prints them,
   `<provider>/<model>`, optionally with a variant: `claude-agent/sonnet#medium`.
   Without one the sub-agent runs on the model's default variant, not the

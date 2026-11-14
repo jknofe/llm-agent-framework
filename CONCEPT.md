@@ -189,7 +189,9 @@ a small task: at most one open step changes a host file, or none does
 (section 55). The
 Outcome, the notes, the Done-when ticks and `finish` are its own. The
 worker never ticks a done-when box, never writes Outcome, notes or the
-review line, and never commits on or merges into the default branch.
+review line, and never commits on or merges into the default branch. Each sub-agent file
+carries a turn limit against tool-call loops: worker 200, reviewer 50,
+updater 100 (section 78).
 
 `/task list` prints every live task with type, status and progress as
 one table; archived tasks are counted, not listed, because archiving is how
@@ -509,6 +511,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.16 (2026-11-14, a turn limit on every sub-agent, section 78.
+`maxTurns` on Claude Code and `steps` on OpenCode: worker 200, reviewer 50,
+updater 100. Tripwires against loops, not budgets.)
 
 v12.15 (2026-11-14, the worker reads only its own steps, section 77.
 `do.md` splits: the working steps and the escalation rule move to
@@ -5398,3 +5404,40 @@ scaffold records 18 files, copilot 18, opencode 19.
 816, `work.md` 952 to 942. A worker loads `work.md` and `steps.md`, 1,758
 words, where it loaded `work.md` and `do.md`, 4,426. All three harnesses
 write the same files.
+
+## 78. A turn limit on every sub-agent (2026-11-14, v12.16)
+
+**Source.** The review in `fable-review-results.md`: a worker, reviewer or
+updater caught in a tool-call loop had no stop but the user's.
+
+**Facts, read in the docs on 2026-11-14.**
+
+- Claude Code, https://code.claude.com/docs/en/sub-agents, frontmatter
+  table: `maxTurns` is the "Maximum number of agentic turns before the
+  subagent stops. When the subagent reaches the limit, Claude Code returns
+  its output marked as partial, and Claude can resume it to continue"
+  (partial marking needs Claude Code v2.1.246 or later; an older version
+  stops it the same way without the mark).
+- OpenCode, https://opencode.ai/v2/agents.md: "`steps` sets a positive
+  maximum number of model steps. On the final step, OpenCode removes tools
+  and asks the model to summarize in text." New user input resets it.
+  `opencode debug agents` in a scratch scaffold printed `"steps": 200`,
+  `50` and `100` for the three agents.
+- Copilot: skipped. No turn limit key was verified for its agent files, so
+  none is written.
+
+**Change.** `const.ROLE_TURNS` holds the numbers; the three agent templates
+carry `maxTurns: ${max_turns}` and the OpenCode renderers write `steps:`
+(worker 200, reviewer 50, updater 100). They are set generously because
+they are tripwires: a healthy worker round that ran the covering tests and
+a CI wait stays far below 200 turns, a review reads and reports in well
+under 50, and an update touches a few dozen files. Nothing in the docs gave
+a reason for other values. `with_model` and `write_agent` keep the extra
+line, since the model line is inserted after `description` and every other
+line is untouched; `test_models.py` now checks that each role file holds
+exactly one turn line, after `--models` and after a re-init.
+
+At the limit the worker's round has no `Worker round` line. `do.md` tells
+the supervisor to treat that as an unfinished round: read Findings, then
+continue the worker. An OpenCode worker that reaches `steps` answers in
+text, which is the same case.

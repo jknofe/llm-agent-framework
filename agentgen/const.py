@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.15"
+FRAMEWORK_VERSION = "12.16"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -85,6 +85,9 @@ HARNESS_ENTRY_PATHS = {
 # updater without a model only means the update runs inline.
 ROLES = ("worker", "reviewer", "updater")
 TASK_ROLES = ("worker", "reviewer")
+# Turn limit of each role: `maxTurns` on Claude Code, `steps` on OpenCode
+# (CONCEPT.md section 78). A tripwire against a tool-call loop, not a budget.
+ROLE_TURNS = {"worker": 200, "reviewer": 50, "updater": 100}
 AGENT_FILES = {
     "claude": {"worker": ".claude/agents/worker.md",
                "reviewer": ".claude/agents/reviewer.md",
