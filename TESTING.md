@@ -22,6 +22,7 @@ themselves.
    python3 tests/test_notes.py
    python3 tests/test_session_hook.py
    python3 tests/test_inject.py
+   python3 tests/test_worker_contract.py
    python3 tests/test_opencode_plugin.py
    ```
    The reviewer guard test feeds the Claude reviewer's hook allowed and
@@ -47,6 +48,11 @@ themselves.
    absent on Copilot, runs in a real scaffold with the roles unset (exit 0
    with `--exit-zero`) and set, and that `check_templates` rejects a stray
    or argument-carrying injection.
+   The worker-contract test scaffolds each harness and checks that the
+   Claude Code and OpenCode worker body holds all of `work.md` (section 85)
+   with the model-check guard first, Copilot's is the pointer, the spawn
+   prompt in `do.md` differs accordingly, step 1 reads three files in one
+   turn, and a `model:` line survives a forced re-init once.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

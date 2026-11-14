@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.22.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.23.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -172,8 +172,10 @@ framework's `worker` agent, defined beside `reviewer` on every harness
 own when the user asks for `herdr`, on every harness (section 68): on the model its agent file names, which the user sets per
 project (`init-agent --models`, section 59) and which `/task do` refuses to
 work without, never a default and never the session's, and it knows
-only `.ai/notes.md`, the task file and `.ai/agent/task/work.md`, which points
-it to the working steps in `.ai/agent/task/steps.md` (section 77). It works
+only `.ai/notes.md`, the task file and its contract (the body of its agent
+file on Claude Code and OpenCode, `.ai/agent/task/work.md` on Copilot, section
+85), which points it to the working steps in `.ai/agent/task/steps.md`
+(section 77). It works
 every step the task names: the code, the tests, then the branch, commit,
 push, pull request, the wait for CI, a dev run, a tracker comment. Before
 code ships it reports `review`; it also stops at `question`, `waiting`,
@@ -350,8 +352,9 @@ default, a Herdr tab only when asked.
   one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
-  verdict sends the agent there (section 42). The worker reads `work.md`
-  and `steps.md` (about 1,760 words), not `do.md` (section 77).
+  verdict sends the agent there (section 42). The worker reads `steps.md` (about 820 words) and has `work.md` as the
+  body of its agent file on Claude Code and OpenCode, about 940 words that
+  only a spawned worker loads, not `do.md` (sections 77 and 85).
 
 ### Why the notes hub may be always-loaded on Claude Code (section 83)
 
@@ -577,6 +580,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.23 (2026-11-14, the worker's contract is in its agent file, section 85.
+On Claude Code and OpenCode the body of the `worker` file is rendered from
+the same text as `work.md`, so a worker starts without the read turn.
+Copilot keeps the pointer. `work.md` stays.)
 
 v12.22 (2026-11-14, script output without a model round trip, section 84.
 On Claude Code and OpenCode `/framework-models` carries the output of
@@ -5977,3 +5985,89 @@ with `worker=<m>` arguments runs the script once more; the same on OpenCode,
 where the failure behavior is unknown and `--exit-zero` makes it moot; a
 session with `disableSkillShellExecution` set shows the policy notice and
 falls back to running the script.
+
+## 85. The worker's contract is in its agent file (2026-11-14, v12.23)
+
+**Source.** The review in `fable-review-results.md`, Priority 2, item 9. A
+worker started by reading `.ai/agent/task/work.md`: one turn before it did
+anything, on every spawn.
+
+**Who reads `work.md`** (grep of `templates/`, `README.md`,
+`tests/task-commands.md`, Part I):
+
+- The supervisor's spawn prompt in `do.md`: "Read work.md and follow it".
+  Copilot's worker still follows it. On Claude Code and OpenCode the prompt
+  is now only `You are the worker for task <id>.`
+- A worker continued after a report: `do.md` and the Herdr continue prompt
+  say "read `work.md` again" (section 73, that changed rules reach a
+  running task). Kept, for every harness.
+- The Herdr worker. On Claude Code the tab starts `claude --agent worker`,
+  whose system prompt is the agent file, so it gets the contract at start
+  like a sub-agent. On OpenCode the tab's session spawns the worker as a
+  sub-agent, the same agent file. On Copilot `copilot --agent worker`, the
+  pointer, as before.
+- `steps.md` says it is read "from `work.md`"; `tests/task-commands.md` cases
+  that look for the read in the transcript (changed: they no longer expect
+  it on Claude Code and OpenCode); README.
+- Not a reader any longer on Claude Code and OpenCode at start; so the file
+  has readers on every harness (the continued worker, Copilot) and stays.
+  Not removed in this change.
+
+**Change.**
+
+- `templates/agents/worker.md` is the frontmatter and a `body` slot. On Claude
+  Code and OpenCode the body is `templates/agents/worker-preamble.md` (the
+  model-check guard `init-agent --models` relies on: a prompt that says it is
+  init-agent's model check is answered with one word, and the contract is
+  all the instructions) followed by `render_task_part("work", harness)`: the
+  text that writes `.ai/agent/task/work.md`, rendered once more, never a
+  second copy. On Copilot the body is `templates/agents/worker-pointer.md`,
+  the old text, because the brief for this change named the two harnesses
+  and Copilot's agent file semantics were not re-verified.
+- The agent body as the system prompt is already how both harnesses use it
+  (the old body was the same field, only short). Frontmatter is unchanged:
+  `maxTurns` or `steps`, `disallowedTools: Agent`.
+- `do.md`'s spawn prompt is a slot filled from
+  `templates/task/fragments/<harness>/worker-prompt.md`.
+- `work.md` step 1 reads `.ai/notes.md`, the task file and `steps.md`
+  together, as parallel reads in one turn (step 2 no longer has its own
+  read). **The continuation sentence.** It said to read this file again
+  when the supervisor continues the worker, because its rules may have
+  changed. For a worker whose contract is its system prompt, that text is
+  as old as the session's start; the file is current. The sentence now
+  names the file and `steps.md`: a continued worker re-reads both in one
+  turn, and says why. That costs a read only on a continuation, never on a
+  start, which is the case this change is about. A fresh spawn picks up the
+  new agent file by itself.
+- `check_templates.check_worker_contract`: on Claude Code and OpenCode the
+  rendered body contains the rendered `work.md`; the guard is there; `do.md`
+  no longer sends that worker to read `work.md`; on Copilot it still does.
+  The worker agents are now in the rendered artifacts the slot and
+  unfilled checks scan.
+- `/framework-update`'s merge case for agent files says the worker's body is
+  a structural change to take, the `model:` line and user additions stay.
+  `agentgen/models.py` (`with_model`, `current`) and `write_agent` only touch
+  the `model:` line and are unchanged; `tests/test_models.py` and the new
+  `tests/test_worker_contract.py` show one line after `--models` and after a
+  forced re-init with the long body.
+
+**Size, the worker's agent file in words (rendered).**
+
+| harness | before | after |
+|---|---|---|
+| claude | 99 | 1,048 |
+| opencode | 97 | 1,046 |
+| copilot | 95 | 95 |
+
+A worker's first turn used to read about 950 words by a tool call; it now
+has them as its system prompt, a cached prefix of every round, and its
+turn count falls by one. Nothing is added to any session that does not
+spawn a worker.
+
+**What a live run must show.** On Claude Code and OpenCode a `/task do`
+worker's transcript starts with one turn that reads `.ai/notes.md`, the task
+file and `steps.md` together, and never reads `work.md` before its first
+report; a continued worker reads `work.md` and `steps.md` again; `init-agent
+--models` still gets `hello` from the longer worker; a `claude --agent
+worker` Herdr tab behaves as a sub-agent does. A Copilot worker still reads
+`work.md` first.

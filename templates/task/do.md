@@ -51,8 +51,7 @@ The worker is the `worker` agent the framework defines beside
 knows only the files, so anything the user told you that the work depends
 on goes into the task's Notes before it starts. Its model is the `model:`
 line of its agent file, which `tasks.py models` checked: pass no model,
-ever. Its prompt is always this one: `You are the worker for task <id>.
-Read ${task_dir}/work.md and follow it.` ${worker_placement}
+ever. Its prompt is always this one: `${worker_prompt}` ${worker_placement}
 Work the steps of `${task_dir}/steps.md` yourself instead when the user
 asked for `inline`, when no sub-agent can be spawned (you are one yourself, or the harness has
 none), or when the task is small: at most one of its open steps changes

@@ -526,7 +526,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
         write_agent(root / ".claude" / "agents" / "reviewer.md",
               render_reviewer_agent(), force, created, skipped)
         write_agent(root / ".claude" / "agents" / "worker.md",
-              render_worker_agent(), force, created, skipped)
+              render_worker_agent("claude"), force, created, skipped)
         write_agent(root / ".claude" / "agents" / "updater.md",
               render_updater_agent("claude"), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",

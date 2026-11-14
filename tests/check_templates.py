@@ -66,6 +66,11 @@ def rendered_artifacts():
                         content.render_task_part(part, harness)))
     out.append(("reviewer", content.render_reviewer_agent()))
     for harness in HARNESSES:
+        out.append((f"{harness} worker",
+                    content.render_worker_agent(harness)))
+    out.append(("opencode worker", content.render_opencode_worker()))
+    out.append(("copilot worker", content.render_copilot_agent("worker")))
+    for harness in HARNESSES:
         out.append((f"{harness} updater",
                     content.render_updater_agent(harness)))
     out.append(("opencode updater", content.render_opencode_updater()))
@@ -289,11 +294,36 @@ def check_worker_files():
                 fail("worker", f"{harness} {part}.md names do.md")
 
 
+def check_worker_contract():
+    """CONCEPT section 85: on Claude Code and OpenCode the worker's agent
+    body is the contract itself, rendered from the one template that also
+    writes work.md; Copilot's body points at the file instead. A prompt that
+    still says to read work.md first would spend the turn the change saved."""
+    for harness, agent in (("claude", content.render_worker_agent("claude")),
+                           ("opencode", content.render_opencode_worker())):
+        contract = content.render_task_part("work", harness).strip()
+        if contract not in agent:
+            fail("worker", f"{harness} worker body lacks the work.md contract")
+        do = content.render_task_part("do", harness)
+        if "work.md and follow it" in do:
+            fail("worker", f"{harness} do.md still sends the worker to read "
+                           "work.md at start")
+        if "init-agent's model check" not in agent:
+            fail("worker", f"{harness} worker lost the model-check guard")
+    pointer = content.render_copilot_agent("worker")
+    if ".ai/agent/task/work.md" not in pointer or \
+            "Work (the worker's body)" in pointer:
+        fail("worker", "copilot worker body is not the pointer")
+    if "work.md and follow it" not in content.render_task_part("do",
+                                                               "copilot"):
+        fail("worker", "copilot do.md does not send its worker to work.md")
+
+
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
                   check_json, check_injection_syntax, check_register, check_names,
                   check_reference,
-                  check_budget, check_worker_files):
+                  check_budget, check_worker_files, check_worker_contract):
         check()
     if failures:
         print(f"FAIL ({len(failures)})")

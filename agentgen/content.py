@@ -376,21 +376,34 @@ def render_opencode_reviewer() -> str:
             "---\n"
             f"{body}")
 
-def render_worker_agent() -> str:
+def render_worker_agent(harness: str = "claude") -> str:
     """The worker sub-agent of /task do (CONCEPT.md section 56). It carries no
     `model:` line: a user may add one, and without one the
-    harness default applies. Its body only points at
-    work.md, the worker's contract, which stays harness-neutral."""
-    return render.fill(
-        "agents/worker.md",
-        desc=("Works the steps of a task for /task do, which supervises it. "
-              "Spawned by /task do and by init-agent's model check only."),
-        max_turns=ROLE_TURNS["worker"], task_dir=TASK_DIR)
+    harness default applies.
+
+    On Claude Code and OpenCode the body is the worker's contract itself,
+    rendered from the same template as `.ai/agent/task/work.md` (section 85),
+    so the worker starts with its instructions and spends no turn reading
+    them. Copilot keeps a pointer to the file: the contract-as-body change
+    was not made there. The file `work.md` stays on every harness: Copilot's
+    worker, a continued worker (which re-reads it, its text being only as
+    old as its start) and the supervisor's prompt for a Herdr tab read it."""
+    desc = ("Works the steps of a task for /task do, which supervises it. "
+            "Spawned by /task do and by init-agent's model check only.")
+    if harness == "copilot":
+        body = render.fill("agents/worker-pointer.md", task_dir=TASK_DIR)
+    else:
+        body = (render.load("agents/worker-preamble.md")
+                + render_task_part("work", harness))
+    # The body is passed as a value, so `$` inside it is never substituted.
+    return render.fill("agents/worker.md", desc=desc,
+                       max_turns=ROLE_TURNS["worker"],
+                       body=body.rstrip("\n"))
 
 def render_opencode_worker() -> str:
     """The worker as an OpenCode V2 sub-agent, with the default permissions
     of a sub-agent: it edits, runs the tests and commits."""
-    desc, body = _split_frontmatter(render_worker_agent())
+    desc, body = _split_frontmatter(render_worker_agent("opencode"))
     return (f'---\ndescription: "{desc}"\nmode: subagent\n'
             f"steps: {ROLE_TURNS['worker']}\n---\n{body}")
 
@@ -416,7 +429,7 @@ def render_copilot_agent(which: str) -> str:
     """worker, reviewer or updater as a Copilot custom agent (.github/agents/
     <name>.agent.md). `description` is the one required key; the reviewer
     gets the read-only tool aliases plus the shell, its tools on claude."""
-    source = {"worker": render_worker_agent,
+    source = {"worker": lambda: render_worker_agent("copilot"),
               "reviewer": render_reviewer_agent,
               "updater": lambda: render_updater_agent("copilot")}[which]()
     desc, body = _split_frontmatter(source)
@@ -568,8 +581,12 @@ def render_task_part(part: str, harness: str = "claude") -> str:
         herdr_prompt(harness, "worker",
                      "Read work.md again, then Findings, and go on.", True) +
         "\"`.\n")
+    worker_prompt = render.render(
+        render.load(f"task/fragments/{harness}/worker-prompt.md"),
+        task_dir=TASK_DIR)
     return render.fill(rel, tools_dir=TOOLS_DIR, task_dir=TASK_DIR,
                        ask_tool=ASK_TOOL[harness],
+                       worker_prompt=worker_prompt,
                        worker_placement=placement)
 
 def render_tool_tasks() -> str:
