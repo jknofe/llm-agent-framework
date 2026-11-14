@@ -6135,3 +6135,115 @@ and any size limit.
 with no tool call (seen once); after a user's own `instructions` entry and a
 `init-agent -y` it still loads both; whether a `/task do` worker sub-agent
 has the hub in its first turn.
+
+## 87. Considered, not built: updater effort, path-scoped notes (2026-11-14)
+
+No version bump: nothing shipped. Both came from the review's third
+priority; the record is here so neither is proposed again without new
+evidence.
+
+### A lower effort for the updater: not built
+
+**Facts**, https://code.claude.com/docs/en/sub-agents: the `effort` field of
+an agent file is "Effort level when this subagent is active. Overrides the
+session effort level, but not the `CLAUDE_CODE_EFFORT_LEVEL` environment
+variable. Options: `low`, `medium`, `high`, `xhigh`, `max`; available levels
+depend on the model." https://code.claude.com/docs/en/model-config: a level
+the model does not support falls back "to the highest supported level at or
+below the one you set", and a model not in its table does not support effort
+at all. Not stated anywhere read: how a skill's `effort` (`high` for
+`framework-update`, `SKILL_EFFORT`) interacts with the field of a sub-agent
+the skill hands work to. The field is real; the open interaction does not
+matter here, because the update body hands the merge to the sub-agent and
+the field says it overrides the session's level.
+
+**Why not.**
+
+- Section 56 made the sub-agents inherit the session's effort, the owner's
+  call, so that one setting (`/effort`, `--effort`) governs a run and the
+  agent files carry none. Nothing about the updater is different in kind
+  from the worker or the reviewer on that point, and no measurement
+  overturns it: the benchmark that motivated it did not run the updater.
+- Section 64 names the risk of this role: a small model merging framework
+  files, where the check from the files catches a missing file, a lost
+  `model:` line or a lost project section "not a subtle bad merge inside a
+  file". The merge is a three-way one with judgment on user edits, not a
+  lookup. Lower effort moves exactly that risk up. The saving is one short
+  run per update on a small model, and nobody measured it. The six
+  Haiku-class updates of section 64 were all right at the session's effort;
+  there is no run at `low`.
+- Writing `effort: low` would be a value shipped into every scaffold on a
+  guess, for a role whose failure is silent.
+
+**OpenCode.** The variant is part of the `model:` line, the user's value
+written as typed by `init-agent --models`; the framework writes none. The
+README already says a name may carry a variant (`claude-agent/sonnet#medium`)
+and that without one the sub-agent runs on the model's default variant, so no
+hint text changes. https://opencode.ai/docs/config/ says "agent and command
+model references can select one". Copilot keeps a sub-agent's effort in the
+user's settings (section 56) and is skipped.
+
+**A user who wants it** can add `effort: low` to `.claude/agents/updater.md`
+by hand; `/framework-update`'s merge keeps a user's edit to an agent file
+(a forced `init` regeneration keeps only the `model:` line, as before).
+
+**What would change the decision.** A run of the update at `low` against a
+pristine reference render, over projects where user edits sit in the files
+the merge touches, with no merge error that the session's own effort did not
+also make; or a measured cost that makes the saving worth a rule.
+
+### Path-scoped notes on Claude Code: not built
+
+The idea: a leaf under `.ai/notes/` with a `paths:` frontmatter, linked by
+a deterministic step into `.claude/rules/`, so a gotcha loads when the agent
+touches the directory it concerns.
+
+**Verified**, https://code.claude.com/docs/en/memory: "A path-scoped rule
+loads when Claude uses the Read, Write, or Edit tool on a matching file."
+It also loads on a Bash read of a single file (`cat`, `head`). "The
+`.claude/rules/` directory supports symlinks." A symlink whose target is
+outside the working directory is treated "like an external import" and,
+after approval, only rules without `paths` load from it; `.ai/notes/` is
+inside the project directory, so that clause would not apply.
+https://opencode.ai/docs/rules/ describes only directory-scoped
+`AGENTS.md` ("only apply when you are working in this directory or its
+sub-directories") and globs in `instructions` combined at start; it states
+no loading that depends on the files touched. So OpenCode has no equivalent,
+as the review found, and Copilot none known.
+
+**Not verified, and each is a load-bearing fact.**
+
+- Whether a gitignored file or link under `.claude/rules/` is loaded. The
+  memory page says a gitignored `CLAUDE.local.md` loads, and says nothing
+  for `rules/`. The design needs the links gitignored, since the notes are
+  private and the host repository must not gain tracked files that point
+  into `.ai/`.
+- Whether a sub-agent (the `worker`, which does the code work under
+  `/task do`) gets path-scoped rules when it reads a matching file. The
+  page speaks of "Claude" using the tools; what a sub-agent starts with is
+  described separately, and nothing read says path-scoped rules reach it.
+  The worker is where most reading happens, so a mechanism that skips it
+  covers little.
+
+**Other reasons.**
+
+- It adds a second loading path for one notes format, on one harness, with
+  a script keeping links in the host repository in step with the leaves
+  (create, update, remove, and a user's own files in `.claude/rules/` never
+  touched). Property 3 is not broken by loading differently (section 83
+  already does that for the hub), but each such path is a thing to keep
+  right, and it is machinery for a case nobody measured: no run showed an
+  agent missing a leaf it should have opened.
+- Property 4 is untouched in principle (no always-loaded text), but a
+  `paths:` glob that matches nothing is a silent dead note, which would need
+  a check in `tasks.py notes` (section 82) and guidance in the stub and
+  `explore`.
+- A symlink in the host working tree is a Windows problem (the memory page
+  names it for `CLAUDE.md`).
+
+**What would change the decision.** The two facts above confirmed in the
+docs or seen in a session with the `InstructionsLoaded` hook the memory page
+names (a gitignored link in `.claude/rules/` with `paths:` loads on a read,
+also in a sub-agent), and a run where an agent missed a gotcha that sat in a
+leaf. Then the design above is sound as sketched; build it as version 12.x
+with tests for the link step.
