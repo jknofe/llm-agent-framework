@@ -70,11 +70,15 @@ def render_update_body(harness: str, arg: str) -> str:
     """
     if harness == "claude":
         reference_skill = ".claude/skills/framework-update/SKILL.md"
-        backup_paths = "AGENTS.md and `.claude/`"
+        backup_paths = "AGENTS.md, CLAUDE.md and `.claude/`"
         merge_cases = (
             "     - `.claude/settings.json`: permission entries and hooks a user\n"
             "       added are not framework state. Union them with the\n"
             "       reference's; drop only entries the reference retired.\n"
+            "     - `autoMemoryEnabled` in `.claude/settings.json`: a value the\n"
+            "       project already has, `true` or `false`, is the user's and\n"
+            "       stays. The reference's `false` only fills a file that has\n"
+            "       no such key.\n"
             "     - AGENTS.md outside the GENERATED markers: project-specific\n"
             "       rules a user appended below the framework text.\n"
             "     - skills, hooks, or sub-agents present here but not in the\n"
@@ -83,7 +87,13 @@ def render_update_body(harness: str, arg: str) -> str:
             "       than assuming either way.\n")
         verify_extra = (
             "   - `.claude/settings.json` parses as JSON and every hook command\n"
-            "     it names points at a file that exists.\n")
+            "     it names points at a file that exists.\n"
+            "   - `CLAUDE.md` imports AGENTS.md. Do not judge it: run\n"
+            "     `python3 \"$LLM_AGENT_HOME/init_agent.py\" --ensure-agents-import`\n"
+            "     in the project root and put its one line (`CLAUDE.md: created`,\n"
+            "     `appended` or `unchanged`) in the report. It is the user's\n"
+            "     file, not framework output: never delete it, and never merge\n"
+            "     or overwrite it from the reference.\n")
     elif harness == "opencode":
         reference_skill = f"{OPENCODE_DIR}/commands/framework-update.md"
         backup_paths = f"AGENTS.md and `{OPENCODE_DIR}/`"
@@ -174,16 +184,18 @@ def render_update_body(harness: str, arg: str) -> str:
         "       `task: <id>` and point at the moved `task.md`.\n"
         f"     - Run `python3 {TOOLS_DIR}/tasks.py`: every migrated spec\n"
         "       must appear in the table with type `change`.\n"
-        "   - Framework 7.1 retires the `CLAUDE.md` pointer on the claude\n"
-        "     harness: Claude Code 2.1.277 and later reads AGENTS.md itself\n"
-        "     when no CLAUDE.md exists in the working directory or above it.\n"
-        "     Delete the pointer only if it holds nothing but the `@AGENTS.md`\n"
-        "     import; text the user added below the import makes it the\n"
-        "     user's file, so keep it. Keep it too, and say why, when a\n"
-        "     CLAUDE.md or CLAUDE.local.md sits in a parent directory or the\n"
-        "     sessions run without AGENTS.md support (Amazon Bedrock,\n"
-        "     telemetry disabled): there Claude never reads AGENTS.md on its\n"
-        "     own and the import is what loads it.\n"
+        "   - Framework 7.1 stopped writing the `CLAUDE.md` pointer on the\n"
+        "     claude harness, and 12.19 writes it again: Claude Code reads\n"
+        "     AGENTS.md itself only when no CLAUDE.md or CLAUDE.local.md exists\n"
+        "     in the working directory or above it, so a CLAUDE.md in a parent\n"
+        "     directory left a project without its instructions. A claude\n"
+        "     project's CLAUDE.md is never retired, whatever the recorded file\n"
+        "     list says (a scaffold from before 7.1 records it as a framework\n"
+        "     file): it holds the `@AGENTS.md` import, and the user may have\n"
+        "     added text. Step 5 runs `init_agent.py --ensure-agents-import`,\n"
+        "     which creates it, appends the import to one that lacks it, or\n"
+        "     leaves one that has it. Claude Code loads AGENTS.md once either\n"
+        "     way.\n"
         "   - Framework 7.0 retires `.ai/notes/map.md` as framework output.\n"
         "     Do not delete it and do not remove its pointer from\n"
         "     `.ai/notes.md`: the moment the framework stopped generating it\n"
@@ -332,6 +344,7 @@ def render_reviewer_agent() -> str:
         desc=("Adversarial fresh-context review of a task's result (diff, "
               "Outcome, or both) against its Done-when criteria. Use for "
               "the review gate in /task do."),
+        max_turns=ROLE_TURNS["reviewer"], project_dir="$CLAUDE_PROJECT_DIR",
         input_block=("Input: the task file `.ai/tasks/<id>/task.md` (Goal, "
                      "Done when, Findings,\nOutcome) plus the code diff, "
                      "if the task changed code, and\n"
@@ -345,8 +358,12 @@ def render_opencode_reviewer() -> str:
     return ("---\n"
             f'description: "{desc}"\n'
             "mode: subagent\n"
+            f"steps: {ROLE_TURNS['reviewer']}\n"
             "permissions:\n"
             '  - { action: edit, resource: "*", effect: deny }\n'
+            '  - { action: shell, resource: "*", effect: deny }\n'
+            + "".join(f'  - {{ action: shell, resource: "{cmd} *", '
+                      'effect: allow }\n' for cmd in REVIEWER_SHELL) +
             "---\n"
             f"{body}")
 
@@ -359,13 +376,14 @@ def render_worker_agent() -> str:
         "agents/worker.md",
         desc=("Works the steps of a task for /task do, which supervises it. "
               "Spawned by /task do and by init-agent's model check only."),
-        task_dir=TASK_DIR)
+        max_turns=ROLE_TURNS["worker"], task_dir=TASK_DIR)
 
 def render_opencode_worker() -> str:
     """The worker as an OpenCode V2 sub-agent, with the default permissions
     of a sub-agent: it edits, runs the tests and commits."""
     desc, body = _split_frontmatter(render_worker_agent())
-    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+    return (f'---\ndescription: "{desc}"\nmode: subagent\n'
+            f"steps: {ROLE_TURNS['worker']}\n---\n{body}")
 
 def render_updater_agent(harness: str) -> str:
     """The updater sub-agent /framework-update hands the update to (CONCEPT.md
@@ -377,12 +395,13 @@ def render_updater_agent(harness: str) -> str:
         desc=("Runs this project's framework update for /framework-update, "
               "which hands it over and checks the result. Spawned by "
               "/framework-update and by init-agent's model check only."),
-        update_file=UPDATE_FILES[harness])
+        max_turns=ROLE_TURNS["updater"], update_file=UPDATE_FILES[harness])
 
 def render_opencode_updater() -> str:
     """The updater as an OpenCode V2 sub-agent: it edits and commits `.ai`."""
     desc, body = _split_frontmatter(render_updater_agent("opencode"))
-    return f'---\ndescription: "{desc}"\nmode: subagent\n---\n{body}'
+    return (f'---\ndescription: "{desc}"\nmode: subagent\n'
+            f"steps: {ROLE_TURNS['updater']}\n---\n{body}")
 
 def render_copilot_agent(which: str) -> str:
     """worker, reviewer or updater as a Copilot custom agent (.github/agents/
@@ -402,6 +421,9 @@ def render_opencode_plugin() -> str:
 
 def render_hook_ai_repo_clean() -> str:
     return render.load("hooks/ai_repo_clean.py")
+
+def render_hook_reviewer_guard() -> str:
+    return render.load("hooks/reviewer_guard.py")
 
 def render_hook_git_guard() -> str:
     return render.load("hooks/git_guard.py")
@@ -508,16 +530,18 @@ def herdr_tab(harness: str, role: str, name: str, prompt: str) -> str:
         "  when it is done.\n")
 
 def render_task_part(part: str, harness: str = "claude") -> str:
-    """`/task`'s Create, Do or Work body (`create`, `do`, `work`), written
-    to TASK_DIR. Create and Do are read by the dispatching skill only when
-    `tasks.py resolve` sends it there; Work is read by the worker Do hands
-    its steps to (CONCEPT.md sections 50 and 52).
+    """`/task`'s Create, Do, Work or Steps body (`create`, `do`, `work`,
+    `steps`), written to TASK_DIR. Create and Do are read by the dispatching
+    skill only when `tasks.py resolve` sends it there; Work is read by the
+    worker Do hands its steps to (CONCEPT.md sections 50 and 52); Steps is
+    the working steps both the worker and a session working inline read
+    (section 77).
 
     Do varies on harness in one place, the start of a worker tab when the
     user asks for `herdr` (section 68); the default is the harness's
     sub-agent everywhere."""
     rel = {"create": "task/create.md", "do": "task/do.md",
-           "work": "task/work.md"}[part]
+           "work": "task/work.md", "steps": "task/steps.md"}[part]
     placement = (
         "You are the supervisor in this\n"
         "session either way; only where the worker runs varies:\n"
@@ -548,7 +572,8 @@ def render_settings_json() -> str:
     that enforces the .ai commit rule and the PreToolUse hook that enforces
     the two git guardrails deterministically. Compound commands
     (a && b) prompt unless every part of the chain matches a rule, so common
-    chain members (cd, echo, pwd, read-only git) are included as well."""
+    chain members (cd, echo, pwd, read-only git) are included as well. It also
+    turns Claude Code's auto memory off for the project (section 80)."""
     allow = render.sectioned_list("config/permissions.txt",
                                   sections=("shared",), tools_dir=TOOLS_DIR)
     hooks = {
@@ -576,7 +601,12 @@ def render_settings_json() -> str:
             }
         ]
     }
-    settings = {"permissions": {"allow": allow}, "hooks": hooks}
+    # One memory (CONCEPT.md section 80): Claude Code's auto memory is a
+    # second store beside .ai/notes.md. A user's own value survives a re-init
+    # (scaffold.write_settings) and an update (the merge case in the update
+    # body).
+    settings = {"autoMemoryEnabled": False,
+                "permissions": {"allow": allow}, "hooks": hooks}
     return json.dumps(settings, indent=2) + "\n"
 
 def render_opencode_config() -> str:

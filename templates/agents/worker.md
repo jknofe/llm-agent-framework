@@ -1,6 +1,8 @@
 ---
 name: worker
 description: ${desc}
+maxTurns: ${max_turns}
+disallowedTools: Agent
 ---
 You are the worker of a /task. Your prompt names the task id and the round.
 Read `${task_dir}/work.md` and follow it: it is your whole contract. You

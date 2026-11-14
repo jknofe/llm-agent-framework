@@ -17,16 +17,16 @@ user talks to the supervisor, not to you.
    continues you after a report, read this file again first (its rules
    may have changed since you started), then what was added to Findings
    since your last report, then go on.
-2. Work the task by `${task_dir}/do.md` steps 2 to 5: the steps in order,
-   findings recorded as they happen, each one short line with a pointer
-   to its evidence (`do.md` step 3),
-   open re-planning in `## Steps`. Build what the steps and criteria ask,
+2. Read `${task_dir}/steps.md` and work the task by it: the steps in
+   order, findings recorded as they happen, each one short line with a
+   pointer to its evidence (`steps.md` step 2), open re-planning in
+   `## Steps`. Build what the steps and criteria ask,
    in the smallest way that meets them: no extra option, abstraction or
    check they do not call for. Verify a change in proportion to it: a
    one-line edit gets one check, not a sweep. Every piece of logic you add
    or change gets a test that stays in the suite (a run by hand is not
    one); write tests for logic only, and never a change-detector test
-   (`do.md` step 5): a YAML, JSON,
+   (`steps.md` step 4): a YAML, JSON,
    CMake or workflow file gets its linter or validator, not a test that
    compares its values, and no build, CI run or start on the target. Run the tests that cover the change, every one that exercises the
    code you changed and not only one the task names, and lint on the
@@ -35,8 +35,7 @@ user talks to the supervisor, not to you.
    command and result line verbatim (`Ran 9 tests in 0.01s OK`): the
    supervisor trusts that record instead of rerunning it. When a step
    waits for CI, record its result with the run's URL. Intermediate
-   checks get one grouped line, not one line each. Ignore the
-   rest of `do.md`: the supervisor owns it.
+   checks get one grouped line, not one line each.
 3. Claim each host file before you edit it, `python3 ${tools_dir}/tasks.py
    claim <id> <path>...`; a `CLAIMED` refusal means a parallel task owns
    it: do not edit it, and report `question` if the step cannot go on
@@ -70,7 +69,7 @@ user talks to the supervisor, not to you.
      meets the Goal; do not pick an answer or work around it.
    - `waiting`: on CI, a merge, an approval or a deploy; what, and the
      command that shows when it is over.
-   - `stuck`: the escalation rule at the end of `do.md` fired (a test
+   - `stuck`: the escalation rule at the end of `steps.md` fired (a test
      failing twice on the same step, two hypotheses in a row dead).
    - `done`: every step is ticked, the checks you ran are green, and the
      evidence is in Findings.

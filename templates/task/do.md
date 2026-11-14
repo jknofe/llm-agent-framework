@@ -39,9 +39,9 @@ those are the forms the permission allowlist matches.
    session is compacted, the pointer and the Findings section are the
    backup of exactly what to preserve.
 
-Steps 2 to 5 are the work, and a worker does all of it: the code, the
-tests, and every step the task names after them, a commit, a push, a
-pull request, waiting for CI, a run in a dev environment. You stand in for
+The working steps are in `${task_dir}/steps.md`, and a worker does all of
+them: the code, the tests, and every step the task names after them, a
+commit, a push, a pull request, waiting for CI, a run in a dev environment. You stand in for
 the user: you answer its questions, review its code before it ships, and
 decide. You never do the work yourself: no host edit, commit or push, not
 even to fix a review finding; that goes back to the worker.
@@ -52,13 +52,14 @@ on goes into the task's Notes before it starts. Its model is the `model:`
 line of its agent file, which `tasks.py models` checked: pass no model,
 ever. Its prompt is always this one: `You are the worker for task <id>.
 Read ${task_dir}/work.md and follow it.` ${worker_placement}
-Work steps 2 to 5 yourself instead when the user asked for `inline`, when
-no sub-agent can be spawned (you are one yourself, or the harness has
+Work the steps of `${task_dir}/steps.md` yourself instead when the user
+asked for `inline`, when no sub-agent can be spawned (you are one yourself, or the harness has
 none), or when the task is small: at most one of its open steps changes
 a host file, or none does (an investigation, a test campaign that only
 records findings). Count the steps in the task file, not the files they
 touch: two steps that edit the same file are two steps. Do not judge size
-any other way, and documentation counts like code. Your first line, before
+any other way, and documentation counts like code. Read `steps.md` first; where it says the
+review gate runs, that is step 2 here. Your first line, before
 any other tool call, names the decision and the count: `Inline: 1 of 3
 steps edits a host file.` or `Worker: 3 of 4 steps edit host files.`
 While the worker runs, change no file: wait for its report, the `Worker
@@ -70,7 +71,7 @@ result line in Findings (`Ran 9 tests ... OK`) is enough. Never run a
 check yourself: when a command or its result is missing from Findings,
 or contradicts the diff, send it back to the worker in a `Supervisor
 round <n>` correction. Then answer by the report:
-- `review`: run the review gate (step 6) on the uncommitted diff. If it
+- `review`: run the review gate (step 2) on the uncommitted diff. If it
   holds, append `- <today> Supervisor check: round <n> accepted: <what
   you checked>`; the worker then commits, pushes and opens the pull
   request. An accepted round is accepted as it is: attach no fixes to it.
@@ -80,7 +81,7 @@ round <n>` correction. Then answer by the report:
   pattern) names it only after you have read it: it exists and says what
   you claim. A correction is only what keeps
   a Done-when criterion from being met or breaks something outside the
-  task, and two test findings of step 5, which go back too: a
+  task, and two test findings of `steps.md` step 4, which go back too: a
   change-detector test, and new or changed logic without a test.
   Everything else the review finds (a nicer structure, an extra test,
   robustness beyond the criteria, style) is one line, `- <today> Not
@@ -97,7 +98,7 @@ round <n>` correction. Then answer by the report:
   you cannot. Write their answer into Notes and point the worker to it
   in the `Supervisor round <n>` line.
 - `done`: check the evidence for every step, and that the covering
-  tests and lint (step 5) are recorded and ran on the final code; take
+  tests and lint (`steps.md` step 4) are recorded and ran on the final code; take
   the worker's result line as given. When a step waited for CI, read
   its status yourself (on GitHub `gh pr checks <n>` or `gh run view
   <id>`): reading is not running. Never ask for the full suite. If
@@ -114,6 +115,10 @@ round <n>` correction. Then answer by the report:
   for and how to check it, and end your turn. Do not watch it yourself
   and do not do the step yourself. When the user says go on, continue
   the worker.
+- No `Worker round` line because the worker hit its turn limit (the
+  harness returns its output cut off or marked partial): an unfinished
+  round, not a report. Read Findings for what it recorded, then continue
+  the worker.
 
 Commit `.ai`, then continue the same worker with its context (its Herdr
 tab, or a sub-agent your harness can send a message to after it
@@ -121,7 +126,7 @@ reported); tell it to read `work.md` again, then Findings, and go on. Otherwise 
 prompt: the file holds everything it needs. When the worker reports
 `done` and you accept it, append `- <today> Delegation: <model>,
 <reports> report(s), <done|taken over|blocked>` to Findings, where
-`<model>` is the `model:` line of the worker's agent file. Then go on at step 7. The Outcome, the notes, the Done-when ticks and `finish` are
+`<model>` is the `model:` line of the worker's agent file. Then go on at step 3. The Outcome, the notes, the Done-when ticks and `finish` are
 yours.
 
 When the user asks for more while the task runs, an ask outside the Goal
@@ -146,68 +151,7 @@ after the user changed a setting; drop the workaround once that goes
 through. Do not retry a denied action yourself: auto mode treats that as
 a bypass.
 
-2. Work the steps in order. Explore the real code, logs, and docs with
-   read/search tools as needed; do not load the whole tree. Tick a step
-   when it is done (`tasks.py tick <id> steps <n>`). Code ships through
-   the review gate: before its first commit, and before a push of code
-   changed since the last review, step 6 runs on the uncommitted diff (a
-   worker asks for it with a `review` report).
-3. Record findings as they happen, not at the end: append each to
-   `## Findings`, dated, telegraphic, one line of at most ~200
-   characters: the claim and one pointer to its evidence (file and line,
-   a command and its result line, a URL), never the evidence itself.
-   Group checks of the same kind in one line (`checks: yamllint,
-   xmllint, bash -n OK`). Evidence too long for that (a list of
-   commands, a log, a summary of a document read) goes into
-   `.ai/tasks/<id>/evidence.md`, and the finding points at it; often it
-   is not worth keeping at all. Do not restate a rule, or what you did
-   not do (`no merge, no push`): the rules hold without it.
-   `tasks.py` flags a Findings line over 300 characters, except a
-   `Supervisor round` line: a correction stays as long as it must to be
-   exact. A finding the file does not hold is lost at the next session. Commit `.ai` after each finding that changes the
-   direction of the task.
-4. Re-plan openly. When a result invalidates the plan (a hypothesis is
-   ruled out, a new lead appears, a scenario cannot run), edit `##
-   Steps`: mark the dead step `- [x] ~~H1~~ ruled out: <evidence>`, add
-   the new steps, and say so in Findings. Do not drift away from the
-   written plan without changing it. If the new direction changes the
-   Goal or a Done-when criterion, stop and ask the user: they approved
-   the old ones (a worker asks with a `question` report). When the task
-   cannot continue without something outside your reach (hardware,
-   access, another team), put the detail in Findings and run `python3 ${tools_dir}/tasks.py finish <id> blocked
-   <reason in one line>`: it sets `status: blocked` and the `blocked:`
-   line `/task list` shows, and keeps the pointer. `tasks.py start`
-   clears the block when the task resumes.
-5. Whenever the task changes code, whatever its type: run the tests
-   that cover the change, every one that exercises the changed code and
-   not only one a criterion names, and lint on the changed files; that
-   is also all a review round needs. The project's full suite is not the
-   task's: CI on a push or the user's run on the target covers it. While
-   a task runs in parallel, those tests also see its unfinished edits: a failure in a
-   file that task claimed is not yours to fix; record it in Findings and
-   rerun once that task finishes.
-   What gets a test: tests are for logic, code that computes, branches or
-   transforms, and every piece of logic the task adds or changes gets one
-   that stays in the suite; running it once by hand is not a test. Declarative files only state what they are:
-   configuration, manifests, build files, CI workflows, package metadata,
-   data (YAML, JSON, TOML, XML, CMake, Dockerfiles, workflow files and
-   the like). Their check is the linter or validator that reads the changed file
-   (`actionlint`, `yamllint`, a schema validator, `hadolint`, `terraform
-   validate`). A build, a CI run, a plan or a start on the target is CI's
-   or the user's, never the task's unless the user asks for it.
-   Before you keep any test, ask: could this assertion fail for a reason
-   other than someone editing, on purpose, the file it reads? If not, it
-   is a change-detector test: do not write it. A test that loads a
-   declarative file and compares its values to literals is one. A
-   test's expected value comes from the requirement, never from the file
-   or the code under test. Code inside a declarative file (a workflow's
-   `run:` step, a CMake function with logic) and code that generates or
-   rewrites one is logic and gets tested like other code. A rule across
-   files that no linter expresses is a policy check, not a change
-   detector, and is kept: it asserts a rule, not a value (every database
-   module passes its storage size; the cleanup workflow removes every
-   deployment the deploy script registers).
-6. Review gate, sized to the result: before code ships (step 2) and
+2. Review gate, sized to the result: before code ships (`steps.md` step 1) and
    before declaring the task done, check it against every Done-when
    criterion.
    - What to check: for a code diff, that it meets the criteria and
@@ -249,7 +193,7 @@ a bypass.
    where kind is inline or `reviewer` sub-agent; an inline review of a diff over ~30 lines names why it
    is mechanical (`inline (mechanical: rename)`). Sizing down the gate is allowed; skipping it silently is
    not, and `/task list` flags a done task without this line.
-7. Record.
+3. Record.
    - Write `## Outcome`: the result in a few lines. A bug: the cause,
      the reproduction, the fix or who it was handed to. An
      investigation: the answer, or "inconclusive" with what was ruled
@@ -272,7 +216,7 @@ a bypass.
      the `GENERATED:project-context` section of `AGENTS.md` and keep
      the section under ~300 tokens. Last, confirm every leaf under
      `.ai/notes/` is linked from `notes.md` and every pointer resolves.
-8. Tick each Done-when criterion the result meets, and each finished
+4. Tick each Done-when criterion the result meets, and each finished
    step, with `python3 ${tools_dir}/tasks.py tick <id> done <n>...`
    (`steps` for steps): name only the numbers you confirmed, criterion by
    criterion against the review and your checks. If a criterion stays open, the task is not done: meet it, get
@@ -282,8 +226,3 @@ a bypass.
    is missing; otherwise it sets `status: done`, deletes the pointer,
    and prints the commit to run (`task: done <id>`). Run it.
    The pointer it deletes is the task's own; a parallel task's stays.
-
-Escalate instead of improvising: on missing context, do bounded
-discovery then ask the user; if a test fails twice on the same step, or
-two hypotheses in a row die without a new lead, stop and rethink the
-approach rather than make a third blind attempt.

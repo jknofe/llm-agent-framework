@@ -281,16 +281,33 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). Every harness reads it natively; no `CLAUDE.md` is written.
-Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
-or `CLAUDE.local.md` exists in the project directory or any directory
-above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
-`CLAUDE.md` in a parent folder, or run Claude Code through Amazon Bedrock
-or with telemetry disabled, add a `CLAUDE.md` containing `@AGENTS.md`
-yourself, or set the Claude Code project-instructions option to
-`claude-md-and-agents-md` in `~/.claude/settings.json`. Scaffolds from 7.0
-and earlier carry the pointer; `/framework-update` retires it where it is
-safe to.
+section). Copilot and OpenCode read it natively. Claude Code reads
+`AGENTS.md` since 2.1.277, but only when no `CLAUDE.md` or
+`CLAUDE.local.md` exists in the project directory or any directory above it
+(a personal `~/.claude/CLAUDE.md` does not count), and before 2.1.281 not
+at all through Amazon Bedrock or with telemetry disabled. So on the
+claude harness `init-agent` makes sure the project root has a `CLAUDE.md`
+containing `@AGENTS.md`: none there, it writes that one line; one there
+without the import, it appends the line and leaves the rest; one there with
+it, nothing changes. `/framework-update` does the same through
+`init-agent --ensure-agents-import`. The file is yours, not framework
+output: it is not in the recorded file list and no update or harness switch
+deletes it, so add your Claude-specific notes below the import. Claude Code
+loads `AGENTS.md` once either way. Scaffolds from 7.0 and earlier carried the
+same pointer; 7.1 to 12.18 wrote none.
+
+## One memory on Claude Code
+
+Claude Code keeps a second memory of its own, auto memory, whose
+`MEMORY.md` it loads every session beside `.ai/notes.md`. A durable fact can
+land in either, so the generated `.claude/settings.json` sets
+`"autoMemoryEnabled": false` for the project: this turns a Claude Code
+feature off in your project, and `.ai/notes.md` is the one memory. To turn
+it back on, put `"autoMemoryEnabled": true` in `.claude/settings.local.json`
+(it overrides the shared file and stays out of git), or change the line in
+`.claude/settings.json`: a re-init with `-y` and `/framework-update` keep a
+value you set there. OpenCode and Copilot have no second memory, so nothing
+changes on them.
 
 ## Deterministic tools and hooks
 
@@ -328,7 +345,12 @@ stdout; only where they live and how they are registered differs:
 
 - `reviewer` and `worker` are the two sub-agents of `/task do`: the
   fresh-context adversarial reviewer of its review gate, and the worker that
-  does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`,
+  does the steps. The roles are enforced by the harness where it can: the
+  Claude Code worker may not spawn agents (`disallowedTools: Agent`), the
+  Claude Code reviewer's own `reviewer_guard.py` hook blocks any shell
+  command outside `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`,
+  `gh pr view|diff|checks` and `gh run view`, and the OpenCode reviewer
+  carries the same list as `shell` rules. Their agent files are `.claude/agents/{reviewer,worker}.md`,
   `.opencode/agents/{reviewer,worker}.md` and
   `.github/agents/{reviewer,worker}.agent.md`.
 
@@ -354,7 +376,8 @@ whole job; the session you talk to is its lead and stands in for you.
   names (see [Sub-agent models](#sub-agent-models)). A small
   task, where at most one step edits a file, gets no worker: the
   session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
-  `.ai/agent/task/work.md`. It does every step the task names: the code,
+  `.ai/agent/task/work.md`, which points it to the working steps in
+  `.ai/agent/task/steps.md`. It does every step the task names: the code,
   the tests, and after them the branch, commit, push, pull request,
   waiting for CI, dev runs, a tracker comment. Before code ships it asks
   for a review. It reports with a `Worker round <n>` line in Findings:
@@ -453,6 +476,7 @@ Claude Code's slash commands:
 - commands: `.opencode/commands/*.md`, invoked the same way (`/explore`,
   `/task do FEAT-42`, `/framework-update dry-run`)
 - reviewer: `.opencode/agents/reviewer.md`, a sub-agent that cannot edit
+  and whose shell is limited to read-only commands
 - permissions: `.opencode/opencode.json`, the same read-only list as `shell`
   rules. OpenCode allows by default, so these matter if your global config
   asks about shell commands
@@ -486,6 +510,11 @@ inheriting the session's model.
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
   (`gpt-6.1-sol`) works; `inherit` is not a model.
+- **Turn limits:** each sub-agent file carries a limit against tool-call
+  loops, `maxTurns` on Claude Code and `steps` on OpenCode: worker 200,
+  reviewer 50, updater 100. They are tripwires, not budgets; edit the
+  number in the agent file if a run legitimately needs more (a re-init
+  resets it). Copilot's agent files have none.
 - **OpenCode names** are written as `opencode models` prints them,
   `<provider>/<model>`, optionally with a variant: `claude-agent/sonnet#medium`.
   Without one the sub-agent runs on the model's default variant, not the
