@@ -57,7 +57,7 @@ def write_opencode_config(path: Path, content: str, force: bool,
     (CONCEPT.md section 86); a value that is not a list of strings is
     replaced. Every top-level key the framework does not generate
     (`compaction`, a model, MCP servers) is carried over as it is (section
-    87); `permissions` is regenerated. An unreadable file is replaced."""
+    88); `permissions` is regenerated. An unreadable file is replaced."""
     old = {}
     if path.is_file():
         try:
@@ -249,6 +249,27 @@ def ensure_ai_gitignore(root: Path):
     content = (content + "\n" if content else "") + "\n".join(add) + "\n"
     gi.write_text(content, encoding="utf-8")
     print(f"updated  .ai/.gitignore (+ {', '.join(add)})")
+
+def link_notes(root: Path):
+    """Claude harness only (CONCEPT.md section 89): keep the symlinks of the
+    path-scoped notes leaves under `.claude/rules/` in step with the leaves,
+    by the project's own `tasks.py notes --link`, which is the one
+    implementation. It must never fail a scaffold: whatever goes wrong is one
+    line."""
+    tool = root / TOOLS_DIR / "tasks.py"
+    if not tool.is_file():
+        return
+    try:
+        res = subprocess.run([sys.executable, str(tool), "notes", "--link",
+                              "--quiet"], cwd=root, capture_output=True,
+                             text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"notes --link: skipped ({type(e).__name__})")
+        return
+    for line in res.stdout.splitlines():
+        print(line)
+    if res.returncode != 0:
+        print("notes --link: failed, skipped")
 
 def ai_commit(root: Path, message: str):
     """Track .ai/ in its own repo; commit pending changes with message."""
@@ -628,6 +649,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
+    if harness == "claude":
+        link_notes(root)
     if switch_from:
         commit_message = commit_message or (
             f"init: switch harness {switch_from.get('harness')} -> {harness}")

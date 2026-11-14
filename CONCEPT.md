@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.25.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.26.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -71,7 +71,12 @@ writing one costs on every session that loads it.
   capped at 100 lines and 8,000 bytes, and on OpenCode by the `instructions`
   key of its config (section 86), whole and uncapped.
 - `.ai/notes/<topic>.md`, optional leaves, each linked from the hub with a
-  one-line pointer. Split only once the hub passes one to two screens.
+  one-line pointer. Split only once the hub passes one to two screens. A
+  leaf about one directory or file pattern may start with a `paths:`
+  frontmatter of quoted globs; Claude Code then loads it when a matching
+  file is read or edited, through a gitignored symlink under
+  `.claude/rules/` that `tasks.py notes --link` keeps (section 89). The
+  hub never carries one; the other harnesses read the leaf on demand.
 - The `GENERATED:project-context` block in `AGENTS.md`, cap ~300 tokens: the
   always-loaded slice. Build, test and lint commands verbatim; tools required
   or forbidden; the user's rules; one-line pointers to docs the repo already
@@ -347,8 +352,8 @@ default, a Herdr tab only when asked.
   every session, from the project's own
   `.ai/notes.md`. Argued below.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: about 1,480 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, the models gate, the notes check, and
+  `tasks.py`: about 1,750 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, the models gate, the notes check and its link step, and
   `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 20 framework files, a copilot one 18, an opencode
   one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
@@ -582,6 +587,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.26 (2026-11-14, path-scoped notes leaves on Claude Code, section 89.
+A leaf may start with a `paths:` frontmatter; `tasks.py notes --link` keeps
+one gitignored symlink per such leaf under `.claude/rules/`, run by init,
+re-init, `/framework-update` and the agent. Nothing always-loaded is added;
+other harnesses read the leaf on demand as before. Reverses the "not built"
+of section 87 on the evidence of section 89.)
 
 v12.25 (2026-11-14, a forced re-init keeps the keys a user added to
 `.opencode/opencode.json`, section 88. `compaction` was dropped before.
@@ -6252,6 +6264,8 @@ also in a sub-agent), and a run where an agent missed a gotcha that sat in a
 leaf. Then the design above is sound as sketched; build it as version 12.x
 with tests for the link step.
 
+Built in 12.26 once the first two points were seen live: see section 89.
+
 ## 88. Compaction on OpenCode, and a user's keys survive a re-init (2026-11-14, v12.25)
 
 **Source.** The review's item on `compaction.keep.tokens` and
@@ -6286,3 +6300,115 @@ the old code.
 
 **What a live run must show.** `opencode debug config` in a scaffold with a
 `compaction` block, after `init-agent -y`, still lists it.
+
+## 89. Path-scoped notes leaves on Claude Code (2026-11-14, v12.26)
+
+**Source.** Section 87 recorded this item as not built because two facts were
+unverified. Both were then seen live by the supervisor, on Claude Code
+2.1.325, in headless sessions on a small model, in a scratch project where
+`.ai/` and `.claude/rules/src.md` are gitignored, `.claude/rules/src.md` is a
+relative symlink (`../../.ai/notes/src.md`) and the leaf starts with a
+frontmatter `paths:` list holding `"src/**"`:
+
+1. Main session: after one Read of `src/a.py` and nothing else, the session
+   knew a fact that exists only in the leaf, and said the harness attached it
+   as a context block naming `.ai/notes/src.md`. A gitignored symlink under
+   `.claude/rules/` is loaded.
+2. Sub-agent: a general-purpose sub-agent given the same instruction did one
+   Read of `src/a.py`; its transcript shows a system reminder with the
+   leaf's contents right after that Read, and it answered correctly. Sub-agents
+   receive path-scoped rules, so the `worker` does.
+
+**Not tested, so not relied on.** Loading on Edit or Write (the memory page
+states it, https://code.claude.com/docs/en/memory: "A path-scoped rule loads
+when Claude uses the Read, Write, or Edit tool on a matching file"), and
+whether the rule is injected once per session or on every matching read. The
+leaf is short by construction; a repeat costs its own size and nothing
+else.
+
+**Change.**
+
+- A leaf `.ai/notes/<topic>.md` may start with a frontmatter holding only
+  `paths:`, a list of quoted globs relative to the project root. The hub
+  `.ai/notes.md` never carries one. Written guidance is in the notes stub
+  comment and the `explore` body, two or three sentences, harness-neutral:
+  where the harness loads a leaf only when a matching file is read it is
+  linked for that, elsewhere it is read on demand. `agents.md` is untouched,
+  so its word count is.
+- `tasks.py notes --link [--quiet]`, the one implementation. On the claude
+  harness (the stamp in `.ai/agent/framework.json`) it keeps one relative
+  symlink `.claude/rules/ai-notes-<topic>.md` per leaf with a usable
+  `paths:`, target `../../.ai/notes/<topic>.md` (a nested leaf joins its
+  path with `--`). It creates, retargets a link that points elsewhere inside
+  `.ai/notes/`, and removes a link whose leaf is gone or lost its `paths:`.
+  It manages only a symlink that has the prefix `ai-notes-` AND points into
+  `.ai/notes/`; a user's own file, own link, a prefixed link pointing
+  elsewhere and a regular file holding the name are never touched (the last
+  is reported and the leaf is not linked). On any other harness it prints one
+  line saying there is nothing to do. `--quiet` hides the "up to date" and
+  "nothing to do" lines.
+- The host `.gitignore` gets one line, `.claude/rules/ai-notes-*.md`, added
+  by the link step when it has something to link, only in a git checkout and
+  only when `git check-ignore` says the links are not already ignored, the
+  way `ensure_gitignore` treats `.ai/`. The notes stay private: the host
+  repository gains no tracked file and no content of `.ai/`.
+- Where it runs: `scaffold.link_notes` after the gitignore step on init and
+  re-init of a claude project (it runs the project's own `tasks.py`, so there
+  is no second implementation; a failure is one line, never a failed
+  scaffold); `/framework-update` on claude, as a line in its verification
+  steps that runs the project's `tasks.py notes --link` after the files are
+  updated, which is also how an existing project gets its links; the agent,
+  after it writes or changes a leaf's `paths:`. `--emit-reference` is not
+  touched. Switching away from claude leaves the links (gitignored, inert on
+  the other harnesses, relinked on a switch back); they are not retired.
+- A filesystem that cannot make the link (a Windows checkout without the
+  privilege, or `.claude/rules` not a directory): one line, exit 0, the leaf
+  is read on demand. The step never raises.
+- The frontmatter shape is strict, on purpose. Claude Code reads the block as
+  YAML and, when it does not parse, "loads the rule as if it had no `paths`":
+  at every session start, the opposite of the point. An unquoted glob that
+  starts with `*` is a YAML alias and fails to parse. So the script links
+  only `paths:` followed by `  - "glob"` or `  - 'glob'` lines; any other
+  frontmatter (another key, `paths: a, b`, unquoted items, an empty list) is
+  not linked and is flagged.
+- The freshness check (section 82) parses the frontmatter, so it is not note
+  text (a cited path is looked for in the body only), and adds two kinds of
+  flag. A `paths:` glob that matches no file in the project, on every harness
+  (the note is stale whichever harness reads it); the glob is read the way
+  the memory page's table reads it: a pattern with no slash matches at any
+  depth, a leading slash anchors it, `**` crosses directories, `{a,b}`
+  expands. On the claude harness: links missing or stale, a frontmatter that
+  cannot be linked, a name a user's file holds. A leaf with `paths:` still
+  needs its hub pointer, so the "no line of notes.md links it" flag is
+  unchanged.
+- `notes --session` and the SessionStart hook print the hub only (section 83)
+  and are unchanged; a new flag may appear among the at most three flag lines
+  as any other. Verified: `tests/test_notes_link.py` checks the `--session`
+  text has no frontmatter.
+- `tests/test_notes_link.py`; `TESTING.md`; README.
+
+**Property 3.** One command set and one notes format on three harnesses: a
+leaf stays a plain markdown file, the commands and their bodies are the same,
+and the frontmatter is inert on OpenCode and Copilot, which read the leaf on
+demand as today. Only when a leaf reaches the context differs, as with the
+hub in section 83 (Claude Code) and section 86 (OpenCode). OpenCode has no
+loading that depends on the files touched (https://opencode.ai/docs/rules/
+describes only directory-scoped `AGENTS.md` and `instructions` globs loaded
+at start) and Copilot none known, so both are skipped.
+
+**Property 4.** Nothing always-loaded is added: no text in `agents.md`, no
+file in the session start. A leaf is read only when a matching file is
+touched, and only on Claude Code. The own footprint grows by one subcommand
+of `tasks.py` and the guidance sentences in a stub comment and a skill body.
+It is an argument, not a measurement: no run shows an agent missing a leaf it
+should have opened. The decision is the supervisor's, taken on the two live
+observations above, and a leaf without `paths:` behaves as before.
+
+**What a live run must show.** On Claude Code: a leaf with `paths:` written by
+the agent after `/explore`, then `notes --link` run by it; a fresh session
+that reads a matching file gets the leaf's text, and one that reads another
+file does not; a worker sub-agent under `/task do` gets it on a Read of a
+matching file; an Edit of a matching file loads it (untested); `git status`
+in the host shows no new tracked file; a `/framework-update` of an older
+project with a leaf that has `paths:` links it. On OpenCode and Copilot the
+leaf is read when the agent opens it and the frontmatter does no harm.

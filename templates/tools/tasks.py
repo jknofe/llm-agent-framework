@@ -134,9 +134,23 @@ header naming the file, the hub capped at the same numbers, and at most a
 few of the lines above; nothing for a missing or untouched hub; always
 exit 0.
 
-list, tree, resolve, trackers, models and notes are read-only; start,
-finish, tick and claim write only the task file and the pointers. Stdlib
-only.
+A leaf may start with a frontmatter holding only `paths:`, a list of quoted
+globs relative to the project root (CONCEPT.md section 89). Claude Code
+loads a rule file under `.claude/rules/` with `paths:` only when a matching
+file is read or edited, so on that harness `tasks.py notes --link` keeps one
+relative symlink `.claude/rules/ai-notes-<topic>.md` per such leaf, pointing
+into `.ai/notes/`, and removes the ones whose leaf is gone or lost its
+`paths:`. It touches only a symlink with that prefix that points into
+`.ai/notes/`; a user's own rule files and links are never touched. The links
+are gitignored in the host repository. On any other harness the step does
+nothing and says so. `--quiet` hides the "nothing to do" lines (init uses
+it). The frontmatter is not note text, and the freshness check flags a glob
+that matches no file and, on Claude Code, a link that is missing or stale.
+
+list, tree, resolve, trackers, models and notes are read-only but for
+`notes --link`, which writes only the links under `.claude/rules/` and one
+line of the host `.gitignore`; start, finish, tick and claim write only the
+task file and the pointers. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -744,7 +758,7 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py notes [--session] | "
+         "| tasks.py trackers | tasks.py notes [--session|--link [--quiet]] | "
          "tasks.py models [--list] [--exit-zero] [worker=<m>] "
          "[reviewer=<m>] [updater=<m>] | "
          "tasks.py start <id> | "
@@ -1266,10 +1280,218 @@ def shown(items):
     more = len(items) - NOTES_CITES
     return head + (f" (+{more} more)" if more > 0 else "")
 
+# Path-scoped leaves (CONCEPT.md section 89).
+LINK_PREFIX = "ai-notes-"
+RULES_DIR = Path(".claude") / "rules"
+BRACE_LIMIT = 1000
+
+
+def leaf_frontmatter(text):
+    """(paths, problem, body) of a leaf. `paths` is the list of globs of a
+    leading `---` block holding only a `paths:` list of quoted strings, or
+    None without a frontmatter. A frontmatter in any other shape gets
+    `problem` and no paths: Claude Code reads the block as YAML and, when it
+    does not parse, loads the rule without `paths`, at every session start,
+    so a form this script cannot be sure of is not linked. `body` is the text
+    after the block."""
+    lines = text.split("\n")
+    if not lines or lines[0].rstrip() != "---":
+        return None, None, text
+    for end in range(1, len(lines)):
+        if lines[end].rstrip() == "---":
+            break
+    else:
+        return None, None, text
+    body = "\n".join(lines[end + 1:])
+    inner = [ln.rstrip() for ln in lines[1:end] if ln.strip()]
+    if not inner or inner[0] != "paths:":
+        return None, "frontmatter holds something other than `paths:`", body
+    paths = []
+    for ln in inner[1:]:
+        m = re.fullmatch(r"\s+-\s+(?:\"([^\"]+)\"|'([^']+)')", ln)
+        if not m:
+            return None, ("`paths:` must be a list of quoted globs, one "
+                          "`  - \"glob\"` per line"), body
+        paths.append(m.group(1) or m.group(2))
+    return (paths or None), (None if paths else "`paths:` is empty"), body
+
+
+def glob_regex(pattern):
+    """Regexes for one `paths` glob the way Claude Code reads it: relative
+    to the project root; a pattern without a slash matches at any depth;
+    a leading slash anchors it; `**` crosses directories; `{a,b}` expands."""
+    out, queue = [], [pattern]
+    while queue and len(out) < BRACE_LIMIT:
+        pat = queue.pop(0)
+        m = re.search(r"\{([^{}]*)\}", pat)
+        if m:
+            queue.extend(pat[:m.start()] + alt + pat[m.end():]
+                         for alt in m.group(1).split(","))
+        else:
+            out.append(pat)
+    regexes = []
+    for pat in out:
+        anchored = pat.startswith("/") or "/" in pat
+        pat = pat.lstrip("/")
+        rx, i = "", 0
+        while i < len(pat):
+            if pat.startswith("**/", i):
+                rx += "(?:.*/)?"
+                i += 3
+            elif pat.startswith("**", i):
+                rx += ".*"
+                i += 2
+            elif pat[i] == "*":
+                rx += "[^/]*"
+                i += 1
+            elif pat[i] == "?":
+                rx += "[^/]"
+                i += 1
+            else:
+                rx += re.escape(pat[i])
+                i += 1
+        try:
+            regexes.append(re.compile(("" if anchored else "(?:.*/)?") + rx))
+        except re.error:
+            pass
+    return regexes
+
+
+def glob_matches_nothing(pattern, files):
+    return not any(rx.fullmatch(f) for rx in glob_regex(pattern)
+                   for f in files)
+
+
+def link_leaves():
+    """{link name: leaf Path} for every leaf with a usable `paths:`, and
+    {rel: problem} for the leaves whose frontmatter is not usable."""
+    wanted, bad = {}, {}
+    leaves_dir = AI / "notes"
+    if not leaves_dir.is_dir():
+        return wanted, bad
+    for p in sorted(leaves_dir.rglob("*.md")):
+        if not p.is_file():
+            continue
+        text, _problem = read_note(p)
+        if text is None:
+            continue
+        paths, problem, _body = leaf_frontmatter(text)
+        rel = p.relative_to(leaves_dir).with_suffix("").as_posix()
+        if problem:
+            bad[p.relative_to(AI).as_posix()] = problem
+        elif paths:
+            wanted[LINK_PREFIX + rel.replace("/", "--") + ".md"] = p
+    return wanted, bad
+
+
+def managed_links(rules, root):
+    """{name: link Path} for the symlinks in `.claude/rules/` this script
+    owns: the prefix, and a target inside `.ai/notes/`. Nothing else there
+    is ours."""
+    out = {}
+    if not rules.is_dir():
+        return out
+    notes = os.path.normpath(root / ".ai" / "notes")
+    for p in sorted(rules.iterdir()):
+        if (p.name.startswith(LINK_PREFIX) and p.name.endswith(".md")
+                and p.is_symlink()):
+            target = os.path.normpath(os.path.join(rules, os.readlink(p)))
+            if target.startswith(notes + os.sep):
+                out[p.name] = p
+    return out
+
+
+def link_plan(root):
+    """(create, retarget, remove, blocked): link names to create, to point
+    at the right leaf, to delete, and names a user's own file holds."""
+    rules = root / RULES_DIR
+    wanted, _bad = link_leaves()
+    have = managed_links(rules, root)
+    create, retarget, blocked = [], [], []
+    for name, leaf in wanted.items():
+        want = os.path.relpath(leaf, rules)
+        if name in have:
+            if os.readlink(have[name]) != want:
+                retarget.append(name)
+        elif os.path.lexists(rules / name):
+            blocked.append(name)
+        else:
+            create.append(name)
+    remove = [n for n in have if n not in wanted]
+    return create, retarget, remove, blocked
+
+
+def ensure_link_gitignore(root):
+    """One pattern in the host `.gitignore`, only in a git checkout and only
+    when git does not already ignore the links."""
+    if not (root / ".git").exists():
+        return
+    probe = f"{RULES_DIR.as_posix()}/{LINK_PREFIX}x.md"
+    try:
+        code = subprocess.run(["git", "-C", str(root), "check-ignore", "-q",
+                               "--", probe], capture_output=True,
+                              timeout=10).returncode
+    except (OSError, subprocess.SubprocessError):
+        return
+    if code != 1:
+        return
+    line = f"{RULES_DIR.as_posix()}/{LINK_PREFIX}*.md"
+    gi = root / ".gitignore"
+    try:
+        text = gi.read_text(encoding="utf-8") if gi.exists() else ""
+        if line in [ln.strip() for ln in text.splitlines()]:
+            return
+        text = (text.rstrip("\n") + "\n" if text.strip() else "") + line + "\n"
+        gi.write_text(text, encoding="utf-8")
+        print(f"updated .gitignore (+ {line})")
+    except OSError as e:
+        print(f"notes --link: could not update .gitignore ({e.strerror})")
+
+
+def notes_link(args=()):
+    quiet = "--quiet" in args
+    harness = stamp_harness()
+    if harness != "claude":
+        if not quiet:
+            print("notes --link: nothing to do, path-scoped loading is "
+                  f"Claude Code only (harness: {harness or 'unknown'}); "
+                  "other harnesses read a leaf on demand.")
+        return 0
+    root = AI.parent
+    rules = root / RULES_DIR
+    wanted, _bad = link_leaves()
+    create, retarget, remove, blocked = link_plan(root)
+    for name in blocked:
+        print(f"notes --link: {RULES_DIR.as_posix()}/{name} exists and is "
+              "not a link of this tool, left alone; rename the leaf.")
+    try:
+        for name in create + retarget:
+            rules.mkdir(parents=True, exist_ok=True)
+            link = rules / name
+            if name in retarget:
+                link.unlink()
+            os.symlink(os.path.relpath(wanted[name], rules), link)
+            print(f"{'linked' if name in create else 'relinked'} "
+                  f"{RULES_DIR.as_posix()}/{name}")
+        for name in remove:
+            (rules / name).unlink()
+            print(f"unlinked {RULES_DIR.as_posix()}/{name}")
+    except (OSError, NotImplementedError, AttributeError) as e:
+        print("notes --link: could not create symlinks here "
+              f"({getattr(e, 'strerror', None) or type(e).__name__}); "
+              "path-scoped loading skipped, leaves are read on demand.")
+        return 0
+    if wanted:
+        ensure_link_gitignore(root)
+    if not (create or retarget or remove or blocked) and not quiet:
+        print(f"notes --link: up to date ({len(wanted)} link"
+              f"{'' if len(wanted) == 1 else 's'}).")
+    return 0
+
 
 def notes_findings():
     """[(kind, line)] for the notes: kind is `size`, `skip`, `path`,
-    `leaf` or `orphan`. Never raises."""
+    `leaf`, `orphan`, `glob` or `link`. Never raises."""
     try:
         return _notes_findings()
     except Exception as e:  # a check must not break /task list
@@ -1315,6 +1537,7 @@ def _notes_findings():
             out.append(("orphan", f"- {FLAG} {rel}: no line of notes.md "
                         "links it."))
     files = None
+    globs = {}
     for rel, body in [("notes.md", text)] + [
             (r, None) for r in sorted(leaves)]:
         if body is None:
@@ -1322,6 +1545,7 @@ def _notes_findings():
             if body is None:
                 out.append(("skip", f"- {FLAG} {rel}: {problem}."))
                 continue
+            globs[rel], _prob, body = leaf_frontmatter(body)
         tokens = cited_paths(body)
         if not tokens:
             continue
@@ -1334,6 +1558,43 @@ def _notes_findings():
         if gone:
             out.append(("path", f"- {FLAG} {rel}: cites {shown(gone)}, "
                         "which does not exist."))
+    out.extend(_link_findings(root, globs))
+    return out
+
+
+def _link_findings(root, globs):
+    """The `paths:` flags of the leaves (section 89): a glob that matches no
+    file, and on Claude Code a link that is missing or stale, a frontmatter
+    that cannot be linked, a name a user's file holds."""
+    out = []
+    files = None
+    for rel in sorted(globs):
+        if not globs[rel]:
+            continue
+        if files is None:
+            files = repo_files(root) or False
+        if files is False:
+            break
+        dead = [g for g in globs[rel] if glob_matches_nothing(g, files)]
+        if dead:
+            out.append(("glob", f"- {FLAG} {rel}: `paths:` {shown(dead)} "
+                        "matches no file."))
+    if stamp_harness() != "claude":
+        return out
+    _wanted, bad = link_leaves()
+    for rel, problem in sorted(bad.items()):
+        out.append(("link", f"- {FLAG} {rel}: {problem}; not linked, so it "
+                    "is read on demand only."))
+    create, retarget, remove, blocked = link_plan(root)
+    todo = create + retarget + remove
+    if todo:
+        out.append(("link", f"- {FLAG} {RULES_DIR.as_posix()}: "
+                    f"{len(todo)} link(s) missing or stale "
+                    f"({shown(todo)}); run `python3 .ai/agent/tools/tasks.py "
+                    "notes --link`."))
+    for name in blocked:
+        out.append(("link", f"- {FLAG} {RULES_DIR.as_posix()}/{name}: a file "
+                    "of yours holds the link's name; rename the leaf."))
     return out
 
 
@@ -1389,6 +1650,12 @@ def notes_session():
 
 
 def notes_cmd(args=()):
+    if "--link" in args:
+        try:
+            return notes_link(args)
+        except Exception as e:  # the step must not break a scaffold
+            print(f"notes --link: failed ({type(e).__name__}), skipped.")
+            return 0
     if "--session" in args:
         try:
             return notes_session()

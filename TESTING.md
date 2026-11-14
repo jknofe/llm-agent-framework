@@ -20,6 +20,7 @@ themselves.
    python3 tests/test_claude_md.py
    python3 tests/test_models.py
    python3 tests/test_notes.py
+   python3 tests/test_notes_link.py
    python3 tests/test_session_hook.py
    python3 tests/test_inject.py
    python3 tests/test_worker_contract.py
@@ -40,6 +41,14 @@ themselves.
    The notes test runs the notes freshness check of `tasks.py` (section 82)
    on temp projects: each flag, each deliberate silence, exit codes, the
    `/task list` line, and odd input (missing, binary, unreadable).
+   The notes-link test (section 89) scaffolds claude and opencode projects:
+   `tasks.py notes --link` creates, retargets and removes the symlinks of
+   path-scoped leaves, is idempotent, leaves a leaf without frontmatter, a
+   frontmatter it cannot trust, and a user's own files and links under
+   `.claude/rules/` alone, adds one gitignore line, runs on init and
+   re-init, does nothing on opencode, does not fail where symlinks cannot be
+   made, and the freshness check flags a dead glob (every glob form), a
+   missing or stale link and an untrusted frontmatter.
    The session-hook test runs the SessionStart hook script (section 83) as
    Claude Code does: hub under its header, silence for a stub, no hub or a
    worker, fail open on a broken or hung tool, the output under the 10,000

@@ -95,7 +95,12 @@ def render_update_body(harness: str, arg: str) -> str:
             "     in the project root and put its one line (`CLAUDE.md: created`,\n"
             "     `appended` or `unchanged`) in the report. It is the user's\n"
             "     file, not framework output: never delete it, and never merge\n"
-            "     or overwrite it from the reference.\n")
+            "     or overwrite it from the reference.\n"
+            f"   - Path-scoped notes (section 89): run `python3 {TOOLS_DIR}/tasks.py\n"
+            "     notes --link` in the project root, after the files above are\n"
+            "     updated, and put its output in the report. It links the notes\n"
+            "     leaves that have `paths:` into `.claude/rules/` and touches\n"
+            "     nothing else there.\n")
     elif harness == "opencode":
         reference_skill = f"{OPENCODE_DIR}/commands/framework-update.md"
         backup_paths = f"AGENTS.md and `{OPENCODE_DIR}/`"

@@ -32,6 +32,13 @@ anywhere else. What pays is what the repository cannot state itself.
    telegraphic: gotchas, runbooks, decisions, domain terms, pointers to
    sibling repos. Do not write a summary of the codebase there; the code is
    read on demand and a digest of it was measured to help nothing.
+   A gotcha that concerns one directory or file pattern goes in a leaf
+   `.ai/notes/<topic>.md` that starts with a frontmatter holding a
+   `paths:` list of quoted globs (`  - "src/api/**"`), with its one-line
+   pointer in the hub; then run `python3 ${tools_dir}/tasks.py notes --link`.
+   A harness that loads such a leaf only when a matching file is read
+   links it for that; on the others the step says so and the leaf is read
+   on demand.
 5. Commit `.ai` (`explore: project context`).
 ${hook_offer}
 ${arg_focus}

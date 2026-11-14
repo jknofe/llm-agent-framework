@@ -328,6 +328,25 @@ obedience:
   file paths are checked, and a line that says a path was removed or is
   planned is skipped. The same lines close the `/task list` output when
   there are any.
+- **Path-scoped leaves (Claude Code).** A leaf `.ai/notes/<topic>.md` about
+  one directory or file pattern may start with a frontmatter
+  (`---`, `paths:`, one `  - "src/api/**"` line per quoted glob, `---`),
+  with its one-line pointer in the hub as always. Claude Code then loads the
+  leaf when a matching file is read or edited, in the main session and in
+  sub-agents, instead of the agent having to think to open it.
+  `python3 .ai/agent/tools/tasks.py notes --link` makes that happen: one
+  relative symlink `.claude/rules/ai-notes-<topic>.md` per such leaf, into
+  `.ai/notes/`. The links are gitignored in the host repository (one line,
+  `.claude/rules/ai-notes-*.md`), so nothing from `.ai/` becomes tracked.
+  The step touches only symlinks with that prefix pointing into
+  `.ai/notes/`, never your own rule files, and runs on init, a re-init,
+  `/framework-update` and when the agent changes a leaf. Where symlinks
+  cannot be made it says so in one line and goes on. The check flags a glob
+  that matches no file and a link that is missing or stale. On OpenCode and
+  Copilot the frontmatter is inert and the leaf is read on demand, as
+  before. The frontmatter must be exactly that shape; anything else is not
+  linked and is flagged, because Claude Code loads a rule whose frontmatter
+  it cannot parse at every session start.
 - `notes_session.py` (Claude Code, session start) puts the notes hub
   `.ai/notes.md` into the session's context, on start, resume, clear and
   after a compaction, so the agent neither spends a turn reading it nor
