@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.15.** The framework rests on four premises, stated in
+**State: 2026-11-14, v12.20.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -86,6 +86,12 @@ starting point for the questions. The user's answers override detection.
 On Claude Code the generated `.claude/settings.json` turns the harness's own
 auto memory off for the project, so `.ai/notes.md` is the only memory
 (section 80).
+
+Notes go stale and nothing else checks them, so `tasks.py notes` does, by
+script and never by the agent (section 82): the hub over a size cap, a
+cited repository path that no longer exists, a dead leaf link, an unlinked
+leaf. The flags close the `/task list` output; nothing is added to any
+always-loaded file.
 
 Between explores, notes grow on correction: when the user corrects the agent,
 or a check fails for a reason the code does not explain, the agent records it
@@ -203,7 +209,8 @@ a task leaves the working view. A script (`tasks.py`) produces the whole
 answer from the task files' frontmatter, checkboxes and review line,
 including the flags below the table: an `in-progress` task untouched for 14
 days, a `blocked` task with the reason from its `blocked:` frontmatter line, a
-`done` task with unchecked criteria or without a review line in Findings. The
+`done` task with unchecked criteria or without a review line in Findings, and,
+last, the notes flags of section 82. The
 agent only shows the output; it opens no file. Outside any agent,
 `python3 .ai/agent/tools/tasks.py` prints the same table with no model
 involved.
@@ -328,8 +335,8 @@ default, a Herdr tab only when asked.
   one squeezed to fit.
 - The generated block: cap ~300 tokens.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: 1198 lines: the task table, the dependency tree, the
-  resolver, the tracker discovery, the models gate, and
+  `tasks.py`: about 1,480 lines: the task table, the dependency tree, the
+  resolver, the tracker discovery, the models gate, the notes check, and
   `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 19 framework files, a copilot one 18, an opencode
   one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
@@ -523,6 +530,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.20 (2026-11-14, a freshness check for the notes, section 82.
+`tasks.py notes` flags a hub over 100 lines or 8,000 bytes, a cited path
+that is gone, a dead hub link and an unlinked leaf; the same lines close
+`/task list` when there are any.)
 
 v12.19 (2026-11-14, AGENTS.md loads on Claude Code in every case, section
 81. The claude scaffold makes sure the project root's `CLAUDE.md` imports
@@ -5644,3 +5656,70 @@ https://code.claude.com/docs/en/memory:
 have one (the one line), and changes a `CLAUDE.md` the user wrote by one
 appended line. That is the price of loading `AGENTS.md` deterministically; a
 user who does not want it deletes the line, and a later re-init adds it again.
+
+## 82. A freshness check for the notes (2026-11-14, v12.20)
+
+**Source.** The review in `fable-review-results.md`, Priority 2, item 7.
+Persistent notes go stale and nothing checked them: a note can cite a file
+that was renamed a year ago, and a hub that grew past two screens is read
+whole in every session that loads it.
+
+**What the format prescribes, and so what is checked.** Read in
+`templates/config/notes-stub.md`, `templates/instructions/agents.md`,
+`templates/task/do.md` and Part I: the hub `.ai/notes.md` is appended and
+telegraphic, "back under ~1 screen" and split into leaves once it passes "1-2
+screens"; a leaf is `.ai/notes/<topic>.md`, "linked from the hub with a
+one-line pointer" written `- [topic](notes/<topic>.md) - hook`; do.md ends
+with "confirm every leaf under `.ai/notes/` is linked from `notes.md` and
+every pointer resolves". Entries are not dated by any rule, so **there is no
+undated-entry flag**: adding one would check something the format never asked
+for.
+
+**Change.** `tasks.py notes`, in the manner of the long-Findings flag: a
+function that reads files and returns lines, shown by a subcommand and, when
+non-empty, at the end of `/task list`. Four flags, each one line, file first:
+
+- the hub over `NOTES_MAX_LINES = 100` lines or `NOTES_MAX_BYTES = 8000`
+  bytes. 100 lines is two screens of 50, the point where the hub's own text
+  says to split; 8,000 bytes is those 100 lines at the 80 characters a
+  telegraphic line seldom passes, about 2,000 tokens. The two numbers are
+  also the cap of the session-start text of section 83, so a hub is flagged
+  for the same size at which it would be cut.
+- a cited path that does not exist, in the hub or a leaf.
+- a hub link to `notes/<x>.md` that does not exist.
+- a leaf under `notes/` that no line of the hub links (a mention of its
+  path counts).
+
+**The path flag is built to stay quiet.** A backticked token counts only
+when it has a `/`, no space, only `[\w.@+-]` and `/`, and its last component
+ends in a file extension: so no bare file name (it could sit in any
+directory), no directory (`iot/` was an MQTT topic prefix in a real hub), no
+glob, `<placeholder>`, `$VAR`, URL, `~/`, absolute or `..` path (a sibling
+repository), no `read/write` or `text/html`. It is skipped inside fenced
+blocks and comments, and on a line that says a path was removed, is old,
+earlier or planned (`GONE_RE`; the words inside the backticks do not count).
+A path that exists anywhere under the project root as the tail of a longer
+one counts as existing (a note may name it from inside a subdirectory; nested
+repositories are walked too), and so does one the project's gitignore
+ignores, because build output is absent from a fresh checkout. Without a git
+repository nothing is flagged for a path. Run against seven real hubs, the
+first version flagged one MQTT topic prefix and one deliberate "was removed"
+mention; both led to the rules above. What is left in those hubs is a path
+that is gone and one that moved.
+
+**Exit code.** `tasks.py notes` exits 0 with no output when there is nothing
+to flag and 1 with the lines when there is, as `tasks.py models` exits 1 when
+a role is unset: non-zero says something needs a look. `/task list` ignores
+the code and prints the lines. A missing hub gives no output; binary content
+or an unreadable file gives one line naming the file and the reason; any
+other error gives one `check failed` line. Nothing raises.
+
+**Where it shows.** Only in `tasks.py notes` and at the end of `/task list`
+(also with no live tasks), only when there is something to flag. The `/task`
+dispatcher already copies the script's output verbatim, so no skill text
+changed and no always-loaded word was added. All harnesses: the script is the
+same file on each.
+
+**Tests.** `tests/test_notes.py`: clean notes, each flag, each deliberate
+silence, the exit codes, the list line, a missing, binary, unreadable and
+non-UTF-8 hub, a dangling leaf, and no repository.

@@ -249,7 +249,7 @@ Every harness invokes them the same way, under the same names:
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes its covering tests and lint green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
 | `/task do [<id>] [inline\|herdr]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision (`herdr`: in a Herdr tab instead); a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
-| `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
+| `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks, and for stale notes. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed. |
@@ -320,6 +320,14 @@ obedience:
   questions; your answers override it. It deliberately prints no module map
   or LOC table: that is a repository overview, and an overview does not help
   an agent find anything.
+- `tasks.py notes` checks the notes for staleness without a model: the hub
+  `.ai/notes.md` over 100 lines or 8,000 bytes, a backticked repository path
+  in a note that no longer exists, a hub link to a leaf that is missing, a
+  leaf no hub line links. One short line per finding; nothing and exit 0 when
+  clean, exit 1 otherwise. It is deliberately quiet: only plain relative
+  file paths are checked, and a line that says a path was removed or is
+  planned is skipped. The same lines close the `/task list` output when
+  there are any.
 - `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
   has uncommitted changes, so notes and task files are not silently dropped. Not
   absolute: every harness overrides a turn-end block after a few consecutive

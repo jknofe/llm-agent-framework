@@ -19,6 +19,7 @@ themselves.
    python3 tests/test_settings.py
    python3 tests/test_claude_md.py
    python3 tests/test_models.py
+   python3 tests/test_notes.py
    python3 tests/test_opencode_plugin.py
    ```
    The reviewer guard test feeds the Claude reviewer's hook allowed and
@@ -32,6 +33,9 @@ themselves.
    absent, present without the import, present with it, re-init, the
    `--ensure-agents-import` flag, and that the file is never a recorded
    framework file.
+   The notes test runs the notes freshness check of `tasks.py` (section 82)
+   on temp projects: each flag, each deliberate silence, exit codes, the
+   `/task list` line, and odd input (missing, binary, unreadable).
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

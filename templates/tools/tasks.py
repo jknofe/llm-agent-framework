@@ -116,8 +116,24 @@ from (CONCEPT.md section 65): `opencode models` on OpenCode, the backend's
 `/v1/models` on Claude Code where it answers, and on Copilot, which has no
 list command, a pointer to its picker. It never picks one. Read-only.
 
-list, tree, resolve, trackers and models are read-only; start, finish, tick
-and claim write only the task file and the pointers. Stdlib only.
+`tasks.py notes` checks `.ai/notes.md` and the leaves under `.ai/notes/`
+for staleness (CONCEPT.md section 82), from the files alone: the hub over
+NOTES_MAX_LINES lines or NOTES_MAX_BYTES bytes, a backticked repository
+path in a note that no longer exists, a hub link to a leaf that does not
+exist, and a leaf no hub line links to. One short line per finding, the
+file first; nothing and exit 0 when there is none, exit 1 when there is
+any (the `models` convention: non-zero says something needs a look). A
+missing hub, an unreadable file or binary content never raises: the file
+is skipped, or one line says so. The same lines close the `/task list`
+output when there are any. `tasks.py notes --session` prints the hub the
+Claude Code SessionStart hook hands the model (CONCEPT.md section 83): a
+header naming the file, the hub capped at the same numbers, and at most a
+few of the lines above; nothing for a missing or untouched hub; always
+exit 0.
+
+list, tree, resolve, trackers, models and notes are read-only; start,
+finish, tick and claim write only the task file and the pointers. Stdlib
+only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
@@ -725,7 +741,8 @@ def trackers():
 
 
 USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
-         "| tasks.py trackers | tasks.py models [--list] [worker=<m>] "
+         "| tasks.py trackers | tasks.py notes [--session] | "
+         "tasks.py models [--list] [worker=<m>] "
          "[reviewer=<m>] [updater=<m>] | "
          "tasks.py start <id> | "
          "tasks.py finish <id> done|blocked [<reason>] | "
@@ -1124,6 +1141,258 @@ def claim(arg, files):
     return 0
 
 
+# The notes hub is read whole at the start of a session (CONCEPT.md sections
+# 82 and 83), so it is capped. `.ai/notes.md` is meant to stay under about
+# one screen and is split into leaves once it passes one to two; 100 lines is
+# two screens of 50, and 8000 bytes is those lines at the 80 characters a
+# telegraphic line seldom passes, about 2,000 tokens.
+NOTES_MAX_LINES = 100
+NOTES_MAX_BYTES = 8000
+# At most this many flag lines go into the session-start text.
+NOTES_SESSION_FLAGS = 3
+NOTES_CITES = 3  # paths named per file in one flag line
+
+COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+TICK_RE = re.compile(r"`([^`\n]+)`")
+LINK_RE = re.compile(r"\]\(([^)\s]+)\)")
+# A repository path a note plausibly cites: relative, slash-separated,
+# plain characters only, and either a directory (trailing slash) or ending
+# in a file extension. `read/write` and `text/html` are not paths.
+PATH_RE = re.compile(r"[\w.@+-]+(?:/[\w.@+-]+)*")
+EXT_RE = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,7}$")
+
+
+def read_note(path):
+    """(text, problem): the file's text, or None and one clear reason."""
+    try:
+        raw = path.read_bytes()
+    except OSError as e:
+        return None, f"unreadable ({e.strerror or type(e).__name__})"
+    if b"\0" in raw:
+        return None, "not text (binary content), not checked"
+    return raw.decode("utf-8", errors="replace"), None
+
+
+# A line that says a path is gone, planned or historical names a path that
+# is meant not to exist: not a stale citation.
+GONE_RE = re.compile(r"\b(?:no|not|never|none|without|removed|deleted|gone|"
+                     r"dropped|retired|replaced|former|formerly|legacy|old|"
+                     r"was|were|will|would|planned|todo|future|missing|"
+                     r"fossil|obsolete|deprecated|earlier|previously|renamed|moved|"
+                     r"once|ex)\b", re.I)
+# The walk below gives up on a tree this large: no verdict, no flag.
+WALK_LIMIT = 200000
+WALK_SKIP = {".git", "node_modules", ".ai", "__pycache__", ".venv", "venv"}
+
+
+def repo_files(root):
+    """Every path under the project root as posix strings, nested
+    repositories included, so a path a note names from inside a
+    subdirectory is found; None when the tree is too large to walk."""
+    out = []
+    for base, dirs, names in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in WALK_SKIP]
+        rel = Path(base).relative_to(root).as_posix()
+        rel = "" if rel == "." else rel + "/"
+        out.extend(rel + n for n in names)
+        out.extend(rel + d for d in dirs)
+        if len(out) > WALK_LIMIT:
+            return None
+    return out
+
+
+def cited_paths(text):
+    """Backticked tokens of a note that are plainly relative file paths.
+    Conservative on purpose: a missed path costs nothing, a false flag
+    teaches the reader to ignore the rest. Fenced blocks, comments and
+    lines that say something is gone or planned are skipped; so is anything
+    with a space, a glob, a placeholder, a variable, a URL, a home, absolute
+    or parent-directory path (a sibling repository), a directory (`iot/` may
+    be a topic prefix), and a bare file name, which could sit in any
+    directory."""
+    out, fenced = [], False
+    for line in COMMENT_RE.sub("", text).splitlines():
+        if line.lstrip().startswith(("```", "~~~")):
+            fenced = not fenced
+            continue
+        if fenced or GONE_RE.search(TICK_RE.sub("", line)):
+            continue
+        for tok in TICK_RE.findall(line):
+            tok = re.sub(r":\d+(?::\d+)?$", "", tok.strip())
+            if "/" not in tok or not PATH_RE.fullmatch(tok):
+                continue
+            parts = tok.split("/")
+            if any(set(p) <= {"."} for p in parts) or not EXT_RE.search(parts[-1]):
+                continue
+            # example.com/page.html is an address, not a path.
+            if "." in parts[0] and not parts[0].startswith("."):
+                continue
+            if tok not in out:
+                out.append(tok)
+    return out
+
+
+def missing_paths(tokens, root, files):
+    """The cited paths that exist nowhere: not at the project root, not as
+    the tail of any project path (a note may name a path from inside a
+    subdirectory), and not under something the project's gitignore ignores
+    (build output a fresh checkout does not have)."""
+    out = []
+    for tok in tokens:
+        if (root / tok).exists():
+            continue
+        if any(f == tok or f.endswith("/" + tok) for f in files):
+            continue
+        try:
+            code = subprocess.run(
+                ["git", "-C", str(root), "check-ignore", "-q", "--", tok],
+                capture_output=True, timeout=10).returncode
+        except (OSError, subprocess.SubprocessError):
+            code = 128
+        if code == 1:  # 0 ignored, 128 no repository: cannot tell
+            out.append(tok)
+    return out
+
+
+def shown(items):
+    head = ", ".join(f"`{i}`" for i in items[:NOTES_CITES])
+    more = len(items) - NOTES_CITES
+    return head + (f" (+{more} more)" if more > 0 else "")
+
+
+def notes_findings():
+    """[(kind, line)] for the notes: kind is `size`, `skip`, `path`,
+    `leaf` or `orphan`. Never raises."""
+    try:
+        return _notes_findings()
+    except Exception as e:  # a check must not break /task list
+        return [("skip", f"- {FLAG} notes: check failed "
+                         f"({type(e).__name__}), not checked.")]
+
+
+def _notes_findings():
+    hub = AI / "notes.md"
+    leaves_dir = AI / "notes"
+    if not hub.is_file():
+        return []
+    out = []
+    root = AI.parent
+    text, problem = read_note(hub)
+    if text is None:
+        return [("skip", f"- {FLAG} notes.md: {problem}.")]
+    lines, size = len(text.splitlines()), len(text.encode("utf-8"))
+    over = []
+    if lines > NOTES_MAX_LINES:
+        over.append(f"{lines} lines (cap {NOTES_MAX_LINES})")
+    if size > NOTES_MAX_BYTES:
+        over.append(f"{size} bytes (cap {NOTES_MAX_BYTES})")
+    if over:
+        out.append(("size", f"- {FLAG} notes.md: {' and '.join(over)}; the "
+                    "hub is read whole, move topic clusters into "
+                    "notes/<topic>.md."))
+    leaves = {}
+    if leaves_dir.is_dir():
+        for p in sorted(leaves_dir.rglob("*.md")):
+            if p.is_file():
+                leaves[p.relative_to(AI).as_posix()] = p
+    linked = {m.split("#")[0].lstrip("./")
+              for m in LINK_RE.findall(COMMENT_RE.sub("", text))}
+    mentioned = {rel for rel in leaves if rel in text}
+    gone = sorted(t for t in linked if t.startswith("notes/")
+                  and t.endswith(".md") and t not in leaves)
+    if gone:
+        out.append(("leaf", f"- {FLAG} notes.md: links {shown(gone)}, which "
+                    "does not exist."))
+    for rel in sorted(leaves):
+        if rel not in linked and rel not in mentioned:
+            out.append(("orphan", f"- {FLAG} {rel}: no line of notes.md "
+                        "links it."))
+    files = None
+    for rel, body in [("notes.md", text)] + [
+            (r, None) for r in sorted(leaves)]:
+        if body is None:
+            body, problem = read_note(leaves[rel])
+            if body is None:
+                out.append(("skip", f"- {FLAG} {rel}: {problem}."))
+                continue
+        tokens = cited_paths(body)
+        if not tokens:
+            continue
+        if files is None:
+            files = repo_files(root)
+        if files is False or files is None:
+            files = False  # no repository to compare with: skip paths
+            continue
+        gone = missing_paths(tokens, root, files)
+        if gone:
+            out.append(("path", f"- {FLAG} {rel}: cites {shown(gone)}, "
+                        "which does not exist."))
+    return out
+
+
+def notes_flags():
+    return [line for _kind, line in notes_findings()]
+
+
+def print_notes_flags():
+    """The notes flags under the `/task list` output, when there are any."""
+    found = notes_flags()
+    if found:
+        print()
+        print("\n".join(found))
+
+
+def notes_session():
+    """What the Claude Code SessionStart hook prints (section 83)."""
+    hub = AI / "notes.md"
+    if not hub.is_file():
+        return 0
+    text, problem = read_note(hub)
+    if text is None:
+        return 0
+    body = COMMENT_RE.sub("", text).strip()
+    # The scaffold's untouched hub is a title and a comment: no knowledge.
+    if not [ln for ln in body.splitlines() if ln.strip()
+            and not ln.lstrip().startswith("# ")]:
+        return 0
+    lines = [ln.rstrip() for ln in body.splitlines()]
+    kept, used, cut = [], 0, False
+    for ln in lines:
+        add = len(ln.encode("utf-8")) + 1
+        if len(kept) >= NOTES_MAX_LINES or used + add > NOTES_MAX_BYTES:
+            cut = True
+            break
+        kept.append(ln)
+        used += add
+    print("Project notes, `.ai/notes.md` (loaded at session start; leaves "
+          "under `.ai/notes/` are read on demand):")
+    print("\n".join(kept))
+    if cut:
+        print(f"[notes.md cut after {len(kept)} of {len(lines)} lines "
+              f"(cap {NOTES_MAX_LINES} lines, {NOTES_MAX_BYTES} bytes); the "
+              "rest is in `.ai/notes.md`.]")
+    found = [line for kind, line in notes_findings()
+             if not (cut and kind == "size")]
+    if found:
+        print("Notes check (python3 .ai/agent/tools/tasks.py notes):")
+        print("\n".join(found[:NOTES_SESSION_FLAGS]))
+        if len(found) > NOTES_SESSION_FLAGS:
+            print(f"- ... and {len(found) - NOTES_SESSION_FLAGS} more.")
+    return 0
+
+
+def notes_cmd(args=()):
+    if "--session" in args:
+        try:
+            return notes_session()
+        except Exception:  # fail open: a session must always start
+            return 0
+    found = notes_flags()
+    if found:
+        print("\n".join(found))
+    return 1 if found else 0
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "resolve":
@@ -1151,12 +1420,15 @@ def main():
         return trackers()
     if args and args[0] == "models":
         return models(args[1:])
+    if args and args[0] == "notes":
+        return notes_cmd(args[1:])
     if args and args[0] != "list":
         print(f"Unknown argument {args[0]!r}. {USAGE}")
         return 2
     if not TASKS.is_dir():
         print("No tasks yet: `.ai/tasks/` does not exist. "
               "Create one with /task create <id> <title>.")
+        print_notes_flags()
         return 0
 
     rows = [load(path) for path in sorted(TASKS.glob("*/task.md"))
@@ -1166,6 +1438,7 @@ def main():
     if not rows:
         print(f"No live tasks in `.ai/tasks/` ({archived} archived). "
               "Create one with /task create <id> <title>.")
+        print_notes_flags()
         return 0
 
     rows.sort(key=lambda r: (STATUS_ORDER.get(r["status"], 9),
@@ -1196,6 +1469,7 @@ def main():
     print(summary(rows, archived))
     if pointer_line():
         print(pointer_line())
+    print_notes_flags()
     return 0
 
 
