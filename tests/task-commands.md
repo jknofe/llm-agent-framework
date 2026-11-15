@@ -136,7 +136,10 @@ Any create or do run, on each harness. From the transcript:
 - After `tasks.py resolve`, the agent reads `.ai/agent/task/create.md`
   (CREATE) or `.ai/agent/task/do.md` (DO) before acting; for `create` and
   `do` the two calls come in one turn (12.28), and a DO session does not
-  read the task file again, `resolve` printed it.
+  read the task file again, `resolve` printed it. A session that works the
+  task itself (`inline`, a small task) never reads `supervise.md`; one that
+  hands the steps to a worker reads it, in the turn of the models gate, and
+  before it spawns (12.29).
 - `/task list` reads neither part file.
 
 Fail: the agent acts on a verdict without reading its part file, or

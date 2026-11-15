@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-15, v12.28.** The framework rests on four premises, stated in
+**State: 2026-11-15, v12.29.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -360,11 +360,13 @@ default, a Herdr tab only when asked.
   `tasks.py`: about 1,900 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, the notes check and its link step, and
   `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 20 framework files, a copilot one 18, an opencode
-  one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 21 framework files, a copilot one 19, an opencode
+  one 20 (its plugin is the extra entry point), counting the five `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
   only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
-  verdict sends the agent there (section 42). The worker reads `steps.md` (about 820 words) and has `work.md` as the
+  verdict sends the agent there (section 42), and Do sends a session to
+  `supervise.md` (about 1,200 words) only when it hands the task to a worker
+  (section 92). The worker reads `steps.md` (about 820 words) and has `work.md` as the
   body of its agent file on Claude Code and OpenCode, about 940 words that
   only a spawned worker loads, not `do.md` (sections 77 and 85).
 
@@ -592,6 +594,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.29 (2026-11-15, a session that works the task itself does not load the
+supervision, section 92. `do.md` keeps the decision and what both paths
+need; the part on supervising a worker moves, text unchanged, to
+`.ai/agent/task/supervise.md`, read only at the decision for a worker.)
 
 v12.28 (2026-11-15, the start of a task in fewer calls, section 91.
 `tasks.py resolve` prints the task file after a `DO` verdict; `/task create`
@@ -6538,3 +6545,57 @@ the text.
 **What a live run must show.** A `/task do` transcript whose first turn holds
 `resolve` and a read of `do.md`, whose second turn holds the models gate
 with `start`, and which never reads `task.md` before its first edit.
+
+## 92. A session that works the task itself does not load the supervision (2026-11-15, v12.29)
+
+**Source.** The same benchmark as section 90: reading `do.md` adds about
+8,000 tokens to a session, and every later call carries them; five of the six
+`/task do` sessions worked the task themselves (the small-task rule, or
+`inline`) and never used the middle of `do.md`, the part on supervising a
+worker.
+
+**Change.** Done as section 77 did it for `steps.md`: text moved, not
+rewritten. `templates/task/supervise.md`, written to
+`.ai/agent/task/supervise.md` (a claude scaffold now records 21 framework
+files, copilot 19, opencode 20), holds, in their old order:
+
+- the hand-over: the worker is the `worker` agent, started fresh, its model
+  from its agent file, the one spawn prompt and where it runs (the sub-agent,
+  or a Herdr tab for `herdr`);
+- the supervision: change no file while it runs, judge each report from the
+  files, trust recorded evidence, answer by report kind (`review`,
+  `question`, `done`, `stuck`, `waiting`, a round cut off by the turn
+  limit), the corrections rule and the `Not sent back` line, continuing the
+  same worker, the `Delegation:` line.
+
+`do.md` keeps the decision rule (when to work the task itself, when a
+worker; the count of open steps that edit a host file; the line that states
+the decision), and what both paths need: the models gate, start, the
+user-ask, redirect and workaround rules, the review gate, record, and the
+close. At the decision it says: otherwise read `supervise.md`, in the turn of
+step 1, and follow it. A session that works the task itself reads `do.md` and
+`steps.md`. Only connective text changed (a word-for-word comparison of
+the old `do.md` against the new `do.md` and `supervise.md` leaves exactly
+the sentences that join them); the references that named a step of `do.md`
+from `supervise.md` now say `do.md` step 2 and step 3. `supervise.md` is
+rendered by `render_task_part("supervise")`; the worker spawn prompt and the
+Herdr placement slots moved with it, so the `check_templates` and
+`test_worker_contract` checks on the spawn prompt read `supervise.md`.
+`check_templates` also fails when `work.md` or `steps.md` names it.
+
+**Size (rendered, claude, words).** Before this change `do.md` was 2,995
+(12.28; 2,755 at 12.26). After: `do.md` 1,869, `supervise.md` 1,235,
+`steps.md` 843. A session that works the task itself loads `do.md` and
+`steps.md`: 2,712, against 3,838 before. A supervising session loads `do.md`
+and `supervise.md`: 3,104, against 2,995, the 109 words more being the
+connective text and the header of the new file. A worker loads what it
+loaded before.
+
+**Property 3.** The file is written on every harness; the Herdr placement
+differs per harness exactly as before.
+
+**Property 4.** One more framework file; no always-loaded text.
+
+**What a live run must show.** A `/task do` that works the task itself never
+reads `supervise.md`; one that spawns a worker reads it in the turn of the
+models gate and before the spawn.

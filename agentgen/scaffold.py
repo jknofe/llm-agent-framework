@@ -556,7 +556,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
           force, created, skipped)
     # /task's Create and Do bodies, read on demand by the /task skill, and
     # the Work body its worker reads.
-    for part in ("create", "do", "work", "steps"):
+    for part in ("create", "do", "supervise", "work", "steps"):
         write(root / TASK_DIR / f"{part}.md",
               render_task_part(part, harness), force, created, skipped)
 
