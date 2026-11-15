@@ -212,7 +212,8 @@ and do in one session).
 
 In every do case (10.1): the transcript shows `tasks.py start <id>` at the
 start and `tasks.py finish <id> done|blocked` at the end, every ticked box
-ticked by `tasks.py tick <id> done|steps <n>...` naming its numbers (11.0;
+ticked by `tasks.py tick <id> done|steps <n>...` or `finish <id> done --tick
+<n>... --tick-steps <n>... --commit` (12.27), naming its numbers (11.0;
 a script or `replace("- [ ] ", "- [x] ")` that ticks every box at once is a
 fail), no shell write to
 `.ai/.current` or to a task's frontmatter (`printf >`, `sed -i`, `rm`, a
@@ -346,7 +347,8 @@ Pass when all hold:
 - The worker ticked steps only: no done-when box, no Outcome, no
   `notes.md` change in its round commits (`git -C .ai show <commit>`).
 - Findings end with a `Delegation: <model> ...` line; the supervisor
-  ticked each criterion with `tasks.py tick`, wrote the Outcome, and
+  ticked each criterion with `tasks.py tick` or `finish --tick`, wrote the
+  Outcome, and
   `finish done` passed. Nothing merged into the default branch, and the
   host's default branch got no commit (12.0): the worker committed on a
   feature branch (`git log <default>` unchanged).

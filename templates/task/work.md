@@ -42,8 +42,8 @@ user talks to the supervisor, not to you.
 3. Claim each host file before you edit it, `python3 ${tools_dir}/tasks.py
    claim <id> <path>...`; a `CLAIMED` refusal means a parallel task owns
    it: do not edit it, and report `question` if the step cannot go on
-   without it. Tick each step you finish with `python3
-   ${tools_dir}/tasks.py tick <id> steps <n>`; never run `tick <id> done`,
+   without it. Tick the steps you finished since your last report in the
+   call that commits it (step 5), with `tick <id> steps <n>...`; never run `tick <id> done`,
    `tasks.py start` or `finish`. Never edit Goal, the Done-when criteria
    or their checkboxes, Outcome, `.ai/notes.md` or `AGENTS.md`. Never
    write the `Review:` line. Never hand the steps to another agent.
@@ -80,7 +80,9 @@ user talks to the supervisor, not to you.
    <review|question|waiting|stuck|done>: <what you did, each check you
    ran and its result, the question>`, at most ~300 characters, no
    restated rules, where `<n>` is one more than the `Worker round`
-   lines already there. Commit `.ai` with your paths only, `git -C .ai add
-   tasks/<id> && git -C .ai commit -m "task: <id> worker round <n>"`,
-   never `add -A`: another task may be running in parallel. End your turn
+   lines already there. Then one call ticks those steps and commits `.ai` with
+   the task's paths only: `python3 ${tools_dir}/tasks.py tick <id> steps
+   <n>... --commit -m "task: <id> worker round <n>"` (with no step to tick,
+   `git -C .ai add tasks/<id> && git -C .ai commit -m "task: <id> worker
+   round <n>"`), never `add -A`: another task may be running in parallel. End your turn
    with the same line as your final message, and nothing after it.

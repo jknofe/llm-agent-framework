@@ -11,7 +11,8 @@ ids, the resume pointer, the issue-key prefix rule (10.6). Tracker
 discovery: no config, config rows, a detected `gh`. Bookkeeping: start and
 finish set status, the
 blocked reason and the resume pointer, and finish done refuses an unmet
-gate. Builds fixture task files in a temp dir; stdlib
+gate; the one-call forms (finish --tick --commit, tick --commit) commit only
+the task's paths and refuse all or nothing (12.27). Builds fixture task files in a temp dir; stdlib
 only.
 
 Usage: python3 tests/test_tasks_table.py
@@ -566,6 +567,161 @@ def main():
                   f"tick usage error for {bad}")
         check(attempt(root, "tick", "nope", "done", "1").returncode == 1,
               "tick on an unknown task")
+
+    # One-call bookkeeping (12.27): finish --tick --commit and tick --commit
+    # commit only the task's own paths; refusals change nothing.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        ai = root / ".ai"
+        tool = ai / "agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+
+        def git(*a):
+            return subprocess.run(["git", "-C", str(ai), *a], text=True,
+                                  capture_output=True).stdout
+
+        two = dict(done_when="- [ ] c1\n- [ ] c2", steps="- [ ] s1\n- [ ] s2",
+                   findings="- x Review: inline: ok\n")
+        task(root, "ca", "ca", "A", "change", "in-progress", OLD, **two)
+        task(root, "cb", "cb", "B", "change", "in-progress", OLD, **two)
+        (ai / "notes.md").write_text("# notes\n", encoding="utf-8")
+        (ai / ".gitignore").write_text(".current*\n", encoding="utf-8")
+        git("init", "-q")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        git("add", "-A")
+        git("commit", "-q", "-m", "base")
+        head = git("rev-parse", "HEAD")
+        ca = ai / "tasks/ca/task.md"
+        cb = ai / "tasks/cb/task.md"
+        (ai / ".current").write_text("task: ca\n", encoding="utf-8")
+
+        # A failing number changes nothing and commits nothing.
+        r = attempt(root, "finish", "ca", "done", "--tick", "1", "9",
+                    "--commit")
+        check(r.returncode == 1 and "no item 9" in r.stdout
+              and "Nothing was changed" in r.stdout
+              and git("status", "--porcelain") == ""
+              and git("rev-parse", "HEAD") == head,
+              f"finish --tick with a missing number: {r.stdout!r}")
+        r = attempt(root, "finish", "ca", "done", "--tick-steps", "1", "3",
+                    "--tick", "1", "2", "--commit")
+        check(r.returncode == 1 and git("status", "--porcelain") == ""
+              and git("rev-parse", "HEAD") == head,
+              f"finish --tick-steps with a missing number: {r.stdout!r}")
+        # An unmet gate undoes the ticks too.
+        r = attempt(root, "finish", "ca", "done", "--tick", "1", "--commit")
+        check(r.returncode == 1 and "1 of 2 done-when criteria unticked"
+              in r.stdout and "ticks included" in r.stdout
+              and git("status", "--porcelain") == ""
+              and "status: in-progress" in ca.read_text(encoding="utf-8"),
+              f"finish --tick with a criterion left: {r.stdout!r}")
+        # A bad flag value, and flags that need --commit.
+        for bad in (["--tick"], ["--tick", "x"], ["--commit", "-m"],
+                    ["--add", "notes.md"]):
+            check(attempt(root, "finish", "ca", "done", *bad).returncode == 2
+                  and git("rev-parse", "HEAD") == head,
+                  f"finish usage error for {bad}")
+        r = attempt(root, "finish", "ca", "done", "--tick", "1", "2",
+                    "--commit", "--add", "../x")
+        check(r.returncode == 1 and "not a path inside `.ai`" in r.stdout
+              and git("rev-parse", "HEAD") == head,
+              f"--add outside .ai refused first: {r.stdout!r}")
+
+        # Another task has staged and unstaged work; neither is committed.
+        cb.write_text(cb.read_text(encoding="utf-8").replace(
+            "## Outcome\n", "## Outcome\nhalf\n"), encoding="utf-8")
+        git("add", "tasks/cb/task.md")
+        cb.write_text(cb.read_text(encoding="utf-8") + "more\n",
+                      encoding="utf-8")
+        (ai / "notes.md").write_text("# notes\nnew\n", encoding="utf-8")
+        (ai / "notes").mkdir()
+        (ai / "notes/leaf.md").write_text("leaf\n", encoding="utf-8")
+        ca.write_text(ca.read_text(encoding="utf-8").replace(
+            "## Outcome\n", "## Outcome\ndone it\n"), encoding="utf-8")
+        (ai / "tasks/ca/evidence.md").write_text("e\n", encoding="utf-8")
+        out = run(root, "finish", "ca", "done", "--tick-steps", "1", "2",
+                  "--tick", "1", "2", "--commit", "--add", "notes.md",
+                  "-m", "task:", "done", "ca")
+        files = git("show", "--name-only", "--format=%s", "HEAD").split()
+        check(out.count("DONE ca") == 1 and "COMMITTED" in out
+              and "Commit `.ai` now" not in out, f"finish one call: {out!r}")
+        check(files[:3] == ["task:", "done", "ca"]
+              and sorted(files[3:]) == ["notes.md", "tasks/ca/evidence.md",
+                                        "tasks/ca/task.md"],
+              f"only the task's paths and --add are committed: {files}")
+        text = ca.read_text(encoding="utf-8")
+        check("status: done" in text and "- [x] c2" in text
+              and "- [x] s2" in text, "the one call ticked and closed")
+        check(not (ai / ".current").exists(), "the pointer is deleted")
+        status = git("status", "--porcelain")
+        check("MM tasks/cb/task.md" in status
+              and "?? notes/" in status,
+              f"another task's staged and unstaged work stays: {status!r}")
+        check("half" not in git("show", "HEAD:tasks/cb/task.md"),
+              "another task's staged change is not in the commit")
+
+        # The old forms keep working: no commit, the line is printed.
+        head = git("rev-parse", "HEAD")
+        task(root, "cc", "cc", "C", "change", "in-progress", OLD, **two)
+        out = run(root, "tick", "cc", "done", "1", "2")
+        check("COMMIT" not in out and git("rev-parse", "HEAD") == head,
+              "tick without --commit does not commit")
+        run(root, "tick", "cc", "steps", "1", "2")
+        out = run(root, "finish", "cc", "done")
+        check(out.startswith("DONE cc") and "git -C .ai add tasks/cc &&" in out
+              and git("rev-parse", "HEAD") == head,
+              f"finish without flags prints the commit and runs none: "
+              f"{out!r}")
+
+        # tick --commit: a refused tick commits nothing, a good one does.
+        task(root, "cd", "cd", "D", "change", "in-progress", OLD, **two)
+        git("add", "tasks/cd", "tasks/cc")
+        git("commit", "-q", "-m", "cd", "--", "tasks/cd", "tasks/cc")
+        head = git("rev-parse", "HEAD")
+        r = attempt(root, "tick", "cd", "steps", "1", "7", "--commit")
+        check(r.returncode == 1 and git("rev-parse", "HEAD") == head
+              and git("status", "--porcelain", "tasks/cd") == "",
+              f"tick --commit with a missing number: {r.stdout!r}")
+        out = run(root, "tick", "cd", "steps", "1", "--commit", "-m",
+                  "task: cd worker round 1")
+        check(git("log", "-1", "--format=%s") == "task: cd worker round 1\n"
+              and git("show", "--name-only", "--format=", "HEAD")
+              == "tasks/cd/task.md\n" and "COMMITTED" in out,
+              f"tick --commit commits the task only: {out!r}")
+        out = run(root, "tick", "cd", "steps", "2", "--commit")
+        check(git("log", "-1", "--format=%s") == "task: cd ticked steps\n",
+              "tick --commit default message")
+        check(attempt(root, "tick", "cd", "steps", "1", "-m",
+                      "x").returncode == 2, "tick -m without --commit")
+
+        # finish blocked --commit.
+        head = git("rev-parse", "HEAD")
+        out = run(root, "finish", "cd", "blocked", "no", "access",
+                  "--commit")
+        check("blocked: no access" in (ai / "tasks/cd/task.md")
+              .read_text(encoding="utf-8")
+              and git("log", "-1", "--format=%s") == "task: blocked cd\n"
+              and git("rev-parse", "HEAD") != head,
+              f"finish blocked --commit: {out!r}")
+        check(attempt(root, "finish", "cd", "blocked", "--tick",
+                      "1").returncode == 2, "blocked takes no --tick")
+
+    # --commit without a `.ai` repository refuses before changing anything.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        task(root, "ng", "ng", "N", "change", "in-progress", OLD,
+             done_when="- [ ] c1", steps="- [ ] s1",
+             findings="- x Review: inline: ok\n")
+        before = (root / ".ai/tasks/ng/task.md").read_text(encoding="utf-8")
+        r = attempt(root, "finish", "ng", "done", "--tick", "1", "--commit")
+        check(r.returncode == 1 and "not a git repository" in r.stdout
+              and (root / ".ai/tasks/ng/task.md").read_text(encoding="utf-8")
+              == before, f"--commit without a repository: {r.stdout!r}")
 
     # Parallel tasks (11.1): own pointers, claims, resume and list marks.
     with tempfile.TemporaryDirectory() as tmp:

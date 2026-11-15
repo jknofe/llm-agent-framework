@@ -8,7 +8,8 @@ Change the task's status and its pointer only through
 only through `tasks.py claim`, and tick a Done-when
 criterion or a step only through `python3 ${tools_dir}/tasks.py tick <id>
 done|steps <n> [<n>...]`, naming each item you checked; never with shell
-redirects, in-place edits or a script that ticks every box at once. Edit
+redirects, in-place edits or a script that ticks every box at once.
+`finish` takes the ticks and the commit along (step 4). Edit
 the task file's sections with your file editing tool. Commit `.ai` from
 the project root with the relative form and only your own paths,
 `git -C .ai add tasks/<id> && git -C .ai commit -m "<message>"` (add
@@ -16,14 +17,18 @@ the project root with the relative form and only your own paths,
 never an absolute path: another task may be running in parallel, and
 those are the forms the permission allowlist matches.
 
-0. Before anything else, run `python3 ${tools_dir}/tasks.py models`. It
+0. Before anything else, run `python3 ${tools_dir}/tasks.py models`, with
+   `start` (step 1) behind it in the same command line:
+   `python3 ${tools_dir}/tasks.py models && python3 ${tools_dir}/tasks.py
+   start <id>`. `models` exits 1 on `MODELS MISSING`, so `start` then does
+   not run. `models`
    checks that the `worker` and the `reviewer` each have a model chosen for
    this project, the `model:` line of their agent files. If its first line
    is `MODELS MISSING`, refuse: do not start the task, change no file, pick
    no model yourself, and tell the user which file needs which line, as the
    script prints it. The choice is the user's alone; a session's own model,
    a tier name or a default is never a substitute.
-1. Run `python3 ${tools_dir}/tasks.py start <id>`: it sets
+1. `tasks.py start <id>`, run with the models gate as step 0 says, sets
    `status: in-progress` and `updated:`, clears a `blocked:` line, and
    writes the task's pointer (gitignored): `.ai/.current`, the resume
    pointer, or `.ai/.current-<id>` when another task is running in
@@ -120,7 +125,8 @@ round <n>` correction. Then answer by the report:
   round, not a report. Read Findings for what it recorded, then continue
   the worker.
 
-Commit `.ai`, then continue the same worker with its context (its Herdr
+Commit `.ai` and continue the same worker in one turn, the two calls
+together: it reads the file, not the commit. Continue it with its context (its Herdr
 tab, or a sub-agent your harness can send a message to after it
 reported); tell it to read `work.md` again, then Findings, and go on. Otherwise spawn a fresh worker with the same
 prompt: the file holds everything it needs. When the worker reports
@@ -193,7 +199,9 @@ a bypass.
    where kind is inline or `reviewer` sub-agent; an inline review of a diff over ~30 lines names why it
    is mechanical (`inline (mechanical: rename)`). Sizing down the gate is allowed; skipping it silently is
    not, and `/task list` flags a done task without this line.
-3. Record.
+3. Record. Everything this step and the review gate write into the task
+   file (the Outcome, a `Review:` line or a `Delegation:` line not yet
+   written) goes in with one edit, and the notes edits in the same turn.
    - Write `## Outcome`: the result in a few lines. A bug: the cause,
      the reproduction, the fix or who it was handed to. An
      investigation: the answer, or "inconclusive" with what was ruled
@@ -216,13 +224,19 @@ a bypass.
      the `GENERATED:project-context` section of `AGENTS.md` and keep
      the section under ~300 tokens. Last, confirm every leaf under
      `.ai/notes/` is linked from `notes.md` and every pointer resolves.
-4. Tick each Done-when criterion the result meets, and each finished
-   step, with `python3 ${tools_dir}/tasks.py tick <id> done <n>...`
-   (`steps` for steps): name only the numbers you confirmed, criterion by
-   criterion against the review and your checks. If a criterion stays open, the task is not done: meet it, get
-   the user's agreement to drop it (record that in Notes), or finish the
-   task as `blocked`. Then run `python3 ${tools_dir}/tasks.py finish <id>
-   done`. It refuses while a criterion is unticked or the `Review:` line
-   is missing; otherwise it sets `status: done`, deletes the pointer,
-   and prints the commit to run (`task: done <id>`). Run it.
-   The pointer it deletes is the task's own; a parallel task's stays.
+4. Close the task in one call, after the edits of step 3:
+   `python3 ${tools_dir}/tasks.py finish <id> done --tick-steps <n>...
+   --tick <n>... --commit`, then give the final answer. `--tick` names each
+   Done-when criterion the result meets, `--tick-steps` each finished step
+   not yet ticked: only numbers you confirmed, criterion by criterion
+   against the review and your checks, never all. Add `--add notes.md` (or
+   `--add notes/<leaf>.md`) for each notes file you changed. `--commit`
+   commits `.ai` with `tasks/<id>` and those paths only, as `task: done
+   <id>` (`-m` sets another message). The call changes nothing and refuses
+   when a number does not exist, a criterion stays unticked or the
+   `Review:` line is missing; otherwise it ticks, sets `status: done`,
+   deletes the task's own pointer (a parallel task's stays) and commits. If
+   a criterion stays open, the task is not done: meet it, get the user's
+   agreement to drop it (record that in Notes), or finish the task as
+   `blocked`. Without `--commit`, `finish` prints the commit to run, and
+   `tick <id> done|steps <n>...` stays available on its own.

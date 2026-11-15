@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.26.** The framework rests on four premises, stated in
+**State: 2026-11-15, v12.27.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -232,8 +232,12 @@ The task's bookkeeping is the same script: `tasks.py start <id>` sets
 finish <id> done|blocked [reason]` closes it. `tick` has no "all": every
 box is named on purpose (section 50). `finish done` refuses while a
 criterion is unticked or the review line is missing, so the gate the
-table flags afterwards is also enforced before. Neither commits; the agent
-commits `.ai` with the relative `git -C .ai` (section 44).
+table flags afterwards is also enforced before. By default neither commits;
+the agent commits `.ai` with the relative `git -C .ai` (section 44). One
+call does all of it: `finish <id> done --tick-steps <n>... --tick <n>...
+--commit [--add <path>...]` ticks the named steps and criteria, closes the
+task and commits `.ai` with `tasks/<id>` and the named paths only; it is
+all or nothing (section 90).
 
 Rules that came from failures, not from theory:
 
@@ -352,7 +356,7 @@ default, a Herdr tab only when asked.
   every session, from the project's own
   `.ai/notes.md`. Argued below.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: about 1,750 lines: the task table, the dependency tree, the
+  `tasks.py`: about 1,900 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, the notes check and its link step, and
   `start`/`tick`/`claim`/`finish`.
 - A claude scaffold records 20 framework files, a copilot one 18, an opencode
@@ -587,6 +591,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.27 (2026-11-15, the end of a task in one call, section 90. `finish <id>
+done --tick-steps <n>... --tick <n>... --commit` ticks the named items,
+closes the task and commits `.ai` with the task's paths only; `tick` takes
+`--commit` too. `do.md`, `steps.md` and `work.md` use the one-call forms and
+join consecutive commands that need no look between. Fewer model calls at
+the end of a task, where each call carries the most context.)
 
 v12.26 (2026-11-14, path-scoped notes leaves on Claude Code, section 89.
 A leaf may start with a `paths:` frontmatter; `tasks.py notes --link` keeps
@@ -6412,3 +6423,67 @@ matching file; an Edit of a matching file loads it (untested); `git status`
 in the host shows no new tracked file; a `/framework-update` of an older
 project with a leaf that has `paths:` links it. On OpenCode and Copilot the
 leaf is read when the agent opens it and the frontmatter does no harm.
+
+## 90. The end of a task in one call (2026-11-15, v12.27)
+
+**Source.** The supervisor's benchmark of nine fresh sessions on OpenCode
+(six `/task do`, two `/task create`, one `/task list`), per model call from
+the exported sessions: every call re-reads the whole context from the prompt
+cache, so a session costs about the sum of the context over its calls, and
+the last calls are the largest (45,000 tokens and more). The end of a task
+took four to five separate calls: tick the steps, edit the task file
+(Outcome), tick the Done-when criteria and `finish`, commit `.ai`, final
+answer. Run totals (cache-read tokens): 12.14 3.06M and 3.20M, 12.26 3.45M
+and 3.62M. These figures are the supervisor's; this change measured nothing.
+
+**Change.**
+
+- `tasks.py finish <id> done` takes `--tick <n>...` (Done-when criteria),
+  `--tick-steps <n>...`, `--commit`, `--add <path>...` (paths relative to
+  `.ai`, `notes.md` or a leaf) and `-m <message>`. The numbers stay
+  explicit: which criterion is met is the agent's judgment, there is no
+  "all". `--commit` runs `git add -- <paths>` and `git commit -- <paths>`
+  with `tasks/<id>` and the `--add` paths only, so another task's staged or
+  half-written files stay out of the commit (no `add -A`, no bare
+  `git commit`, which would take whatever is staged). `finish <id> blocked
+  <reason> --commit` commits the same way.
+- All or nothing. A number the task does not have, an unmet gate (a
+  criterion left unticked, no `Review:` line), no `.ai` repository or an
+  `--add` path outside `.ai` refuses with exit 1 and leaves the task file
+  and the repository as they were, the ticks included. Without flags
+  `finish` behaves as before and prints the commit to run.
+- `tick <id> done|steps <n>... --commit [-m <message>] [--add <path>...]`
+  commits after a successful tick, for the worker's report: the Findings
+  line is appended, then one call ticks the finished steps and commits
+  `task: <id> worker round <n>` (the subject the benchmark grader looks for
+  stays).
+- `start` does not commit: the protocol never committed after it, and the
+  pointer is gitignored, so there was nothing to join.
+- `do.md` step 4 is the one call and then the final answer; step 3 says the
+  Outcome and any `Review:` or `Delegation:` line not yet written go in with
+  one edit. A session that works the task itself ticks its steps in the
+  closing call (`steps.md` step 1). `work.md` ticks and commits in one call
+  at the report. The models gate and `start` are one command line joined
+  with `&&` (`models` exits 1 on `MODELS MISSING`, so `start` does not run).
+  The commit of a correction and the continuation of the worker are issued
+  in one turn. No rule was dropped; no script step takes a judgment.
+
+**Calls at the end of a task** (protocol-required, a session that works the
+task itself): before, tick steps, edit Outcome, tick criteria and `finish`,
+commit, answer: five. After: edit Outcome, `finish ... --commit`, answer:
+three. A worker's report: before,
+append the Findings line, commit (and a `tick` call per step finished);
+after, append the line, one `tick ... --commit` call.
+
+**Property 3.** The script is the same on every harness; the text changes
+are the same on all three.
+
+**Property 4.** `do.md` grows from 2,755 to 2,911 words, `steps.md` from 814
+to 846, `work.md` from 968 to 1,004 (rendered, claude), because the one-call
+form is spelled out. That is a cost on every later call of a session that
+reads them, argued against the calls it removes at the end. `tasks.py` grows by about 150 lines.
+
+**What a live run must show.** A `/task do` session that ends with an edit,
+one `finish ... --commit` call and its answer; `git -C .ai log` shows one
+`task: done <id>` commit holding the task's paths only; a worker's rounds
+end with one `tick ... --commit` call.

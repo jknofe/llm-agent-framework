@@ -73,12 +73,31 @@ the status and a one-line `blocked:` reason and keeps `.ai/.current`.
 finish done refuses while a done-when criterion is unticked or Findings has
 no review line, the two conditions `/task list` would flag; otherwise it
 sets the status, drops a `blocked:` line, and deletes `.ai/.current` when it
-names this task. Neither commits: the agent commits `.ai` itself.
+names this task. Without flags neither commits: the agent commits `.ai`
+itself, and finish prints the commit to run.
+
+finish also closes a task in one call (CONCEPT.md section 90):
+  finish <id> done [--tick <n>...] [--tick-steps <n>...]
+         [--commit [-m <message>] [--add <path>...]]
+`--tick` and `--tick-steps` tick the named Done-when criteria and Steps
+first (as `tick` does, each number named, never all), `--commit` then
+commits `.ai` with only `tasks/<id>` and the paths named by `--add`
+(relative to `.ai`: `notes.md`, a notes leaf), `-m` sets the message
+(default `task: done <id>`). All or nothing: a number the task does not
+have, an unmet gate, or a missing `.ai` repository refuses with exit 1 and
+leaves the task file and the repository as they were. `finish <id> blocked
+<reason> --commit` commits the same way. The commit names its paths
+(`git add -- <paths>`, then `git commit -- <paths>`), so another task's
+staged or half-written files stay out of it.
 
 `tasks.py tick <id> done|steps <n> [<n>...]` ticks the named checkboxes of
 Done when (`done`) or Steps (`steps`), counted from 1 in file order, and
 sets `updated:`. There is no "all": each item is named on purpose, so a box
-is ticked because it was checked, not swept by a blanket replace. It prints
+is ticked because it was checked, not swept by a blanket replace.
+`tick <id> done|steps <n>... --commit [-m <message>] [--add <path>...]`
+commits `.ai` after a successful tick the same way finish does (default
+message `task: <id> ticked <done|steps>`); a refused tick commits nothing.
+It prints
 each item it ticked with its text, refuses a number the section does not
 have, and leaves every other byte of the file alone. Striking a dead step
 (`- [x] ~~H1~~ ruled out: ...`) is an edit, not a tick.
@@ -154,8 +173,10 @@ task file and the pointers. Stdlib only.
 
 Usage: python3 .ai/agent/tools/tasks.py   (from anywhere)
 """
+import contextlib
 import datetime
 import difflib
+import io
 import json
 import os
 import re
@@ -762,8 +783,10 @@ USAGE = ("Usage: tasks.py [list] | tasks.py tree | tasks.py resolve [<id>] "
          "tasks.py models [--list] [--exit-zero] [worker=<m>] "
          "[reviewer=<m>] [updater=<m>] | "
          "tasks.py start <id> | "
-         "tasks.py finish <id> done|blocked [<reason>] | "
-         "tasks.py tick <id> done|steps <n> [<n>...] | "
+         "tasks.py finish <id> done|blocked [<reason>] [--tick <n>...] "
+         "[--tick-steps <n>...] [--commit [-m <message>] [--add <path>...]] | "
+         "tasks.py tick <id> done|steps <n> [<n>...] "
+         "[--commit [-m <message>] [--add <path>...]] | "
          "tasks.py claim <id> <path> [<path>...]")
 TICK_SECTIONS = {"done": "Done when", "steps": "Steps"}
 # Where each harness keeps the agent file of a role. A project has the files
@@ -999,6 +1022,68 @@ def commit_line(tid, message):
             f'-m "{message}"')
 
 
+FLAGS = ("--tick", "--tick-steps", "--add", "--commit", "-m")
+
+
+def split_flags(args):
+    """(words before the first flag, {flag: [values]}) of an argument list.
+    `--commit` takes no value; `-m` takes the words after it as a message."""
+    words, opts, cur = [], {}, None
+    for a in args:
+        if a in FLAGS:
+            cur = a
+            opts.setdefault(cur, [])
+        elif cur:
+            opts[cur].append(a)
+        else:
+            words.append(a)
+    return words, opts
+
+
+def commit_paths(tid, extra, message):
+    """Commit `.ai` with only `tasks/<tid>` and the named extra paths
+    (`notes.md`, a notes leaf), never `add -A`: a parallel session may have
+    its own half-written files in `.ai`, staged or not. Returns (ok, text)."""
+    paths = [f"tasks/{tid}"] + [p for p in extra if p != f"tasks/{tid}"]
+
+    def git(*a):
+        return subprocess.run(["git", "-C", str(AI), *a],
+                              capture_output=True, text=True)
+    r = git("add", "--", *paths)
+    if r.returncode:
+        return False, "git add failed: " + (r.stderr or r.stdout).strip()
+    if git("diff", "--cached", "--quiet", "--", *paths).returncode == 0:
+        return True, f"COMMIT nothing to commit for {', '.join(paths)}."
+    r = git("commit", "-q", "-m", message, "--", *paths)
+    if r.returncode:
+        return False, "git commit failed: " + (r.stderr or r.stdout).strip()
+    sha = git("rev-parse", "--short", "HEAD").stdout.strip()
+    return True, f"COMMITTED {sha} ({message}): {', '.join(paths)}."
+
+
+def commit_check(extra):
+    """An error line when `--commit` cannot run (no `.ai` repository, a
+    path outside `.ai` or missing), checked before anything is changed."""
+    if not (AI / ".git").exists():
+        return "`.ai` is not a git repository: nothing was changed."
+    for p in extra:
+        rel = os.path.normpath(p)
+        if os.path.isabs(rel) or rel.startswith("..") or \
+                not (AI / rel).exists():
+            return (f"--add {p}: not a path inside `.ai` that exists "
+                    "(relative to `.ai`, like notes.md): nothing was "
+                    "changed.")
+    return ""
+
+
+def nums_of(values):
+    """Ints of a flag's values, or None when one is not a number."""
+    try:
+        return sorted({int(v) for v in values})
+    except ValueError:
+        return None
+
+
 def start(arg):
     """Mark a task in progress and point `.ai/.current` at it."""
     found = live_task(arg) if arg else None
@@ -1040,13 +1125,66 @@ def start(arg):
     return 0
 
 
-def finish(arg, state, reason):
-    """Close a task as done (only when the gate is met) or blocked."""
+def finish(arg, state, rest):
+    """Close a task as done (only when the gate is met) or blocked. `rest`
+    is the reason (blocked) and the flags `--tick`, `--tick-steps`,
+    `--commit`, `--add`, `-m`; see the module docstring."""
     found = live_task(arg) if arg else None
     if not found or state not in ("done", "blocked"):
         print(f"No live task {arg!r}." if not found else USAGE)
         return 1 if not found else 2
+    words, opts = split_flags(rest)
+    reason = " ".join(words)
+    crit, steps = nums_of(opts.get("--tick", [])), \
+        nums_of(opts.get("--tick-steps", []))
+    bad_flags = ("--tick" in opts and not crit) or \
+        ("--tick-steps" in opts and not steps) or \
+        ("-m" in opts and not opts["-m"]) or \
+        (state == "blocked" and ("--tick" in opts or "--tick-steps" in opts)) \
+        or (("--add" in opts or "-m" in opts) and "--commit" not in opts)
+    if bad_flags:
+        print(USAGE)
+        return 2
+    message = " ".join(opts.get("-m", [])) or f"task: {state} {found[0]}"
+    extra = opts.get("--add", [])
+    if "--commit" in opts:
+        err = commit_check(extra)
+        if err:
+            print(err)
+            return 1
     tid, path = found
+    snapshot = path.read_text(encoding="utf-8")
+    shown_ticks = []
+    for which, nums in (("steps", steps), ("done", crit)):
+        if nums:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = tick(tid, which, nums)
+            if code:
+                path.write_text(snapshot, encoding="utf-8")
+                print(buf.getvalue() + "Nothing was changed.\n", end="")
+                return code
+            shown_ticks.append(buf.getvalue())
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = close(tid, path, state, reason, "--commit" not in opts)
+    if code:
+        if crit or steps:
+            path.write_text(snapshot, encoding="utf-8")
+        print(buf.getvalue() + ("Nothing was changed, the ticks included.\n"
+                                if crit or steps else ""), end="")
+        return code
+    print("".join(shown_ticks) + buf.getvalue(), end="")
+    if "--commit" in opts:
+        ok, line = commit_paths(tid, extra, message)
+        print(line)
+        return 0 if ok else 1
+    return 0
+
+
+def close(tid, path, state, reason, hint=True):
+    """The status change of `finish`: done only when the gate is met. With
+    `hint` it prints the commit to run, else the caller commits."""
     today = datetime.date.today().isoformat()
     if state == "blocked":
         reason = " ".join(reason.split())
@@ -1058,7 +1196,8 @@ def finish(arg, state, reason):
                           "updated": today})
         print(f"BLOCKED {tid}: {reason}. Its pointer is kept for the "
               "resume; `tasks.py start` clears the block.")
-        print(commit_line(tid, f"task: blocked {tid}"))
+        if hint:
+            print(commit_line(tid, f"task: blocked {tid}"))
         return 0
     r = load(path)
     missing = []
@@ -1079,7 +1218,8 @@ def finish(arg, state, reason):
         mine.unlink()
     print(f"DONE {tid}: status done, updated {today}"
           + (f"; `.ai/{mine.name}` deleted." if mine else "."))
-    print(commit_line(tid, f"task: done {tid}"))
+    if hint:
+        print(commit_line(tid, f"task: done {tid}"))
     return 0
 
 
@@ -1123,6 +1263,30 @@ def tick(arg, which, nums):
     got, total = checked(path.read_text(encoding="utf-8"), heading)
     print(f"{tid}: {heading} {got}/{total} ticked.")
     return 0
+
+
+def tick_cmd(arg, which, rest):
+    """`tick <id> done|steps <n>... [--commit [-m <message>] [--add <path>...]]`:
+    the tick, then, only when it succeeded, the path-scoped `.ai` commit."""
+    nums, opts = split_flags(rest)
+    message = " ".join(opts.get("-m", [])) or f"task: {arg} ticked {which}"
+    extra = opts.get("--add", [])
+    if ("-m" in opts and not opts["-m"]) or \
+            (("--add" in opts or "-m" in opts) and "--commit" not in opts) \
+            or set(opts) - {"--commit", "-m", "--add"}:
+        print(USAGE)
+        return 2
+    if "--commit" in opts and live_task(arg):
+        err = commit_check(extra)
+        if err:
+            print(err)
+            return 1
+    code = tick(arg, which, nums)
+    if code or "--commit" not in opts:
+        return code
+    ok, line = commit_paths(live_task(arg)[0], extra, message)
+    print(line)
+    return 0 if ok else 1
 
 
 def claim(arg, files):
@@ -1677,7 +1841,7 @@ def main():
         if len(args) < 3:
             print(USAGE)
             return 2
-        return finish(args[1], args[2], " ".join(args[3:]))
+        return finish(args[1], args[2], args[3:])
     if args and args[0] == "claim":
         if len(args) < 3:
             print(USAGE)
@@ -1687,7 +1851,7 @@ def main():
         if len(args) < 4:
             print(USAGE)
             return 2
-        return tick(args[1], args[2], args[3:])
+        return tick_cmd(args[1], args[2], args[3:])
     if args and args[0] == "tree":
         return tree()
     if args and args[0] == "trackers":

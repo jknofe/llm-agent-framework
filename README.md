@@ -214,7 +214,8 @@ small one, and it is now the only shape the generator emits:
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
   (command and documentation detection), `tasks.py` (the task table,
   the create-or-do resolver, and `start`/`tick`/`finish`, the bookkeeping of
-  `/task do`).
+  `/task do`; `finish <id> done --tick-steps <n>... --tick <n>... --commit`
+  ticks, closes and commits `.ai` with the task's paths in one call).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
