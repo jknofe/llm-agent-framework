@@ -156,7 +156,9 @@ def render_update_body(harness: str, arg: str) -> str:
         "   - By default, spawn a fresh `updater` sub-agent, passing no\n"
         "     model (its file names one), with the prompt `Run the framework\n"
         "     update inline.` (`Run the framework update inline, dry-run.`\n"
-        "     with `dry-run`).\n"
+        "     with `dry-run`). When the harness returns from the spawn\n"
+        "     before the updater has finished, wait for its last line\n"
+        "     before you check anything.\n"
         + "\n".join("   " + ln if ln else ln for ln in herdr_tab(
             harness, "updater", "update-<hhmmss>", update_prompt
         ).split("\n")).rstrip(" ") +

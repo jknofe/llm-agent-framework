@@ -8,7 +8,7 @@ Claude's "Teach auto mode" prompt gets Esc and the step prompt again; a
 folder-trust prompt for the run directory is accepted; any other blocking
 dialog stops the run so a human can look.
 """
-import json, os, re, subprocess, sys, time
+import json, os, re, shutil, subprocess, sys, time
 from pathlib import Path
 
 AGENT, HARNESS, RUN, LOG = sys.argv[1:5]
@@ -99,12 +99,42 @@ def reached(goal):
     return bool(m) and m.group(1) in ("done", "blocked")
 
 
+def background():
+    """True while a sub-agent of this run still works. OpenCode from 2.3.0
+    returns from a spawn at once and wakes the session on the report, so an
+    idle session is not a finished turn there."""
+    if HARNESS != "opencode":
+        return False
+    oc = (os.environ.get("OPENCODE_BIN") or shutil.which("opencode")
+          or os.path.expanduser("~/.opencode/bin/opencode"))
+    r = subprocess.run([oc, "api", "GET", "/api/session"], cwd=RUN,
+                       capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL)
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        return False
+    items = d.get("data", d) if isinstance(d, dict) else d
+    items = items if isinstance(items, list) else items.get("items", [])
+    run = os.path.realpath(RUN)
+    for s in items:
+        t = s.get("time") or {}
+        if (s.get("parentID") and os.path.realpath(
+                (s.get("location") or {}).get("directory", "")) == run
+                and t.get("busy", 0) > t.get("idle", 0)):
+            return True
+    return False
+
+
 def settle(text):
     """Wait out one turn, answering forms; returns False on a hard stop."""
     forms = 0
     while True:
         s = wait()
         if s != "blocked":
+            if background():
+                time.sleep(10)
+                continue
             return True
         time.sleep(2)
         if status() != "blocked":

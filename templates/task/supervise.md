@@ -18,7 +18,10 @@ on goes into the task's Notes before it starts. Its model is the `model:`
 line of its agent file, which `tasks.py models` checked: pass no model,
 ever. Its prompt is always this one: `${worker_prompt}` ${worker_placement}
 While the worker runs, change no file: wait for its report, the `Worker
-round` line it ends with. Judge each report from the files, never from
+round` line it ends with. A harness may return from the spawn before the
+worker has finished (a session id, a note that it runs in the background):
+that is not a report. Say in one line that the worker runs, end your turn,
+and judge when its report arrives; start no second worker meanwhile. Judge each report from the files, never from
 the worker's message: the report line and every new Finding (a step
 ticked without evidence is not done), `git status` and the diff. Trust
 recorded evidence: a CI result on the pull request, or a command with its

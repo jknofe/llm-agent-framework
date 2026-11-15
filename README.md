@@ -524,8 +524,8 @@ of `init`), e.g.
 
 ## OpenCode support
 
-Choosing `opencode` at the harness prompt targets OpenCode V2 (written and
-tested against 2.2.5; V1 is not supported). The commands work as they do with
+Choosing `opencode` at the harness prompt targets OpenCode V2 (written
+against 2.2.5 and run on 2.3.0; V1 is not supported). The commands work as they do with
 Claude Code's slash commands:
 
 - instructions file: `AGENTS.md` (read natively, no pointer file)
@@ -554,6 +554,11 @@ Two differences from Claude Code: OpenCode has no per-command `effort`, and a
 sub-agent cannot be given a model when it is spawned, so both sub-agents take
 theirs from the `model:` line of their agent files. The turn-end `.ai` check uses a hook
 OpenCode marks experimental.
+
+From OpenCode 2.3.0 a sub-agent runs in the background: the spawn returns at
+once, the session says the worker (or the reviewer) is running and ends its
+turn, and it goes on by itself when the report arrives. You can type in
+between; the task is not finished until the session has judged the report.
 
 ## Sub-agent models
 
