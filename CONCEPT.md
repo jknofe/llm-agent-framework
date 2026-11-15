@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-15, v12.30.** The framework rests on four premises, stated in
+**State: 2026-11-15, v14.0.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -554,6 +554,7 @@ to that commit.
 | `parallel-satty-opus5.5-2026-11-01` | Two `/task` sessions side by side in one tree, create then do (section 51) | Both pairs ran at once. Commits path-scoped, a `CLAIMED` refusal stopped a real collision, first live second round. One done, one blocked. |
 | `harness-sh-2026-11-08` (`tests/harness-benchmark.md`) | Claude Code vs OpenCode, Sonnet supervisor, Haiku worker, Sonnet reviewer, 3 runs each on satty, framework default effort | 18/18 tasks and decisions on both. OpenCode about $1.30 per run against $2.22 and 475 to 495 s against 564 to 905 s, no overlap. Found the small-task rule being read as "docs are small"; Do now counts editing steps (section 56). |
 | `harness-sh-equal-effort-2026-11-08` | The same with every role at `medium`, verified per role | 18/18 tasks, 17/18 decisions on both. OpenCode $1.23 against $2.18, no overlap; time by median only (563 against 586 s, ranges overlap). The difference is input: Claude Code re-reads twice the context. OpenCode's tool calls ran natively behind its Claude Agent provider, so this is Claude Code's CLI against the Claude engine inside OpenCode. Next: the top-tier profile. |
+| `versions-opencode-2026-11-15` (section 95; tags `alpha`, `bravo`, `charlie`) | The framework against its own earlier versions on the harness benchmark, OpenCode, equal-effort profile: 11.6 (5 runs), 12.14, 12.26 and 12.30 (2 runs each) | Cache-read tokens per run: 11.6 median 2.76M; 12.14 3.06M and 3.20M; 12.26 3.45M and 3.62M; 12.30 2.60M and 2.57M with 6 of 6 on both runs. The review's first batches cost about 12% more than 12.14; fewer model calls and less loaded text (sections 90 to 93) took 12.30 about 17% below it. Cache-write and output tokens did not move. A cold worker on top of 12.30 showed no saving (section 94). |
 
 **Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
 navigation2) was withdrawn with the amortization thesis. `constraint-runbook.md`
@@ -594,6 +595,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v14.0 (2026-11-15, the best-practice review of 12.14 closed, section 95. No
+behavior change: the record of what 12.15 to 12.30 changed, the measured
+outcome on the tagged versions `alpha`, `bravo` and `charlie`, the sources,
+and how to repeat the review. There is no 13.)
 
 v12.30 (2026-11-15, a shorter dispatcher, section 93. The `/task` command
 text drops what its own sections and `create.md` already say; no rule
@@ -6708,3 +6714,168 @@ OpenCode, and a measurement on a project with a long notes hub and a small
 worker model that shows fewer correction rounds or lower cost with the cold
 worker than without. The fair first test is the benchmark on Claude Code,
 12.30 against the cold worker, two runs each.
+
+## 95. The best-practice review of 12.14: what it changed, what came out, and its sources (2026-11-15, v14.0)
+
+14.0 changes no behavior. It closes the review cycle that ran from 12.15 to
+12.30 and records it in one place, with the sources, so the review can be
+repeated and compared against this one. The version number marks the end of
+the cycle; there is no 13.
+
+**What was reviewed.** Framework 12.14 (tag `bravo`) against the published
+practice for coding agents as of 2026-11-14, on four questions: token cost,
+persistent project memory, stable sub-agent use, speed. Claude Code and
+OpenCode; Copilot was left out on purpose.
+
+**Method.** A fresh 12.14 scaffold per harness was measured (words per
+artifact, what is loaded when) and compared with the harness documentation
+and the studies listed under Sources. Every harness fact was then checked
+live before it went into a template (Claude Code 2.1.325, OpenCode 2.2.5).
+Each batch was built on a branch, run live on both harnesses and judged from
+files and transcripts.
+
+**What already matched and was left alone.** Short requirements-only
+instructions; nothing loaded until needed; the model of a role set in its
+agent file, not by prompt text; judging from files, not summaries; hooks for
+hard rules; no generated codebase summary; the task file as the hand-over
+between sessions.
+
+**Key changes** (the section in brackets has the detail):
+
+- The worker reads only its own steps, not the supervisor's protocol:
+  `steps.md` split from `do.md` (77).
+- A turn limit on every sub-agent (78).
+- Roles enforced by tools, not by text: the worker cannot spawn agents, the
+  reviewer's shell is limited to read commands (79).
+- One memory on Claude Code: auto memory off in the project settings (80).
+- `AGENTS.md` loads on Claude Code in every case: a script writes the
+  `@AGENTS.md` import (81).
+- A freshness check for the notes: hub size, dead paths, broken and
+  unlinked leaves (82).
+- The notes hub is in context at session start, on Claude Code through a
+  `SessionStart` hook and on OpenCode through `instructions` (83, 86). This
+  is the one change that grew the always-loaded part; Property 4 argues it.
+- Script output without a model round trip in `/framework-models` (84).
+- The worker's contract is the body of its agent file (85).
+- A re-init keeps the keys a user added to `opencode.json` (88).
+- Path-scoped notes leaves on Claude Code (89).
+- The end of a task in one call, the start in fewer calls, the supervision
+  text loaded only by a session that supervises, a shorter dispatcher (90
+  to 93).
+
+**Considered and not built.** A lower effort for the updater (87: risk of a
+subtle bad merge, saving unmeasured). Compaction settings for OpenCode
+(README only, until a real session shows the default hurting). A cold worker
+(94: built, worked, no measurable saving, dropped). Agent teams (about seven
+times the tokens by the vendor's own cost page). Sub-agent `memory:` (a
+third memory). `isolation: worktree` (`.ai` is a gitignored nested repo, so a
+worktree would hold neither tasks nor notes). Output-compression layers
+(token reduction and billed cost correlate weakly, arXiv 2607.12161).
+
+**Outcome, measured.** The harness benchmark (`tests/harness-benchmark.md`:
+satty, nine fresh sessions per run, OpenCode 2.2.5, mid-tier supervisor and
+reviewer, small worker, every role at medium effort). Three versions carry a
+git tag so each can be scaffolded again:
+
+| Tag | Version | Runs | Grader, of 6 | Cache-read tokens per run |
+|---|---|---|---|---|
+| `alpha` | 11.6 | 5 | not re-graded here | 2.64M to 3.05M, median 2.76M |
+| `bravo` | 12.14 | 2 | 5, 6 | 3.06M, 3.20M |
+| (untagged) | 12.26 | 2 | 5, 6 | 3.45M, 3.62M |
+| `charlie` | 12.30 | 2 | 6, 6 | 2.60M, 2.57M |
+
+- The review's first three batches (12.15 to 12.26) made a run about 12%
+  more expensive in cache reads than 12.14, not cheaper: the hub in context
+  and the longer `do.md` are re-read on every model call. A session starts
+  at about 17,400 tokens, `do.md` added about 8,000, a task session makes 11
+  to 17 model calls, and closing a task took 4 to 5 of them.
+- 12.27 to 12.30 attacked the number of calls and what a session loads. Both
+  12.30 runs read less from cache than every run of 12.14 and of 12.26, and
+  had the shortest session time (316 s, 310 s). Against 12.14 that is about
+  17% fewer cache-read tokens.
+- Cache-write tokens (235k to 306k) and output tokens (about 41k) did not
+  move, so the billed saving is smaller than the cache-read figure. No
+  dollar figure was computed.
+- Limits: two runs per version from 12.14 on, one harness, one project, one
+  model profile. The decision rule of the benchmark (every run of one arm
+  beats every run of the other) is met for 12.30 against 12.14 and 12.26.
+  Against 11.6 it is met by a hair (2.60M against 2.64M), which is no
+  finding: 12.30 does far more than 11.6 for about the same cost.
+- This does not touch Property 4: a session with the framework still costs
+  more than one without. What changed is the framework's cost against its
+  own earlier versions.
+- `alpha` is not an ancestor of `main`. `main` was rebased on 2026-11-09 and
+  its commits were renumbered; the tag points at the tree that ran, whose
+  stamp reads 11.6.
+
+**Not covered live.** A run that hits its turn limit; the reviewer inside a
+real review gate; whether `MEMORY.md` stops loading with auto memory off; a
+path-scoped leaf loading on an edit, not a read; `/framework-update`
+carrying 12.20 to 12.30 into an older project; the 12.27 to 12.30 forms on
+Claude Code and Copilot; whether OpenCode sub-agents receive `instructions`.
+
+**Harness facts the changes rest on.** Check each again before the next
+review; a changed one is a finding.
+
+- Claude Code: sub-agent frontmatter takes `maxTurns`, `disallowedTools`,
+  `hooks`, `omitClaudeMd`, `effort`, `model`. Frontmatter hooks need
+  workspace trust and do not run in headless `-p`. `AGENTS.md` is read
+  natively only when no `CLAUDE.md` exists in the directory or above;
+  otherwise through an `@AGENTS.md` import, without loading twice.
+  `autoMemoryEnabled: false` in project settings turns auto memory off.
+  `SessionStart` hook output enters context (matchers `startup`, `resume`,
+  `clear`, `compact`; 10,000 characters) and does not run for sub-agents. A
+  skill's `` !`cmd` `` injection runs before the model sees the skill; a
+  failing command aborts it. `.claude/rules/` files with `paths:` load on a
+  read of a matching file, also through a symlink, when gitignored, and in
+  sub-agents.
+- OpenCode: agents take `steps` and ordered `permissions` rules (last match
+  wins). `experimental.subagent_depth` defaults to 1. `instructions` in
+  `opencode.json` loads extra files, relative to the project root, with no
+  cap and no per-agent opt-out. Command templates support `` !`cmd` ``.
+  `opencode run "/command"` does not dispatch slash commands. The
+  background service keeps the agent files it read first.
+
+**Sources**, as read on 2026-11-14. Parts of the Claude Code pages came back
+truncated; what rested on them was verified live.
+
+- Claude Code best practices: https://code.claude.com/docs/en/best-practices
+- Claude Code costs: https://code.claude.com/docs/en/costs
+- Claude Code sub-agents: https://code.claude.com/docs/en/sub-agents
+- Claude Code memory: https://code.claude.com/docs/en/memory
+- Claude Code skills: https://code.claude.com/docs/en/skills
+- Claude Code hooks: https://code.claude.com/docs/en/hooks
+- OpenCode V2 agents: https://opencode.ai/v2/agents.md
+- OpenCode config: https://opencode.ai/docs/config/
+- Token Reduction Is Not Cost Reduction, arXiv 2607.12161:
+  https://arxiv.org/abs/2607.12161
+- Do Context Files Help Coding Agents?, arXiv 2607.27250:
+  https://arxiv.org/abs/2607.27250
+- AGENTS.md files, a 138-repo study:
+  https://dev.to/umesh_malik/agentsmd-files-dont-work-the-way-you-think-a-138-repo-study-proves-it-2k1g
+- AGENTS.md efficiency study, ICSE 2026 workshop:
+  https://codex.danielvaughan.com/2026/08/07/agents-md-efficiency-impact-icse-2026-jaws-codex-cli-token-savings-runtime-reduction/
+- Sub-agent model selection by prompt text, issue 34480:
+  https://claudeissues.com/issue/34480-bug-the-dispatching-model-has-no-reliable-mechanism-to-enforce-subagent-model-se
+- Model selection for agents:
+  https://ctxt-dev-35d.pages.dev/posts/en/model-selection-agents
+- Multi-agent pipeline postmortem:
+  https://dev.to/dibi8/multi-agent-pipeline-postmortem-5-ways-subagent-orchestration-goes-wrong-2026-i0e
+
+**Repeating the review.**
+
+1. Scaffold the current version per harness into a temp directory and
+   measure it: words per artifact, what is always loaded, what each role
+   reads at its start.
+2. Read every source above again, and search for what has appeared since
+   2026-11-14 on the same four questions. Note each difference from this
+   section: a new frontmatter field, a changed default, a new loading rule,
+   a study that contradicts one cited here.
+3. Check the harness facts above live on the current CLI versions.
+4. Sort what differs into: already matches, change, leave out, each with
+   its reason. A change that adds always-loaded text is argued in Part I
+   first.
+5. Prove a cost claim with the benchmark against `charlie`, the same
+   profile, at least two runs per arm, and judge by its decision rule.
+6. Append the result as a new section that names this one, and tag the
+   versions compared.

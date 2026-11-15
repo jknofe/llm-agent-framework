@@ -39,6 +39,20 @@ Framework 8.0 replaced `/spec` and `/build` with the typed task commands;
 map; 5.22 removed the large (knowledge-base) profile. See
 [One profile](#one-profile).
 
+Framework 14.0 closes a review of 12.14 against the published practice for
+coding agents (harness documentation and studies as of 2026-11-14). What it
+changed, 12.15 to 12.30: the worker reads only its own steps and has its
+contract in its agent file, every sub-agent has a turn limit and its role is
+enforced by the harness, Claude Code keeps one memory and always loads
+`AGENTS.md`, the notes hub is in context at session start and has a
+freshness check, and a task starts and ends in fewer model calls. Measured
+on the harness benchmark (OpenCode, two runs per version): a run of 12.30
+reads about 17% fewer tokens from cache than 12.14 and passes 6 of 6 tasks.
+That is the framework against its own earlier versions, not against a bare
+agent. The versions compared are tagged `alpha` (11.6), `bravo` (12.14) and
+`charlie` (12.30); CONCEPT.md section 95 has the changes, the numbers, the
+sources and how to repeat the review.
+
 ## Install
 
 ```
