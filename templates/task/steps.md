@@ -5,7 +5,9 @@ session that works a task itself instead of handing it to a worker. Both roles w
 
 1. Work the steps in order. Explore the real code, logs, and docs with
    read/search tools as needed; do not load the whole tree. Tick a step
-   when it is done (`tasks.py tick <id> steps <n>`). Code ships through
+   when it is done (`tasks.py tick <id> steps <n>...`, several numbers
+   in one call); a session working the task itself may leave the ticks to
+   its closing call (`finish ... --tick-steps`). Code ships through
    the review gate: before its first commit, and before a push of code
    changed since the last review, the review gate runs on the uncommitted diff
    (a worker asks for it with a `review` report).
@@ -32,8 +34,9 @@ session that works a task itself instead of handing it to a worker. Both roles w
    the old ones (a worker asks with a `question` report). When the task
    cannot continue without something outside your reach (hardware,
    access, another team), put the detail in Findings and run `python3 ${tools_dir}/tasks.py finish <id> blocked
-   <reason in one line>`: it sets `status: blocked` and the `blocked:`
-   line `/task list` shows, and keeps the pointer. `tasks.py start`
+   <reason in one line> --commit`: it sets `status: blocked` and the `blocked:`
+   line `/task list` shows, keeps the pointer and commits `.ai` with the
+   task's paths. `tasks.py start`
    clears the block when the task resumes.
 4. Whenever the task changes code, whatever its type: run the tests
    that cover the change, every one that exercises the changed code and

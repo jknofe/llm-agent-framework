@@ -60,7 +60,7 @@ def rendered_artifacts():
             out.append((f"{harness} skill:{name} desc", desc))
         out.append((f"{harness} AGENTS.md",
                     content.render_agents_md("p", "d", harness)))
-    for part in ("create", "do", "work", "steps"):
+    for part in ("create", "do", "supervise", "work", "steps"):
         for harness in HARNESSES:
             out.append((f"{harness} task part:{part}",
                         content.render_task_part(part, harness)))
@@ -287,11 +287,13 @@ def check_budget():
 
 def check_worker_files():
     """CONCEPT section 77: the worker reads work.md and steps.md only, so
-    neither names do.md, the supervisor's part."""
+    neither names do.md or supervise.md, the supervisor's parts."""
     for harness in HARNESSES:
         for part in ("work", "steps"):
-            if "do.md" in content.render_task_part(part, harness):
-                fail("worker", f"{harness} {part}.md names do.md")
+            text = content.render_task_part(part, harness)
+            for name in ("do.md", "supervise.md"):
+                if name in text:
+                    fail("worker", f"{harness} {part}.md names {name}")
 
 
 def check_worker_contract():
@@ -304,19 +306,20 @@ def check_worker_contract():
         contract = content.render_task_part("work", harness).strip()
         if contract not in agent:
             fail("worker", f"{harness} worker body lacks the work.md contract")
-        do = content.render_task_part("do", harness)
+        do = content.render_task_part("supervise", harness)
         if "work.md and follow it" in do:
-            fail("worker", f"{harness} do.md still sends the worker to read "
-                           "work.md at start")
+            fail("worker", f"{harness} supervise.md still sends the worker "
+                           "to read work.md at start")
         if "init-agent's model check" not in agent:
             fail("worker", f"{harness} worker lost the model-check guard")
     pointer = content.render_copilot_agent("worker")
     if ".ai/agent/task/work.md" not in pointer or \
             "Work (the worker's body)" in pointer:
         fail("worker", "copilot worker body is not the pointer")
-    if "work.md and follow it" not in content.render_task_part("do",
+    if "work.md and follow it" not in content.render_task_part("supervise",
                                                                "copilot"):
-        fail("worker", "copilot do.md does not send its worker to work.md")
+        fail("worker", "copilot supervise.md does not send its worker to "
+                       "work.md")
 
 
 def main():

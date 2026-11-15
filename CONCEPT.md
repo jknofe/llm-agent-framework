@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-14, v12.26.** The framework rests on four premises, stated in
+**State: 2026-11-15, v12.30.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -114,7 +114,8 @@ only kind that is still accurate. Without this rule the notes hold only what
 One command, `/task`, with `create`, `do` and `list`. Whether a task exists
 is decided by a script, not by the agent looking around: `tasks.py resolve
 <id>` prints one verdict (`CREATE`, `DO`, `DONE`, `ARCHIVED`, `INVALID`,
-`NONE`), matches ids case-insensitively, and names close existing ids as
+`NONE`; after `DO` the task file follows whole, between two `-----` lines,
+section 91), matches ids case-insensitively, and names close existing ids as
 `SIMILAR` so a second task for the same thing is asked about before it is
 made. `/task <id> [title]` without a subcommand goes wherever the verdict
 says.
@@ -232,8 +233,12 @@ The task's bookkeeping is the same script: `tasks.py start <id>` sets
 finish <id> done|blocked [reason]` closes it. `tick` has no "all": every
 box is named on purpose (section 50). `finish done` refuses while a
 criterion is unticked or the review line is missing, so the gate the
-table flags afterwards is also enforced before. Neither commits; the agent
-commits `.ai` with the relative `git -C .ai` (section 44).
+table flags afterwards is also enforced before. By default neither commits;
+the agent commits `.ai` with the relative `git -C .ai` (section 44). One
+call does all of it: `finish <id> done --tick-steps <n>... --tick <n>...
+--commit [--add <path>...]` ticks the named steps and criteria, closes the
+task and commits `.ai` with `tasks/<id>` and the named paths only; it is
+all or nothing (section 90).
 
 Rules that came from failures, not from theory:
 
@@ -352,14 +357,16 @@ default, a Herdr tab only when asked.
   every session, from the project's own
   `.ai/notes.md`. Argued below.
 - `probe.py`: 199 lines, commands and documentation detection only.
-  `tasks.py`: about 1,750 lines: the task table, the dependency tree, the
+  `tasks.py`: about 1,900 lines: the task table, the dependency tree, the
   resolver, the tracker discovery, the models gate, the notes check and its link step, and
   `start`/`tick`/`claim`/`finish`.
-- A claude scaffold records 20 framework files, a copilot one 18, an opencode
-  one 19 (its plugin is the extra entry point), counting the four `/task` parts under `.ai/agent/task/`.
+- A claude scaffold records 21 framework files, a copilot one 19, an opencode
+  one 20 (its plugin is the extra entry point), counting the five `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
-  only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
-  verdict sends the agent there (section 42). The worker reads `steps.md` (about 820 words) and has `work.md` as the
+  only its dispatcher (about 3.4 KB); Create and Do are read when the resolver's
+  verdict sends the agent there (section 42), and Do sends a session to
+  `supervise.md` (about 1,200 words) only when it hands the task to a worker
+  (section 92). The worker reads `steps.md` (about 820 words) and has `work.md` as the
   body of its agent file on Claude Code and OpenCode, about 940 words that
   only a spawned worker loads, not `do.md` (sections 77 and 85).
 
@@ -587,6 +594,28 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.30 (2026-11-15, a shorter dispatcher, section 93. The `/task` command
+text drops what its own sections and `create.md` already say; no rule
+removed.)
+
+v12.29 (2026-11-15, a session that works the task itself does not load the
+supervision, section 92. `do.md` keeps the decision and what both paths
+need; the part on supervising a worker moves, text unchanged, to
+`.ai/agent/task/supervise.md`, read only at the decision for a worker.)
+
+v12.28 (2026-11-15, the start of a task in fewer calls, section 91.
+`tasks.py resolve` prints the task file after a `DO` verdict; `/task create`
+and `/task do` read their part file in the turn of `resolve`; `do.md` has
+a session read the notes, `steps.md` and run the models gate with `start`
+in one turn.)
+
+v12.27 (2026-11-15, the end of a task in one call, section 90. `finish <id>
+done --tick-steps <n>... --tick <n>... --commit` ticks the named items,
+closes the task and commits `.ai` with the task's paths only; `tick` takes
+`--commit` too. `do.md`, `steps.md` and `work.md` use the one-call forms and
+join consecutive commands that need no look between. Fewer model calls at
+the end of a task, where each call carries the most context.)
 
 v12.26 (2026-11-14, path-scoped notes leaves on Claude Code, section 89.
 A leaf may start with a `paths:` frontmatter; `tasks.py notes --link` keeps
@@ -6412,3 +6441,270 @@ matching file; an Edit of a matching file loads it (untested); `git status`
 in the host shows no new tracked file; a `/framework-update` of an older
 project with a leaf that has `paths:` links it. On OpenCode and Copilot the
 leaf is read when the agent opens it and the frontmatter does no harm.
+
+## 90. The end of a task in one call (2026-11-15, v12.27)
+
+**Source.** The supervisor's benchmark of nine fresh sessions on OpenCode
+(six `/task do`, two `/task create`, one `/task list`), per model call from
+the exported sessions: every call re-reads the whole context from the prompt
+cache, so a session costs about the sum of the context over its calls, and
+the last calls are the largest (45,000 tokens and more). The end of a task
+took four to five separate calls: tick the steps, edit the task file
+(Outcome), tick the Done-when criteria and `finish`, commit `.ai`, final
+answer. Run totals (cache-read tokens): 12.14 3.06M and 3.20M, 12.26 3.45M
+and 3.62M. These figures are the supervisor's; this change measured nothing.
+
+**Change.**
+
+- `tasks.py finish <id> done` takes `--tick <n>...` (Done-when criteria),
+  `--tick-steps <n>...`, `--commit`, `--add <path>...` (paths relative to
+  `.ai`, `notes.md` or a leaf) and `-m <message>`. The numbers stay
+  explicit: which criterion is met is the agent's judgment, there is no
+  "all". `--commit` runs `git add -- <paths>` and `git commit -- <paths>`
+  with `tasks/<id>` and the `--add` paths only, so another task's staged or
+  half-written files stay out of the commit (no `add -A`, no bare
+  `git commit`, which would take whatever is staged). `finish <id> blocked
+  <reason> --commit` commits the same way.
+- All or nothing. A number the task does not have, an unmet gate (a
+  criterion left unticked, no `Review:` line), no `.ai` repository or an
+  `--add` path outside `.ai` refuses with exit 1 and leaves the task file
+  and the repository as they were, the ticks included. Without flags
+  `finish` behaves as before and prints the commit to run.
+- `tick <id> done|steps <n>... --commit [-m <message>] [--add <path>...]`
+  commits after a successful tick, for the worker's report: the Findings
+  line is appended, then one call ticks the finished steps and commits
+  `task: <id> worker round <n>` (the subject the benchmark grader looks for
+  stays).
+- `start` does not commit: the protocol never committed after it, and the
+  pointer is gitignored, so there was nothing to join.
+- `do.md` step 4 is the one call and then the final answer; step 3 says the
+  Outcome and any `Review:` or `Delegation:` line not yet written go in with
+  one edit. A session that works the task itself ticks its steps in the
+  closing call (`steps.md` step 1). `work.md` ticks and commits in one call
+  at the report. The models gate and `start` are one command line joined
+  with `&&` (`models` exits 1 on `MODELS MISSING`, so `start` does not run).
+  The commit of a correction and the continuation of the worker are issued
+  in one turn. No rule was dropped; no script step takes a judgment.
+
+**Calls at the end of a task** (protocol-required, a session that works the
+task itself): before, tick steps, edit Outcome, tick criteria and `finish`,
+commit, answer: five. After: edit Outcome, `finish ... --commit`, answer:
+three. A worker's report: before,
+append the Findings line, commit (and a `tick` call per step finished);
+after, append the line, one `tick ... --commit` call.
+
+**Property 3.** The script is the same on every harness; the text changes
+are the same on all three.
+
+**Property 4.** `do.md` grows from 2,755 to 2,911 words, `steps.md` from 814
+to 846, `work.md` from 968 to 1,004 (rendered, claude), because the one-call
+form is spelled out. That is a cost on every later call of a session that
+reads them, argued against the calls it removes at the end. `tasks.py` grows by about 150 lines.
+
+**What a live run must show.** A `/task do` session that ends with an edit,
+one `finish ... --commit` call and its answer; `git -C .ai log` shows one
+`task: done <id>` commit holding the task's paths only; a worker's rounds
+end with one `tick ... --commit` call.
+
+## 91. The start of a task in fewer calls (2026-11-15, v12.28)
+
+**Source.** The same benchmark as section 90. The start of a `/task do`
+session took three calls before it did any work: `resolve`, a read of
+`do.md`, a read of the task file and the notes (the models gate and `start`
+came after). Every call re-reads the context so far.
+
+**Change.**
+
+- `tasks.py resolve <id>` with a `DO` verdict prints the task file after its
+  verdict line and the sentence, whole, between `-----` lines that say it
+  has been read. The verdict stays the first line. Consumers checked: the
+  dispatcher (`templates/skills/task.md`, rendered the same for the Copilot
+  prompt file) reads the first line only; `tests/test_tasks_table.py`'s
+  `verdict()` takes the first line; nothing else parses the output.
+  `ARCHIVED`, `DONE`, `CREATE`, `INVALID` and `NONE` print what they printed.
+  A `create` of an existing id prints the file too and wastes it; that case
+  is rare and the verdict sentence still says to offer `do`.
+- The dispatcher: for `do` and `create` the session runs `resolve` and reads
+  `do.md` or `create.md` in one turn, two parallel tool calls, then acts on
+  the verdict; for a bare id it still reads after the verdict. A part file
+  read for a verdict that sends nowhere (`DONE`) is wasted: the price of one
+  fewer turn.
+- `do.md` step 1: the task file is already in the context (from `resolve`,
+  or written by Create for an investigation) and is read again only when the
+  output was cut off. The session decides worker or inline from it, says
+  which, and then runs the models gate with `start`, the notes read and,
+  when it works the task itself, the `steps.md` read, in one turn.
+
+**Calls at the start** (a `/task do` session that works the task itself):
+before, `resolve`, read `do.md`, models gate, `start`, read task file, read
+notes, read `steps.md`: seven calls, three turns at the fewest and five as
+measured; after, `resolve` with the read of `do.md` in one turn, then the
+models gate with `start`, the notes and `steps.md` in a second: two turns and
+six calls. The task file read is gone.
+
+**Property 4.** The dispatcher grows by about 330 bytes. It is loaded on every
+`/task` call and the part files are not shorter; the saving is the calls, not
+the text.
+
+**What a live run must show.** A `/task do` transcript whose first turn holds
+`resolve` and a read of `do.md`, whose second turn holds the models gate
+with `start`, and which never reads `task.md` before its first edit.
+
+## 92. A session that works the task itself does not load the supervision (2026-11-15, v12.29)
+
+**Source.** The same benchmark as section 90: reading `do.md` adds about
+8,000 tokens to a session, and every later call carries them; five of the six
+`/task do` sessions worked the task themselves (the small-task rule, or
+`inline`) and never used the middle of `do.md`, the part on supervising a
+worker.
+
+**Change.** Done as section 77 did it for `steps.md`: text moved, not
+rewritten. `templates/task/supervise.md`, written to
+`.ai/agent/task/supervise.md` (a claude scaffold now records 21 framework
+files, copilot 19, opencode 20), holds, in their old order:
+
+- the hand-over: the worker is the `worker` agent, started fresh, its model
+  from its agent file, the one spawn prompt and where it runs (the sub-agent,
+  or a Herdr tab for `herdr`);
+- the supervision: change no file while it runs, judge each report from the
+  files, trust recorded evidence, answer by report kind (`review`,
+  `question`, `done`, `stuck`, `waiting`, a round cut off by the turn
+  limit), the corrections rule and the `Not sent back` line, continuing the
+  same worker, the `Delegation:` line.
+
+`do.md` keeps the decision rule (when to work the task itself, when a
+worker; the count of open steps that edit a host file; the line that states
+the decision), and what both paths need: the models gate, start, the
+user-ask, redirect and workaround rules, the review gate, record, and the
+close. At the decision it says: otherwise read `supervise.md`, in the turn of
+step 1, and follow it. A session that works the task itself reads `do.md` and
+`steps.md`. Only connective text changed (a word-for-word comparison of
+the old `do.md` against the new `do.md` and `supervise.md` leaves exactly
+the sentences that join them); the references that named a step of `do.md`
+from `supervise.md` now say `do.md` step 2 and step 3. `supervise.md` is
+rendered by `render_task_part("supervise")`; the worker spawn prompt and the
+Herdr placement slots moved with it, so the `check_templates` and
+`test_worker_contract` checks on the spawn prompt read `supervise.md`.
+`check_templates` also fails when `work.md` or `steps.md` names it.
+
+**Size (rendered, claude, words).** Before this change `do.md` was 2,995
+(12.28; 2,755 at 12.26). After: `do.md` 1,869, `supervise.md` 1,235,
+`steps.md` 843. A session that works the task itself loads `do.md` and
+`steps.md`: 2,712, against 3,838 before. A supervising session loads `do.md`
+and `supervise.md`: 3,104, against 2,995, the 109 words more being the
+connective text and the header of the new file. A worker loads what it
+loaded before.
+
+**Property 3.** The file is written on every harness; the Herdr placement
+differs per harness exactly as before.
+
+**Property 4.** One more framework file; no always-loaded text.
+
+**What a live run must show.** A `/task do` that works the task itself never
+reads `supervise.md`; one that spawns a worker reads it in the turn of the
+models gate and before the spawn.
+
+## 93. A shorter dispatcher (2026-11-15, v12.30)
+
+**Source.** `templates/skills/task.md` is loaded on every `/task` call and
+holds the List and Tree sections whole, which a `do` or `create` call does
+not need. The command is not split: the command set stays equal across
+harnesses (Property 3). Section 91 had added 61 words to it.
+
+**Change.** Wording only, each rule kept once:
+
+- The `list` and `tree` bullets of Dispatch now point at the List and Tree
+  sections, which already say to run the script, reply with its complete
+  output verbatim and open no file; the one rule only the bullet held, to
+  read no file first, stays in the `list` bullet.
+- The Create bullet no longer restates the tracker question: `create.md`
+  step 2 holds it (when to ask, `tasks.py trackers`, the issue key as the id
+  prefix).
+- Tree restates List's rules by reference instead of in full; the read-only
+  rule, the no-heading rule and the no-start rule are in the sentence.
+- The two "two tool calls together" notes of section 91 became one.
+
+**Size (rendered, any harness, words).** 643 at 12.26, 704 at 12.29, 601
+after: 103 fewer than 12.29 and 42 fewer than 12.26 (bytes: 3,735, 4,063,
+3,380).
+
+**What a live run must show.** `/task list` and `/task tree` unchanged in
+output; a `/task create` asks the tracker question from `create.md` as
+before (TC-C1b).
+
+## 94. Tried and dropped: a cold worker (2026-11-15)
+
+No version bump: nothing shipped. The record is here so the idea is not
+built a second time without new evidence.
+
+**The idea.** A worker whose only knowledge of the project and the job is
+the task file: no notes hub, no project instructions file. The supervisor
+has both in context and decides what the worker needs. The worker keeps its
+protocol (its contract and `steps.md`), which is how it reports, what gets a
+test and when it stops and asks, not project context.
+
+**What was built** (one commit on a branch that was not merged, on top of
+12.30):
+
+- The worker's first step read the task file and `steps.md` only; it opened
+  `.ai/notes.md` or a leaf only when the task file named it.
+- The hand-over in `supervise.md` required the task's Notes to hold, before
+  the spawn, the notes entries that bear on the task, the build, test and
+  lint commands its steps need, and each project rule that constrains it.
+- Claude Code: `omitClaudeMd: true` in the worker's agent file. The
+  sub-agents docs: it starts the sub-agent "without the user, project, and
+  local CLAUDE.md files in its initial context", from v2.1.271; ignored when
+  the agent runs as the main session (`claude --agent worker`, the Herdr
+  tab); path-scoped rules still load when the sub-agent works with matching
+  files, so section 89 was unaffected.
+- Because the worker then had no `AGENTS.md`, three of its rules were copied
+  into the contract: keep going while a step needs no input; ask before
+  anything destructive nobody asked for; no co-author line and no `.ai`
+  content in a host commit.
+- OpenCode: nothing could be changed. Its agents docs: "Project
+  instructions, skills, references, and other instruction sources are still
+  added", and no per-agent opt-out is documented, so its worker receives
+  `AGENTS.md` and the `instructions` hub (section 86) without asking.
+  Copilot: not looked at.
+
+**What the live runs showed.**
+
+- Claude Code 2.1.325, a project whose notes held an unusual test command,
+  an unwritten owner rule and an unrelated fact; mid-size supervisor, small
+  worker. The worker's transcript held no `CLAUDE.md`, `AGENTS.md` or hub
+  text and no trace of the unrelated fact; it read the task file and
+  `steps.md` and nothing else at its start; it ran the test command that
+  existed only in the notes, which `/task create` had written into the task
+  file. The task ended `done` in two worker rounds. The design works.
+- The harness benchmark (`tests/harness-benchmark.md`, OpenCode 2.2.5, same
+  profile, two runs per version), cache-read tokens:
+
+  | | 12.30 | cold worker |
+  |---|---|---|
+  | grader | 6, 6 of 6 | 6, 6 of 6 |
+  | run total | 2.60M, 2.57M | 2.53M, 2.64M |
+  | the worker | 521k, 426k | 393k, 497k |
+  | supervisor of the worker task | 210k, 201k | 264k, 312k |
+  | session time | 316 s, 310 s | 312 s, 330 s |
+
+  No regression and no saving: the totals overlap, the worker's runs
+  overlap, and the supervisor of the worker task cost more in both runs.
+  Whether the hand-over rule caused that was not checked in the sessions.
+
+**Why dropped.**
+
+- No cost benefit could be shown. On OpenCode the worker cannot be cold, so
+  the change removes one read of the hub and adds hand-over work. On Claude
+  Code the worker would lose `AGENTS.md` (about 800 tokens) and the hub on
+  each call: an estimated 5 to 10% of the worker's share, in one task type,
+  against a run-to-run spread of about 20%. It was not measured there.
+- It has a standing cost: three rules live in two places and can drift, and
+  a thin task file costs a correction round.
+- What it gives is isolation (one input for the worker), which the runs
+  showed to work but not to matter.
+
+**What would change this.** Two things together: a harness-level opt-out on
+OpenCode, and a measurement on a project with a long notes hub and a small
+worker model that shows fewer correction rounds or lower cost with the cold
+worker than without. The fair first test is the benchmark on Claude Code,
+12.30 against the cold worker, two runs each.

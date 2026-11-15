@@ -198,7 +198,7 @@ def main():
 
     # OpenCode's TUI has no model flag: its Herdr tab starts plain and
     # spawns the role as a sub-agent (CONCEPT.md section 70).
-    for text in (content.render_task_part("do", "opencode"),
+    for text in (content.render_task_part("supervise", "opencode"),
                  content.render_update_body("opencode", "$ARGUMENTS")):
         start = next(ln for ln in text.splitlines()
                      if "herdr agent start" in ln)
@@ -207,9 +207,9 @@ def main():
               "Use the subagent tool with agent" in text,
               f"opencode: the tab starts without a model flag: {start!r}")
     check("-- --agent worker --model <model>" in
-          content.render_task_part("do", "copilot") and
+          content.render_task_part("supervise", "copilot") and
           "-- --agent worker --permission-mode" in
-          content.render_task_part("do", "claude"),
+          content.render_task_part("supervise", "claude"),
           "copilot and claude keep their start flags")
 
     # Nothing to set and no terminal to ask in: says so, exits non-zero.

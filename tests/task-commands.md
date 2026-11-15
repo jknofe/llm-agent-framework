@@ -107,7 +107,8 @@ Run `/task <id>` without a subcommand three times: for a new id with a
 title, for an existing unfinished task, and for an id close to an existing
 one (e.g. `login-timeout-fix` next to `fix-login-timeout`).
 
-Pass when the transcript shows `tasks.py resolve <id>` before anything else,
+Pass when the transcript shows `tasks.py resolve <id>` before anything else
+(a read of the part file in the same turn aside),
 the new id is created, the existing task is worked (not planned again), and
 the close id is asked about instead of created. Fail: the agent searches
 with grep or ls to decide, or creates a second task for the same thing.
@@ -133,7 +134,12 @@ done-when questions follow in a second round trip.
 
 Any create or do run, on each harness. From the transcript:
 - After `tasks.py resolve`, the agent reads `.ai/agent/task/create.md`
-  (CREATE) or `.ai/agent/task/do.md` (DO) before acting.
+  (CREATE) or `.ai/agent/task/do.md` (DO) before acting; for `create` and
+  `do` the two calls come in one turn (12.28), and a DO session does not
+  read the task file again, `resolve` printed it. A session that works the
+  task itself (`inline`, a small task) never reads `supervise.md`; one that
+  hands the steps to a worker reads it, in the turn of the models gate, and
+  before it spawns (12.29).
 - `/task list` reads neither part file.
 
 Fail: the agent acts on a verdict without reading its part file, or
@@ -212,7 +218,8 @@ and do in one session).
 
 In every do case (10.1): the transcript shows `tasks.py start <id>` at the
 start and `tasks.py finish <id> done|blocked` at the end, every ticked box
-ticked by `tasks.py tick <id> done|steps <n>...` naming its numbers (11.0;
+ticked by `tasks.py tick <id> done|steps <n>...` or `finish <id> done --tick
+<n>... --tick-steps <n>... --commit` (12.27), naming its numbers (11.0;
 a script or `replace("- [ ] ", "- [x] ")` that ticks every box at once is a
 fail), no shell write to
 `.ai/.current` or to a task's frontmatter (`printf >`, `sed -i`, `rm`, a
@@ -346,7 +353,8 @@ Pass when all hold:
 - The worker ticked steps only: no done-when box, no Outcome, no
   `notes.md` change in its round commits (`git -C .ai show <commit>`).
 - Findings end with a `Delegation: <model> ...` line; the supervisor
-  ticked each criterion with `tasks.py tick`, wrote the Outcome, and
+  ticked each criterion with `tasks.py tick` or `finish --tick`, wrote the
+  Outcome, and
   `finish done` passed. Nothing merged into the default branch, and the
   host's default branch got no commit (12.0): the worker committed on a
   feature branch (`git log <default>` unchanged).

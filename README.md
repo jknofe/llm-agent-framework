@@ -214,7 +214,8 @@ small one, and it is now the only shape the generator emits:
   `.ai`-clean Stop hook, the read-only permission allow list, `probe.py`
   (command and documentation detection), `tasks.py` (the task table,
   the create-or-do resolver, and `start`/`tick`/`finish`, the bookkeeping of
-  `/task do`).
+  `/task do`; `finish <id> done --tick-steps <n>... --tick <n>... --commit`
+  ticks, closes and commits `.ai` with the task's paths in one call).
 
 Gone with the large profile: the `manifest.yaml`/`INDEX.md` knowledge base
 with hot/cold tiers and per-task token budgets, drift detection, the
@@ -251,7 +252,7 @@ Every harness invokes them the same way, under the same names:
 | `/task do [<id>] [inline\|herdr]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision (`herdr`: in a Herdr tab instead); a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
 | `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks, and for stale notes. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
-| `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
+| `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked (and printed whole, so the session need not read its file), a new id is created, a done or archived one is reported, a similar existing id is asked about. |
 | `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed; on Claude Code and OpenCode the harness runs the script before the model sees the command, so it answers without a tool call. |
 | `/framework-update [dry-run] [inline\|herdr]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. Hands the merge to the `updater` sub-agent when it has a model (a Herdr tab with `herdr`), then checks the result; `inline` keeps it in the session. |
 

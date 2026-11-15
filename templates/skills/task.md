@@ -13,15 +13,14 @@ task, and the agent never starts one on its own.
 ## Dispatch
 
 Read the first word of the arguments:
-- `list`, or no arguments at all: run `python3 ${tools_dir}/tasks.py`
-  and reply with its complete output, verbatim, and nothing else. Do
-  not read the script, the task files or the files below first; see
-  List for why.
-- `tree`: run `python3 ${tools_dir}/tasks.py tree` and reply with its
-  complete output, verbatim, and nothing else; see Tree.
-- `create <id> <title...>`: resolve `<id>`, then Create.
-- `do [<id>] [inline|herdr]`: resolve `<id>` (none: the resume pointer),
-  then Do. `inline` keeps the work in this session instead of a worker;
+- `list`, or no arguments at all: List. Read no file first, not the
+  script, the task files or the files below.
+- `tree`: Tree.
+- `create <id> <title...>`: resolve `<id>` and read `create.md` in the
+  same turn, then act on the verdict: Create.
+- `do [<id>] [inline|herdr]`: resolve `<id>` (none: the resume pointer)
+  and read `do.md` in the same turn, then act
+  on the verdict: Do. `inline` keeps the work in this session instead of a worker;
   `herdr` runs the worker in a Herdr tab instead of a sub-agent.
 - anything else is an id, maybe followed by a title: resolve it, and
   the verdict decides between Create and Do.
@@ -34,7 +33,8 @@ verdict; act on it:
   Create; without a title, ask for one. After `do`, do not create:
   say the task does not exist and offer `create`.
 - `DO <id> ...`: the task exists and is not done: Do, with the id
-  exactly as printed. After `create`, do not overwrite it: say it
+  exactly as printed. The task file follows in the output, whole
+  between two `-----` lines: do not read it again. After `create`, do not overwrite it: say it
   exists and offer to work it.
 - `DONE <id>`: finished. Say so with its title and stop; offer a new
   follow-up task instead of reopening it, unless the user asks to
@@ -46,14 +46,11 @@ verdict; act on it:
   and resolve again.
 - `NONE`: `do` without an id and no resume pointer. Ask which task.
 
-Create and Do live in their own files, read only when the verdict sends
-you there; read the whole file before acting on it:
-- Create: `${task_dir}/create.md`. Its first question is whether a
-  tracker issue (GitHub, Jira) exists for the task; run
-  `python3 ${tools_dir}/tasks.py trackers` to see which tracker access
-  this checkout has, fetch the issue with the command it prints, and
-  use its content together with the user's input. The issue key becomes
-  the task id's prefix.
+Create and Do live in their own files; read the whole file before acting
+on it. For `create` and `do` read it in the turn of `resolve`, two tool calls
+together; for a bare
+id, only when the verdict sends you there:
+- Create: `${task_dir}/create.md`
 - Do: `${task_dir}/do.md`
 
 
@@ -70,9 +67,8 @@ nothing, and do not start or resume a task from it.
 
 ## Tree
 
-Run `python3 ${tools_dir}/tasks.py tree`, then copy its complete output
-into your reply, verbatim, as the whole reply. The tree shows which live
-tasks wait on which, built from the `depends:` line of each task file.
-The same rules as List apply: add nothing, no closing headings, summarize
-nothing, open no file, and change nothing. Tree is read-only: do not start or resume a
-task from it.
+Run `python3 ${tools_dir}/tasks.py tree` and answer as List does: its
+complete output, verbatim, as the whole reply, no closing headings, no
+file opened or changed, no task started or resumed. The tree shows which
+live tasks wait on which, built from the `depends:` line of each task
+file.

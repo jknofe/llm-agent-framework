@@ -7,7 +7,7 @@ Stdlib only. Scaffolds each harness with the real init_agent.py and checks:
 on Claude Code and OpenCode the worker file's body holds the whole of
 `.ai/agent/task/work.md` (one template, so the two cannot differ), with the
 model-check guard first; Copilot's body is the pointer; the supervisor's
-spawn prompt in `do.md` tells a claude or opencode worker nothing to read and
+spawn prompt in `supervise.md` tells a claude or opencode worker nothing to read and
 a Copilot worker to read work.md; the first step reads notes, task file and
 steps.md in one turn; a `model:` line set in the file survives a forced
 re-init exactly once with the longer body; frontmatter limits are intact; no
@@ -55,7 +55,8 @@ def main():
         init(root, harness)
         agent = (root / rel).read_text(encoding="utf-8")
         work = (root / ".ai/agent/task/work.md").read_text(encoding="utf-8")
-        do = (root / ".ai/agent/task/do.md").read_text(encoding="utf-8")
+        do = (root / ".ai/agent/task/supervise.md").read_text(
+            encoding="utf-8")
         head, body = split(agent)
         check("${" not in agent, f"{harness}: no unfilled slot")
         if harness == "copilot":

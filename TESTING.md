@@ -61,7 +61,7 @@ themselves.
    The worker-contract test scaffolds each harness and checks that the
    Claude Code and OpenCode worker body holds all of `work.md` (section 85)
    with the model-check guard first, Copilot's is the pointer, the spawn
-   prompt in `do.md` differs accordingly, step 1 reads three files in one
+   prompt in `supervise.md` differs accordingly, step 1 reads three files in one
    turn, and a `model:` line survives a forced re-init once.
    The OpenCode config test checks `instructions` in the generated
    `opencode.json` (section 86): the hub by default, a user's entries and

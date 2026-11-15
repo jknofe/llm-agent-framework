@@ -563,17 +563,19 @@ def herdr_tab(harness: str, role: str, name: str, prompt: str) -> str:
         "  when it is done.\n")
 
 def render_task_part(part: str, harness: str = "claude") -> str:
-    """`/task`'s Create, Do, Work or Steps body (`create`, `do`, `work`,
-    `steps`), written to TASK_DIR. Create and Do are read by the dispatching
+    """`/task`'s Create, Do, Supervise, Work or Steps body (`create`, `do`,
+    `supervise`, `work`, `steps`), written to TASK_DIR. Create and Do are read by the dispatching
     skill only when `tasks.py resolve` sends it there; Work is read by the
     worker Do hands its steps to (CONCEPT.md sections 50 and 52); Steps is
     the working steps both the worker and a session working inline read
-    (section 77).
+    (section 77); Supervise is read by a Do session only when it hands the
+    task to a worker (section 92).
 
-    Do varies on harness in one place, the start of a worker tab when the
-    user asks for `herdr` (section 68); the default is the harness's
+    Supervise varies on harness in one place, the start of a worker tab when
+    the user asks for `herdr` (section 68); the default is the harness's
     sub-agent everywhere."""
     rel = {"create": "task/create.md", "do": "task/do.md",
+           "supervise": "task/supervise.md",
            "work": "task/work.md", "steps": "task/steps.md"}[part]
     placement = (
         "You are the supervisor in this\n"
