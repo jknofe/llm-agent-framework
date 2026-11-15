@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-15, v12.29.** The framework rests on four premises, stated in
+**State: 2026-11-15, v12.30.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -363,7 +363,7 @@ default, a Herdr tab only when asked.
 - A claude scaffold records 21 framework files, a copilot one 19, an opencode
   one 20 (its plugin is the extra entry point), counting the five `/task` parts under `.ai/agent/task/`.
 - Everything else, skill bodies included, is read on demand. `/task` loads
-  only its dispatcher (~2.6 KB); Create and Do are read when the resolver's
+  only its dispatcher (about 3.4 KB); Create and Do are read when the resolver's
   verdict sends the agent there (section 42), and Do sends a session to
   `supervise.md` (about 1,200 words) only when it hands the task to a worker
   (section 92). The worker reads `steps.md` (about 820 words) and has `work.md` as the
@@ -594,6 +594,10 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.30 (2026-11-15, a shorter dispatcher, section 93. The `/task` command
+text drops what its own sections and `create.md` already say; no rule
+removed.)
 
 v12.29 (2026-11-15, a session that works the task itself does not load the
 supervision, section 92. `do.md` keeps the decision and what both paths
@@ -6599,3 +6603,31 @@ differs per harness exactly as before.
 **What a live run must show.** A `/task do` that works the task itself never
 reads `supervise.md`; one that spawns a worker reads it in the turn of the
 models gate and before the spawn.
+
+## 93. A shorter dispatcher (2026-11-15, v12.30)
+
+**Source.** `templates/skills/task.md` is loaded on every `/task` call and
+holds the List and Tree sections whole, which a `do` or `create` call does
+not need. The command is not split: the command set stays equal across
+harnesses (Property 3). Section 91 had added 61 words to it.
+
+**Change.** Wording only, each rule kept once:
+
+- The `list` and `tree` bullets of Dispatch now point at the List and Tree
+  sections, which already say to run the script, reply with its complete
+  output verbatim and open no file; the one rule only the bullet held, to
+  read no file first, stays in the `list` bullet.
+- The Create bullet no longer restates the tracker question: `create.md`
+  step 2 holds it (when to ask, `tasks.py trackers`, the issue key as the id
+  prefix).
+- Tree restates List's rules by reference instead of in full; the read-only
+  rule, the no-heading rule and the no-start rule are in the sentence.
+- The two "two tool calls together" notes of section 91 became one.
+
+**Size (rendered, any harness, words).** 643 at 12.26, 704 at 12.29, 601
+after: 103 fewer than 12.29 and 42 fewer than 12.26 (bytes: 3,735, 4,063,
+3,380).
+
+**What a live run must show.** `/task list` and `/task tree` unchanged in
+output; a `/task create` asks the tracker question from `create.md` as
+before (TC-C1b).

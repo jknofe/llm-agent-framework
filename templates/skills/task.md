@@ -13,16 +13,13 @@ task, and the agent never starts one on its own.
 ## Dispatch
 
 Read the first word of the arguments:
-- `list`, or no arguments at all: run `python3 ${tools_dir}/tasks.py`
-  and reply with its complete output, verbatim, and nothing else. Do
-  not read the script, the task files or the files below first; see
-  List for why.
-- `tree`: run `python3 ${tools_dir}/tasks.py tree` and reply with its
-  complete output, verbatim, and nothing else; see Tree.
+- `list`, or no arguments at all: List. Read no file first, not the
+  script, the task files or the files below.
+- `tree`: Tree.
 - `create <id> <title...>`: resolve `<id>` and read `create.md` in the
-  same turn (two tool calls together), then act on the verdict: Create.
+  same turn, then act on the verdict: Create.
 - `do [<id>] [inline|herdr]`: resolve `<id>` (none: the resume pointer)
-  and read `do.md` in the same turn (two tool calls together), then act
+  and read `do.md` in the same turn, then act
   on the verdict: Do. `inline` keeps the work in this session instead of a worker;
   `herdr` runs the worker in a Herdr tab instead of a sub-agent.
 - anything else is an id, maybe followed by a title: resolve it, and
@@ -50,14 +47,10 @@ verdict; act on it:
 - `NONE`: `do` without an id and no resume pointer. Ask which task.
 
 Create and Do live in their own files; read the whole file before acting
-on it. For `create` and `do` read it in the turn of `resolve`; for a bare
+on it. For `create` and `do` read it in the turn of `resolve`, two tool calls
+together; for a bare
 id, only when the verdict sends you there:
-- Create: `${task_dir}/create.md`. Its first question is whether a
-  tracker issue (GitHub, Jira) exists for the task; run
-  `python3 ${tools_dir}/tasks.py trackers` to see which tracker access
-  this checkout has, fetch the issue with the command it prints, and
-  use its content together with the user's input. The issue key becomes
-  the task id's prefix.
+- Create: `${task_dir}/create.md`
 - Do: `${task_dir}/do.md`
 
 
@@ -74,9 +67,8 @@ nothing, and do not start or resume a task from it.
 
 ## Tree
 
-Run `python3 ${tools_dir}/tasks.py tree`, then copy its complete output
-into your reply, verbatim, as the whole reply. The tree shows which live
-tasks wait on which, built from the `depends:` line of each task file.
-The same rules as List apply: add nothing, no closing headings, summarize
-nothing, open no file, and change nothing. Tree is read-only: do not start or resume a
-task from it.
+Run `python3 ${tools_dir}/tasks.py tree` and answer as List does: its
+complete output, verbatim, as the whole reply, no closing headings, no
+file opened or changed, no task started or resumed. The tree shows which
+live tasks wait on which, built from the `depends:` line of each task
+file.
