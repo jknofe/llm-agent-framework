@@ -6631,3 +6631,80 @@ after: 103 fewer than 12.29 and 42 fewer than 12.26 (bytes: 3,735, 4,063,
 **What a live run must show.** `/task list` and `/task tree` unchanged in
 output; a `/task create` asks the tracker question from `create.md` as
 before (TC-C1b).
+
+## 94. Tried and dropped: a cold worker (2026-11-15)
+
+No version bump: nothing shipped. The record is here so the idea is not
+built a second time without new evidence.
+
+**The idea.** A worker whose only knowledge of the project and the job is
+the task file: no notes hub, no project instructions file. The supervisor
+has both in context and decides what the worker needs. The worker keeps its
+protocol (its contract and `steps.md`), which is how it reports, what gets a
+test and when it stops and asks, not project context.
+
+**What was built** (one commit on a branch that was not merged, on top of
+12.30):
+
+- The worker's first step read the task file and `steps.md` only; it opened
+  `.ai/notes.md` or a leaf only when the task file named it.
+- The hand-over in `supervise.md` required the task's Notes to hold, before
+  the spawn, the notes entries that bear on the task, the build, test and
+  lint commands its steps need, and each project rule that constrains it.
+- Claude Code: `omitClaudeMd: true` in the worker's agent file. The
+  sub-agents docs: it starts the sub-agent "without the user, project, and
+  local CLAUDE.md files in its initial context", from v2.1.271; ignored when
+  the agent runs as the main session (`claude --agent worker`, the Herdr
+  tab); path-scoped rules still load when the sub-agent works with matching
+  files, so section 89 was unaffected.
+- Because the worker then had no `AGENTS.md`, three of its rules were copied
+  into the contract: keep going while a step needs no input; ask before
+  anything destructive nobody asked for; no co-author line and no `.ai`
+  content in a host commit.
+- OpenCode: nothing could be changed. Its agents docs: "Project
+  instructions, skills, references, and other instruction sources are still
+  added", and no per-agent opt-out is documented, so its worker receives
+  `AGENTS.md` and the `instructions` hub (section 86) without asking.
+  Copilot: not looked at.
+
+**What the live runs showed.**
+
+- Claude Code 2.1.325, a project whose notes held an unusual test command,
+  an unwritten owner rule and an unrelated fact; mid-size supervisor, small
+  worker. The worker's transcript held no `CLAUDE.md`, `AGENTS.md` or hub
+  text and no trace of the unrelated fact; it read the task file and
+  `steps.md` and nothing else at its start; it ran the test command that
+  existed only in the notes, which `/task create` had written into the task
+  file. The task ended `done` in two worker rounds. The design works.
+- The harness benchmark (`tests/harness-benchmark.md`, OpenCode 2.2.5, same
+  profile, two runs per version), cache-read tokens:
+
+  | | 12.30 | cold worker |
+  |---|---|---|
+  | grader | 6, 6 of 6 | 6, 6 of 6 |
+  | run total | 2.60M, 2.57M | 2.53M, 2.64M |
+  | the worker | 521k, 426k | 393k, 497k |
+  | supervisor of the worker task | 210k, 201k | 264k, 312k |
+  | session time | 316 s, 310 s | 312 s, 330 s |
+
+  No regression and no saving: the totals overlap, the worker's runs
+  overlap, and the supervisor of the worker task cost more in both runs.
+  Whether the hand-over rule caused that was not checked in the sessions.
+
+**Why dropped.**
+
+- No cost benefit could be shown. On OpenCode the worker cannot be cold, so
+  the change removes one read of the hub and adds hand-over work. On Claude
+  Code the worker would lose `AGENTS.md` (about 800 tokens) and the hub on
+  each call: an estimated 5 to 10% of the worker's share, in one task type,
+  against a run-to-run spread of about 20%. It was not measured there.
+- It has a standing cost: three rules live in two places and can drift, and
+  a thin task file costs a correction round.
+- What it gives is isolation (one input for the worker), which the runs
+  showed to work but not to matter.
+
+**What would change this.** Two things together: a harness-level opt-out on
+OpenCode, and a measurement on a project with a long notes hub and a small
+worker model that shows fewer correction rounds or lower cost with the cold
+worker than without. The fair first test is the benchmark on Claude Code,
+12.30 against the cold worker, two runs each.
