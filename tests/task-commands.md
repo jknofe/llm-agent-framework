@@ -107,7 +107,8 @@ Run `/task <id>` without a subcommand three times: for a new id with a
 title, for an existing unfinished task, and for an id close to an existing
 one (e.g. `login-timeout-fix` next to `fix-login-timeout`).
 
-Pass when the transcript shows `tasks.py resolve <id>` before anything else,
+Pass when the transcript shows `tasks.py resolve <id>` before anything else
+(a read of the part file in the same turn aside),
 the new id is created, the existing task is worked (not planned again), and
 the close id is asked about instead of created. Fail: the agent searches
 with grep or ls to decide, or creates a second task for the same thing.
@@ -133,7 +134,9 @@ done-when questions follow in a second round trip.
 
 Any create or do run, on each harness. From the transcript:
 - After `tasks.py resolve`, the agent reads `.ai/agent/task/create.md`
-  (CREATE) or `.ai/agent/task/do.md` (DO) before acting.
+  (CREATE) or `.ai/agent/task/do.md` (DO) before acting; for `create` and
+  `do` the two calls come in one turn (12.28), and a DO session does not
+  read the task file again, `resolve` printed it.
 - `/task list` reads neither part file.
 
 Fail: the agent acts on a verdict without reading its part file, or

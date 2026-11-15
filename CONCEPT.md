@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-15, v12.27.** The framework rests on four premises, stated in
+**State: 2026-11-15, v12.28.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -114,7 +114,8 @@ only kind that is still accurate. Without this rule the notes hold only what
 One command, `/task`, with `create`, `do` and `list`. Whether a task exists
 is decided by a script, not by the agent looking around: `tasks.py resolve
 <id>` prints one verdict (`CREATE`, `DO`, `DONE`, `ARCHIVED`, `INVALID`,
-`NONE`), matches ids case-insensitively, and names close existing ids as
+`NONE`; after `DO` the task file follows whole, between two `-----` lines,
+section 91), matches ids case-insensitively, and names close existing ids as
 `SIMILAR` so a second task for the same thing is asked about before it is
 made. `/task <id> [title]` without a subcommand goes wherever the verdict
 says.
@@ -591,6 +592,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v12.28 (2026-11-15, the start of a task in fewer calls, section 91.
+`tasks.py resolve` prints the task file after a `DO` verdict; `/task create`
+and `/task do` read their part file in the turn of `resolve`; `do.md` has
+a session read the notes, `steps.md` and run the models gate with `start`
+in one turn.)
 
 v12.27 (2026-11-15, the end of a task in one call, section 90. `finish <id>
 done --tick-steps <n>... --tick <n>... --commit` ticks the named items,
@@ -6487,3 +6494,47 @@ reads them, argued against the calls it removes at the end. `tasks.py` grows by 
 one `finish ... --commit` call and its answer; `git -C .ai log` shows one
 `task: done <id>` commit holding the task's paths only; a worker's rounds
 end with one `tick ... --commit` call.
+
+## 91. The start of a task in fewer calls (2026-11-15, v12.28)
+
+**Source.** The same benchmark as section 90. The start of a `/task do`
+session took three calls before it did any work: `resolve`, a read of
+`do.md`, a read of the task file and the notes (the models gate and `start`
+came after). Every call re-reads the context so far.
+
+**Change.**
+
+- `tasks.py resolve <id>` with a `DO` verdict prints the task file after its
+  verdict line and the sentence, whole, between `-----` lines that say it
+  has been read. The verdict stays the first line. Consumers checked: the
+  dispatcher (`templates/skills/task.md`, rendered the same for the Copilot
+  prompt file) reads the first line only; `tests/test_tasks_table.py`'s
+  `verdict()` takes the first line; nothing else parses the output.
+  `ARCHIVED`, `DONE`, `CREATE`, `INVALID` and `NONE` print what they printed.
+  A `create` of an existing id prints the file too and wastes it; that case
+  is rare and the verdict sentence still says to offer `do`.
+- The dispatcher: for `do` and `create` the session runs `resolve` and reads
+  `do.md` or `create.md` in one turn, two parallel tool calls, then acts on
+  the verdict; for a bare id it still reads after the verdict. A part file
+  read for a verdict that sends nowhere (`DONE`) is wasted: the price of one
+  fewer turn.
+- `do.md` step 1: the task file is already in the context (from `resolve`,
+  or written by Create for an investigation) and is read again only when the
+  output was cut off. The session decides worker or inline from it, says
+  which, and then runs the models gate with `start`, the notes read and,
+  when it works the task itself, the `steps.md` read, in one turn.
+
+**Calls at the start** (a `/task do` session that works the task itself):
+before, `resolve`, read `do.md`, models gate, `start`, read task file, read
+notes, read `steps.md`: seven calls, three turns at the fewest and five as
+measured; after, `resolve` with the read of `do.md` in one turn, then the
+models gate with `start`, the notes and `steps.md` in a second: two turns and
+six calls. The task file read is gone.
+
+**Property 4.** The dispatcher grows by about 330 bytes. It is loaded on every
+`/task` call and the part files are not shorter; the saving is the calls, not
+the text.
+
+**What a live run must show.** A `/task do` transcript whose first turn holds
+`resolve` and a read of `do.md`, whose second turn holds the models gate
+with `start`, and which never reads `task.md` before its first edit.

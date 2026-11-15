@@ -45,7 +45,9 @@ table prints. Tree is read-only.
 `tasks.py resolve [<id>]` decides whether `/task` creates or works a task, so
 no agent has to search for one: it prints one verdict line, then a sentence.
   CREATE <id>     no task with that id; SIMILAR lines name close existing ids
-  DO <id>         a live task that is not done (planned, in-progress, blocked)
+  DO <id>         a live task that is not done (planned, in-progress, blocked);
+                  the sentence is followed by the whole task file between two
+                  `-----` lines, so Do does not read it again
   DONE <id>       a live task that is done
   ARCHIVED <id>   only under `_archive/`
   INVALID         not usable as an id (a title without an id, a path)
@@ -471,6 +473,11 @@ def resolve(arg):
         else:
             print(f"DO {match} status={r['status']} type={r['type']}")
             print(f"Task `.ai/tasks/{match}/task.md` exists: {r['title']}")
+            print(f"----- task file `.ai/tasks/{match}/task.md`, whole "
+                  "(already read: do not read it again) -----")
+            text = ids[match].read_text(encoding="utf-8")
+            print(text, end="" if text.endswith("\n") else "\n")
+            print("----- end of task file -----")
         return 0
     print(f"CREATE {arg}")
     near = similar(arg, list(live) + list(archived))

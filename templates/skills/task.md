@@ -19,9 +19,11 @@ Read the first word of the arguments:
   List for why.
 - `tree`: run `python3 ${tools_dir}/tasks.py tree` and reply with its
   complete output, verbatim, and nothing else; see Tree.
-- `create <id> <title...>`: resolve `<id>`, then Create.
-- `do [<id>] [inline|herdr]`: resolve `<id>` (none: the resume pointer),
-  then Do. `inline` keeps the work in this session instead of a worker;
+- `create <id> <title...>`: resolve `<id>` and read `create.md` in the
+  same turn (two tool calls together), then act on the verdict: Create.
+- `do [<id>] [inline|herdr]`: resolve `<id>` (none: the resume pointer)
+  and read `do.md` in the same turn (two tool calls together), then act
+  on the verdict: Do. `inline` keeps the work in this session instead of a worker;
   `herdr` runs the worker in a Herdr tab instead of a sub-agent.
 - anything else is an id, maybe followed by a title: resolve it, and
   the verdict decides between Create and Do.
@@ -34,7 +36,8 @@ verdict; act on it:
   Create; without a title, ask for one. After `do`, do not create:
   say the task does not exist and offer `create`.
 - `DO <id> ...`: the task exists and is not done: Do, with the id
-  exactly as printed. After `create`, do not overwrite it: say it
+  exactly as printed. The task file follows in the output, whole
+  between two `-----` lines: do not read it again. After `create`, do not overwrite it: say it
   exists and offer to work it.
 - `DONE <id>`: finished. Say so with its title and stop; offer a new
   follow-up task instead of reopening it, unless the user asks to
@@ -46,8 +49,9 @@ verdict; act on it:
   and resolve again.
 - `NONE`: `do` without an id and no resume pointer. Ask which task.
 
-Create and Do live in their own files, read only when the verdict sends
-you there; read the whole file before acting on it:
+Create and Do live in their own files; read the whole file before acting
+on it. For `create` and `do` read it in the turn of `resolve`; for a bare
+id, only when the verdict sends you there:
 - Create: `${task_dir}/create.md`. Its first question is whether a
   tracker issue (GitHub, Jira) exists for the task; run
   `python3 ${tools_dir}/tasks.py trackers` to see which tracker access

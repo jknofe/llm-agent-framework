@@ -12,7 +12,7 @@ discovery: no config, config rows, a detected `gh`. Bookkeeping: start and
 finish set status, the
 blocked reason and the resume pointer, and finish done refuses an unmet
 gate; the one-call forms (finish --tick --commit, tick --commit) commit only
-the task's paths and refuse all or nothing (12.27). Builds fixture task files in a temp dir; stdlib
+the task's paths and refuse all or nothing (12.27); resolve prints the task file after DO (12.28). Builds fixture task files in a temp dir; stdlib
 only.
 
 Usage: python3 tests/test_tasks_table.py
@@ -722,6 +722,35 @@ def main():
         check(r.returncode == 1 and "not a git repository" in r.stdout
               and (root / ".ai/tasks/ng/task.md").read_text(encoding="utf-8")
               == before, f"--commit without a repository: {r.stdout!r}")
+
+    # resolve prints the task file after a DO verdict (12.28), and only then.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tool = root / ".ai/agent/tools/tasks.py"
+        tool.parent.mkdir(parents=True)
+        tool.write_text(content.render_tool_tasks(), encoding="utf-8")
+        task(root, "open", "open", "Open one", "change", "planned", NEW)
+        task(root, "fin", "fin", "Fin", "change", "done", NEW)
+        task(root, "run", "run", "Run", "change", "in-progress", NEW)
+        out = run(root, "resolve", "open")
+        lines = out.splitlines()
+        text = (root / ".ai/tasks/open/task.md").read_text(encoding="utf-8")
+        check(lines[0] == "DO open status=planned type=change"
+              and verdict(root, "open") == lines[0],
+              f"the verdict stays the first line: {lines[:1]!r}")
+        check(out.count("----- ") == 2 and "do not read it again" in out
+              and ("\n" + text) in out and
+              lines[-1] == "----- end of task file -----",
+              f"resolve DO prints the whole task file: {out!r}")
+        (root / ".ai/.current").write_text("task: run\n", encoding="utf-8")
+        out = run(root, "resolve")
+        check(out.splitlines()[0] == "# no id given; resuming `.ai/.current` "
+              "(run)" and "DO run status=in-progress" in out
+              and "----- end of task file -----" in out,
+              f"resolve from the resume pointer prints it too: {out!r}")
+        for tid in ("fin", "nope"):
+            check("-----" not in run(root, "resolve", tid),
+                  f"resolve prints no task file for {tid}")
 
     # Parallel tasks (11.1): own pointers, claims, resume and list marks.
     with tempfile.TemporaryDirectory() as tmp:

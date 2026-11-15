@@ -33,11 +33,17 @@ those are the forms the permission allowlist matches.
    writes the task's pointer (gitignored): `.ai/.current`, the resume
    pointer, or `.ai/.current-<id>` when another task is running in
    parallel. It then names every task running in parallel (`PARALLEL`)
-   with the files it claimed. Load `.ai/tasks/<id>/task.md`. Its
+   with the files it claimed. The task file `.ai/tasks/<id>/task.md` is
+   already in your context: `tasks.py resolve` printed it whole after its
+   `DO` line, and a task Create just wrote you wrote yourself. Read it
+   again only when that output was cut off. Its
    `## Tracker` section is the task's issue, already fetched at create
    time: work from what it records, and query the tracker again only when
    the task needs the issue's current state. Read `.ai/notes.md` unless it
    is in context, and any leaf under `.ai/notes/` the task touches.
+   Decide worker or inline from the task file you have (below) and say
+   which first; then run the models gate with `start`, and those reads,
+   and `steps.md` too when you work the task yourself, all in one turn.
    Before you edit a host file, claim it:
    `python3 ${tools_dir}/tasks.py claim <id> <path>...`.
    `CLAIMED ... by running task <other>` means a parallel task owns it:
@@ -63,7 +69,8 @@ none), or when the task is small: at most one of its open steps changes
 a host file, or none does (an investigation, a test campaign that only
 records findings). Count the steps in the task file, not the files they
 touch: two steps that edit the same file are two steps. Do not judge size
-any other way, and documentation counts like code. Read `steps.md` first; where it says the
+any other way, and documentation counts like code. Read `steps.md` in
+the turn of step 1, not in one of its own; where it says the
 review gate runs, that is step 2 here. Your first line, before
 any other tool call, names the decision and the count: `Inline: 1 of 3
 steps edits a host file.` or `Worker: 3 of 4 steps edit host files.`
