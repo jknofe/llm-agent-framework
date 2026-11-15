@@ -101,7 +101,8 @@ def claude():
 
 
 def opencode():
-    oc = os.path.expanduser("~/.opencode/bin/opencode")
+    oc = (os.environ.get("OPENCODE_BIN")
+          or os.path.expanduser("~/.opencode/bin/opencode"))
     r = subprocess.run([oc, "api", "GET", "/api/session"], cwd=RUN,
                        capture_output=True, text=True)
     d = json.loads(r.stdout)

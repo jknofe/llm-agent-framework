@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-15, v14.0.** The framework rests on four premises, stated in
+**State: 2026-11-15, v14.1.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -555,6 +555,7 @@ to that commit.
 | `harness-sh-2026-11-08` (`tests/harness-benchmark.md`) | Claude Code vs OpenCode, Sonnet supervisor, Haiku worker, Sonnet reviewer, 3 runs each on satty, framework default effort | 18/18 tasks and decisions on both. OpenCode about $1.30 per run against $2.22 and 475 to 495 s against 564 to 905 s, no overlap. Found the small-task rule being read as "docs are small"; Do now counts editing steps (section 56). |
 | `harness-sh-equal-effort-2026-11-08` | The same with every role at `medium`, verified per role | 18/18 tasks, 17/18 decisions on both. OpenCode $1.23 against $2.18, no overlap; time by median only (563 against 586 s, ranges overlap). The difference is input: Claude Code re-reads twice the context. OpenCode's tool calls ran natively behind its Claude Agent provider, so this is Claude Code's CLI against the Claude engine inside OpenCode. Next: the top-tier profile. |
 | `versions-opencode-2026-11-15` (section 95; tags `alpha`, `bravo`, `charlie`) | The framework against its own earlier versions on the harness benchmark, OpenCode, equal-effort profile: 11.6 (5 runs), 12.14, 12.26 and 12.30 (2 runs each) | Cache-read tokens per run: 11.6 median 2.76M; 12.14 3.06M and 3.20M; 12.26 3.45M and 3.62M; 12.30 2.60M and 2.57M with 6 of 6 on both runs. The review's first batches cost about 12% more than 12.14; fewer model calls and less loaded text (sections 90 to 93) took 12.30 about 17% below it. Cache-write and output tokens did not move. A cold worker on top of 12.30 showed no saving (section 94). |
+| `opencode-2.3-and-claude-2026-11-15` (section 96) | Framework 14.1 on OpenCode 2.3.0 (background sub-agents) and on Claude Code 2.1.325, one run each, same profile | 6 of 6 on both, no nudge. OpenCode: 2.64M cache-read tokens, 322 s (12.30 on 2.2.5: 2.60M, 2.57M). Claude Code: 5.38M, 487 s, the first live run of the 12.27 to 12.30 forms there. Before the fix, the driver left the worker task unfinished on 2.3.0 (5 of 6). |
 
 **Planned and withdrawn:** `amortization-playbook.md` (Experiment B,
 navigation2) was withdrawn with the amortization thesis. `constraint-runbook.md`
@@ -595,6 +596,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v14.1 (2026-11-15, a sub-agent that runs in the background, section 96.
+OpenCode 2.3.0 returns from a spawn before the sub-agent has finished. The
+supervision, the review gate and the update hand-over say what to do then:
+wait for the report. The benchmark driver waits for a run's sub-agents
+before it judges a turn. Run live on OpenCode 2.3.0 and on Claude Code.)
 
 v14.0 (2026-11-15, the best-practice review of 12.14 closed, section 95. No
 behavior change: the record of what 12.15 to 12.30 changed, the measured
@@ -6879,3 +6886,67 @@ truncated; what rested on them was verified live.
    profile, at least two runs per arm, and judge by its decision rule.
 6. Append the result as a new section that names this one, and tag the
    versions compared.
+
+## 96. A sub-agent that runs in the background (2026-11-15, v14.1)
+
+**What changed outside.** OpenCode 2.3.0 (2026-11-13) runs every sub-agent
+in the background. Its release notes: "Subagents now always run in the
+background, return their session ID immediately, and report results to
+their parent whenever they become idle." Until 2.2.7 the spawn call returned
+the sub-agent's report.
+
+**Seen** (OpenCode 2.3.0 beside an untouched 2.2.5, framework 14.0, the
+harness benchmark):
+
+- `init-agent --models` passed unchanged: `opencode run` waits for the
+  background sub-agent, and the sub-agent's session named the model of its
+  agent file.
+- The supervisor of a worker task spawned the worker, got a session id, said
+  "the worker is still running" and ended its turn. When the report came, it
+  woke by itself and judged it. Nothing in `supervise.md` told it to; it read
+  the situation correctly.
+- The benchmark driver did not. It took the idle session for a finished
+  turn, sent its fixed reply twice and started the next task after 20
+  seconds, while the worker still ran. The next task claimed `README.md`,
+  the worker was refused with `CLAIMED` (section 51 working as built), and
+  the task stayed `in-progress`: 5 of 6.
+- The same task alone, with a driver that waits: `done` in 85 s, no nudge.
+
+**Changes.**
+
+- `supervise.md`: a spawn that returns before the worker has finished is
+  not a report. Say in one line that the worker runs, end the turn, judge
+  when the report arrives; no second worker meanwhile.
+- `do.md`, the review gate: when the spawn returns before the reviewer has
+  finished, wait for its verdict.
+- `/framework-update`, the hand-over: wait for the updater's last line
+  before checking anything.
+- The wording names no harness: it describes what the session sees, and is
+  inert where the spawn returns the report.
+- `tests/harness-bench/drive.py`: a turn is over only when no sub-agent of
+  the run is busy (OpenCode's `/api/session`, child sessions whose `busy`
+  time is later than their `idle` time). `drive.py` and `metrics.py` take
+  the binary from `OPENCODE_BIN` when it is set.
+- README: OpenCode support names 2.3.0 and says the session ends its turn
+  while a sub-agent runs.
+
+**Live, framework 14.1, same benchmark profile, one run each.**
+
+| | Grader | Nudges | Cache read | Session time |
+|---|---|---|---|---|
+| OpenCode 2.3.0 | 6 of 6 | 0 | 2.64M | 322 s |
+| Claude Code 2.1.325 | 6 of 6 | 0 | 5.38M | 487 s |
+
+- OpenCode: the worker task ran worker, then `reviewer` sub-agent, then
+  `done`, both in the background. 12.30 on 2.2.5 read 2.60M and 2.57M; one
+  run does not show a difference.
+- Claude Code: the first live run of the one-call `finish`, the task file
+  printed by `resolve`, `supervise.md` and the shorter dispatcher (sections
+  90 to 93) on that harness, which section 95 listed as not covered. The
+  three 11.6 runs on Claude Code read 4.55M, 6.58M and 5.89M; one run inside
+  that range is no cost claim.
+- A first run on the upgraded install halted before any task: the TUI had
+  not come up in the pane right after the upgrade. Started again, it ran.
+
+**Not covered.** The updater as a background sub-agent. A user typing into
+the session while the worker runs. Copilot.

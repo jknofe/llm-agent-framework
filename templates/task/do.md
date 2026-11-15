@@ -115,7 +115,9 @@ a bypass.
      with no logic changed. Otherwise the review goes to a fresh context,
      however simple it looks.
      A fresh context means the `reviewer` sub-agent, whose model is the
-     `model:` line of its agent file: pass no model at spawn. If it cannot
+     `model:` line of its agent file: pass no model at spawn. When the
+     harness returns from the spawn before the reviewer has finished, wait
+     for its verdict: nothing is reviewed until it arrives. If it cannot
      be spawned (you are yourself a sub-agent, or the harness has none),
      stop and ask the user: there is no fallback to another agent and no
      self-review of a result that needs a fresh context.
