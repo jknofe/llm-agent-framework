@@ -3,8 +3,9 @@
 Read by `/task` after `tasks.py resolve` printed `CREATE <id>`. Plan the
 task; do not work it here.
 
-1. Read `.ai/notes.md` (and any leaf under `.ai/notes/` the task
-   touches) and look at the relevant code, logs, or docs first.
+1. Read `.ai/notes.md` unless it is in context (and any leaf under
+   `.ai/notes/` the task touches) and look at the relevant code, logs,
+   or docs first.
 2. Tracker issue. A task that starts from a tracker ticket (a GitHub
    issue, a Jira key) keeps its key as the id prefix
    (`12345-fix-ci-crash`, `PROJ-123-fix-ci-crash`); `tasks.py resolve`

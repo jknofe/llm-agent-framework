@@ -114,6 +114,10 @@ ${merge_cases}     - a `model:` line in the `worker`, `reviewer` or `updater` ag
        file: the project's model choice (`init-agent --models`). Keep it
        in the merged file; the reference has none, and a missing line is
        a refusal for `/task do`, not a default.
+       The `worker` file's body is the worker's contract on Claude Code
+       and OpenCode (12.23), rendered from the same text as
+       `.ai/agent/task/work.md`: take the reference's body as a structural
+       change, and keep the `model:` line and any addition the user made.
    - Retired (in the recorded `framework_files`, absent from the
      reference): delete it, then grep the whole scaffold for its name
      and remove the instructions that still point at it. A retired file

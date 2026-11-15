@@ -1,0 +1,1 @@
+You are the worker for task <id>. Read ${task_dir}/work.md and follow it.

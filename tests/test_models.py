@@ -237,6 +237,16 @@ def main():
         wfile = root / const.AGENT_FILES[harness]["worker"]
         check(wfile.read_text(encoding="utf-8").count("model:") == 1,
               f"{harness}: exactly one model line after re-init")
+        # The turn limit (section 78) sits in every role file on claude and
+        # opencode, once, and survives `--models` and a re-init.
+        key = {"claude": "maxTurns", "opencode": "steps"}.get(harness)
+        for role, rel in const.AGENT_FILES[harness].items():
+            head = (root / rel).read_text(encoding="utf-8").split("\n---")[0]
+            lines = [ln for ln in head.split("\n")
+                     if ln.startswith(f"{key}:")] if key else []
+            check(not key and "maxTurns" not in head and "steps:" not in head
+                  or lines == [f"{key}: {const.ROLE_TURNS[role]}"],
+                  f"{harness} {role}: one turn limit line, got {lines}")
 
     # A missing agent file is an error, not a silent create.
     root = project()

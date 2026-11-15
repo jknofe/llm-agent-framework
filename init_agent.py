@@ -104,7 +104,7 @@ Usage:
   -y/--yes (overwrite framework files without prompting).
   Any omitted value is prompted for, or uses its default on a non-TTY.
 
-  Two flags exist only to serve the agent's /framework-update skill, which is
+  Three flags exist only to serve the agent's /framework-update skill, which is
   how an existing scaffold moves to a newer framework version:
   --detect                print this directory's scaffold stamp as JSON
                           (harness, framework version, project name and
@@ -112,6 +112,8 @@ Usage:
   --emit-reference DIR    render a pristine scaffold of the current framework
                           into DIR, with no git or host-project side effects,
                           as the comparison target /framework-update diffs against
+  --ensure-agents-import  on a claude scaffold, make sure the project root's
+                          CLAUDE.md imports @AGENTS.md (CONCEPT.md section 81)
 """
 
 import argparse
@@ -210,6 +212,19 @@ def cmd_detect(root: Path) -> int:
     }, indent=2))
     return 0
 
+def cmd_ensure_agents_import(root: Path) -> int:
+    """--ensure-agents-import: on a claude scaffold, make sure CLAUDE.md
+    imports AGENTS.md (CONCEPT.md section 81), and say what was done. The
+    step /framework-update runs instead of judging the case itself."""
+    detected = detect_scaffold(root)
+    harness = (read_stamp(root) or {}).get("harness") or (
+        detected[1] if detected else None)
+    if harness != "claude":
+        print(f"CLAUDE.md: not needed (harness: {harness or 'none found'})")
+        return 0 if harness else 1
+    print("CLAUDE.md: " + ensure_agents_import(root))
+    return 0
+
 def cmd_emit_reference(target: str, args) -> int:
     """--emit-reference DIR: render a pristine scaffold into DIR and stop.
     No git init, no gitignore edits, no commits, no host-project side effects.
@@ -242,6 +257,8 @@ def cmd_init(args=None) -> int:
         return cmd_emit_reference(args.emit_reference, args)
     if args and getattr(args, "bootstrap_update", False):
         return bootstrap_update(root)
+    if args and getattr(args, "ensure_agents_import", False):
+        return cmd_ensure_agents_import(root)
     if args and getattr(args, "models", False):
         from agentgen.models import cmd_models
         return cmd_models(root, args)
@@ -347,6 +364,11 @@ def main() -> int:
                     help="print this directory's scaffold stamp as JSON "
                          "(profile, harness, framework version, framework "
                          "file list) and exit; used by the /framework-update skill")
+    ap.add_argument("--ensure-agents-import", action="store_true",
+                    help="on a claude scaffold, make sure the project root's "
+                         "CLAUDE.md imports @AGENTS.md (created, or the line "
+                         "appended, or left alone), and exit; used by the "
+                         "/framework-update skill")
     ap.add_argument("--emit-reference", metavar="DIR",
                     help="render a pristine scaffold of the current framework "
                          "into DIR (must be empty or absent) and exit, with "

@@ -15,4 +15,12 @@ and it is read on demand.
 Once this file passes ~1-2 screens, become a hub: move topic clusters
 (largest first) into .ai/notes/<topic>.md, each leaving a linked
 one-line pointer here, until the hub is back under ~1 screen. Read the
-hub first, open only the leaves a task needs. -->
+hub first, open only the leaves a task needs.
+A gotcha that concerns one directory or file pattern goes in a leaf that
+starts with a frontmatter of quoted globs (a `---` line, `paths:`, one
+`  - "src/api/**"` line per glob, a `---` line); the hub keeps its
+one-line pointer to it, and never carries a frontmatter itself. After
+writing or changing such a leaf, run
+`python3 .ai/agent/tools/tasks.py notes --link`: where the harness loads a
+leaf only when a matching file is read (Claude Code) it links it for that,
+elsewhere it says there is nothing to do and the leaf is read on demand. -->

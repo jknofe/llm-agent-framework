@@ -15,9 +15,59 @@ themselves.
    python3 tests/test_harness_switch.py
    python3 tests/test_tasks_table.py
    python3 tests/test_git_guard.py
+   python3 tests/test_reviewer_guard.py
+   python3 tests/test_settings.py
+   python3 tests/test_claude_md.py
    python3 tests/test_models.py
+   python3 tests/test_notes.py
+   python3 tests/test_notes_link.py
+   python3 tests/test_session_hook.py
+   python3 tests/test_inject.py
+   python3 tests/test_worker_contract.py
+   python3 tests/test_opencode_config.py
    python3 tests/test_opencode_plugin.py
    ```
+   The reviewer guard test feeds the Claude reviewer's hook allowed and
+   blocked shell commands (bare, behind `rtk`, compound), checks that it
+   fails open on unparsable input, and that the OpenCode reviewer's shell
+   rules name the same list.
+   The settings test scaffolds a claude project and checks that auto memory
+   is off, that a user's own `autoMemoryEnabled` survives `-y`, and that
+   OpenCode and Copilot get no such key.
+   The CLAUDE.md test covers the `@AGENTS.md` import on the claude harness:
+   absent, present without the import, present with it, re-init, the
+   `--ensure-agents-import` flag, and that the file is never a recorded
+   framework file.
+   The notes test runs the notes freshness check of `tasks.py` (section 82)
+   on temp projects: each flag, each deliberate silence, exit codes, the
+   `/task list` line, and odd input (missing, binary, unreadable).
+   The notes-link test (section 89) scaffolds claude and opencode projects:
+   `tasks.py notes --link` creates, retargets and removes the symlinks of
+   path-scoped leaves, is idempotent, leaves a leaf without frontmatter, a
+   frontmatter it cannot trust, and a user's own files and links under
+   `.claude/rules/` alone, adds one gitignore line, runs on init and
+   re-init, does nothing on opencode, does not fail where symlinks cannot be
+   made, and the freshness check flags a dead glob (every glob form), a
+   missing or stale link and an untrusted frontmatter.
+   The session-hook test runs the SessionStart hook script (section 83) as
+   Claude Code does: hub under its header, silence for a stub, no hub or a
+   worker, fail open on a broken or hung tool, the output under the 10,000
+   character cap, and the claude-only wiring in the generated settings.
+   The injection test checks the one `!`...`` command of `/framework-models`
+   (section 84): argument-free, alone on its line, pre-approved on Claude,
+   absent on Copilot, runs in a real scaffold with the roles unset (exit 0
+   with `--exit-zero`) and set, and that `check_templates` rejects a stray
+   or argument-carrying injection.
+   The worker-contract test scaffolds each harness and checks that the
+   Claude Code and OpenCode worker body holds all of `work.md` (section 85)
+   with the model-check guard first, Copilot's is the pointer, the spawn
+   prompt in `do.md` differs accordingly, step 1 reads three files in one
+   turn, and a `model:` line survives a forced re-init once.
+   The OpenCode config test checks `instructions` in the generated
+   `opencode.json` (section 86): the hub by default, a user's entries and
+   their order kept on a forced re-init, the hub added once, a bad value
+   replaced, a user's other keys (`compaction`, a model) kept (section 87),
+   and the update body's merge case.
    The last runs the rendered OpenCode plugin under node against a fake host:
    a guarded command throws the script's reason, a dirty `.ai` gets one
    synthetic message and the next idle passes, a sub-agent is left alone. It

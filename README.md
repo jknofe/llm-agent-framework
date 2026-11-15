@@ -249,10 +249,10 @@ Every harness invokes them the same way, under the same names:
 | `/explore [focus]` | Detects the build/test/lint commands, asks you what the code cannot tell it, writes the answers into the AGENTS.md requirements section and `notes.md`. Optional free-text focus. |
 | `/task create <id> <title...>` | Opt-in. Plans a task you name in `.ai/tasks/<id>/task.md`: type (`change`, `bug`, `investigation`, `test`), goal, done-when criteria for that type (any code change includes its covering tests and lint green), steps or hypotheses. Asks first whether a tracker issue exists; its content feeds the plan and its key prefixes the task id. A change, bug or test stops there; an investigation runs straight on into `do`. |
 | `/task do [<id>] [inline\|herdr]` | Opt-in. A `worker` sub-agent works the steps under the session's supervision (`herdr`: in a Herdr tab instead); a small task (at most one step that edits a file) and `inline` are worked by the session itself. Works that plan, records findings with evidence as they happen, re-plans in the file when a result invalidates it, then one review of the result (diff, outcome, or both) against the done-when criteria, every cited file and line checked. Distills durable findings into `notes.md`. Without an id: the task `.ai/.current` points at. |
-| `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
+| `/task list` | Read-only. Every live task as one table (archived ones are only counted): type, status, steps and criteria checked, last update, the one `.ai/.current` points at, flags for stale, blocked, half-done and unreviewed tasks, and for stale notes. The output of `.ai/agent/tools/tasks.py`, shown as printed; run the script directly to skip the model. |
 | `/task tree` | Read-only. The same live tasks as an ASCII dependency tree under the project name, built from the optional `depends:` frontmatter line (`tasks.py tree`): tasks that block others stand on the first level, what waits on them nests below, each task appears once at its shallowest position, and tasks with no dependency ties stand on the first level too, after the tasks that block others. Unknown ids and cycles are flagged below the tree. |
 | `/task <id> [title...]` | `.ai/agent/tools/tasks.py resolve <id>` decides: an existing, unfinished task is worked, a new id is created, a done or archived one is reported, a similar existing id is asked about. |
-| `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed. |
+| `/framework-models [worker=<model>] [reviewer=<model>]` | Read-only. Shows the models of `/task do`'s `worker` and `reviewer` and prints the command that sets them, written for your harness, with the names you pass filled in. The output of `tasks.py models`, shown as printed; on Claude Code and OpenCode the harness runs the script before the model sees the command, so it answers without a tool call. |
 | `/framework-update [dry-run] [inline\|herdr]` | Moves the scaffold to the current framework version: merges the framework files, retires what the framework dropped, migrates hand-filled content into the new shape. Never re-explores. Hands the merge to the `updater` sub-agent when it has a model (a Herdr tab with `herdr`), then checks the result; `inline` keeps it in the session. |
 
 Every skill body is self-contained; there is no phase-doc layer to follow.
@@ -281,16 +281,33 @@ a harness, not a requirement of your project.
 
 The canonical, vendor-neutral instructions file is `AGENTS.md` (protocol,
 right-sizing rule, change layout, generated project-requirements
-section). Every harness reads it natively; no `CLAUDE.md` is written.
-Claude Code reads `AGENTS.md` since 2.1.277, but only when no `CLAUDE.md`
-or `CLAUDE.local.md` exists in the project directory or any directory
-above it (a personal `~/.claude/CLAUDE.md` does not count). If you keep a
-`CLAUDE.md` in a parent folder, or run Claude Code through Amazon Bedrock
-or with telemetry disabled, add a `CLAUDE.md` containing `@AGENTS.md`
-yourself, or set the Claude Code project-instructions option to
-`claude-md-and-agents-md` in `~/.claude/settings.json`. Scaffolds from 7.0
-and earlier carry the pointer; `/framework-update` retires it where it is
-safe to.
+section). Copilot and OpenCode read it natively. Claude Code reads
+`AGENTS.md` since 2.1.277, but only when no `CLAUDE.md` or
+`CLAUDE.local.md` exists in the project directory or any directory above it
+(a personal `~/.claude/CLAUDE.md` does not count), and before 2.1.281 not
+at all through Amazon Bedrock or with telemetry disabled. So on the
+claude harness `init-agent` makes sure the project root has a `CLAUDE.md`
+containing `@AGENTS.md`: none there, it writes that one line; one there
+without the import, it appends the line and leaves the rest; one there with
+it, nothing changes. `/framework-update` does the same through
+`init-agent --ensure-agents-import`. The file is yours, not framework
+output: it is not in the recorded file list and no update or harness switch
+deletes it, so add your Claude-specific notes below the import. Claude Code
+loads `AGENTS.md` once either way. Scaffolds from 7.0 and earlier carried the
+same pointer; 7.1 to 12.18 wrote none.
+
+## One memory on Claude Code
+
+Claude Code keeps a second memory of its own, auto memory, whose
+`MEMORY.md` it loads every session beside `.ai/notes.md`. A durable fact can
+land in either, so the generated `.claude/settings.json` sets
+`"autoMemoryEnabled": false` for the project: this turns a Claude Code
+feature off in your project, and `.ai/notes.md` is the one memory. To turn
+it back on, put `"autoMemoryEnabled": true` in `.claude/settings.local.json`
+(it overrides the shared file and stays out of git), or change the line in
+`.claude/settings.json`: a re-init with `-y` and `/framework-update` keep a
+value you set there. OpenCode and Copilot have no second memory, so nothing
+changes on them.
 
 ## Deterministic tools and hooks
 
@@ -303,6 +320,44 @@ obedience:
   questions; your answers override it. It deliberately prints no module map
   or LOC table: that is a repository overview, and an overview does not help
   an agent find anything.
+- `tasks.py notes` checks the notes for staleness without a model: the hub
+  `.ai/notes.md` over 100 lines or 8,000 bytes, a backticked repository path
+  in a note that no longer exists, a hub link to a leaf that is missing, a
+  leaf no hub line links. One short line per finding; nothing and exit 0 when
+  clean, exit 1 otherwise. It is deliberately quiet: only plain relative
+  file paths are checked, and a line that says a path was removed or is
+  planned is skipped. The same lines close the `/task list` output when
+  there are any.
+- **Path-scoped leaves (Claude Code).** A leaf `.ai/notes/<topic>.md` about
+  one directory or file pattern may start with a frontmatter
+  (`---`, `paths:`, one `  - "src/api/**"` line per quoted glob, `---`),
+  with its one-line pointer in the hub as always. Claude Code then loads the
+  leaf when a matching file is read or edited, in the main session and in
+  sub-agents, instead of the agent having to think to open it.
+  `python3 .ai/agent/tools/tasks.py notes --link` makes that happen: one
+  relative symlink `.claude/rules/ai-notes-<topic>.md` per such leaf, into
+  `.ai/notes/`. The links are gitignored in the host repository (one line,
+  `.claude/rules/ai-notes-*.md`), so nothing from `.ai/` becomes tracked.
+  The step touches only symlinks with that prefix pointing into
+  `.ai/notes/`, never your own rule files, and runs on init, a re-init,
+  `/framework-update` and when the agent changes a leaf. Where symlinks
+  cannot be made it says so in one line and goes on. The check flags a glob
+  that matches no file and a link that is missing or stale. On OpenCode and
+  Copilot the frontmatter is inert and the leaf is read on demand, as
+  before. The frontmatter must be exactly that shape; anything else is not
+  linked and is flagged, because Claude Code loads a rule whose frontmatter
+  it cannot parse at every session start.
+- `notes_session.py` (Claude Code, session start) puts the notes hub
+  `.ai/notes.md` into the session's context, on start, resume, clear and
+  after a compaction, so the agent neither spends a turn reading it nor
+  skips it. Capped at 100 lines or 8,000 bytes, with the freshness flags
+  above (at most three lines) under it; nothing for a missing or untouched
+  hub. The leaves are still read on demand. This adds up to about 2,000
+  tokens to every session (CONCEPT.md Part I, Property 4). On OpenCode the
+  generated `.opencode/opencode.json` lists `.ai/notes.md` under
+  `instructions`, which loads it whole, with no cap and no flags; your own
+  entries there survive a re-init and an update, as does any other key you
+  add to that file (`compaction`, a model). Copilot reads the hub itself.
 - `ai_repo_clean.py` (turn end) blocks ending a turn while the `.ai` repo
   has uncommitted changes, so notes and task files are not silently dropped. Not
   absolute: every harness overrides a turn-end block after a few consecutive
@@ -328,7 +383,12 @@ stdout; only where they live and how they are registered differs:
 
 - `reviewer` and `worker` are the two sub-agents of `/task do`: the
   fresh-context adversarial reviewer of its review gate, and the worker that
-  does the steps. Their agent files are `.claude/agents/{reviewer,worker}.md`,
+  does the steps. The roles are enforced by the harness where it can: the
+  Claude Code worker may not spawn agents (`disallowedTools: Agent`), the
+  Claude Code reviewer's own `reviewer_guard.py` hook blocks any shell
+  command outside `git diff|show|log|status`, `grep`, `rg`, `cat`, `ls`, `head`, `tail`, `wc`,
+  `gh pr view|diff|checks` and `gh run view`, and the OpenCode reviewer
+  carries the same list as `shell` rules. Their agent files are `.claude/agents/{reviewer,worker}.md`,
   `.opencode/agents/{reviewer,worker}.md` and
   `.github/agents/{reviewer,worker}.agent.md`.
 
@@ -354,7 +414,11 @@ whole job; the session you talk to is its lead and stands in for you.
   names (see [Sub-agent models](#sub-agent-models)). A small
   task, where at most one step edits a file, gets no worker: the
   session works it itself and says why. It starts fresh and knows only `notes.md`, the task file and
-  `.ai/agent/task/work.md`. It does every step the task names: the code,
+  its contract, which points it to the working steps in
+  `.ai/agent/task/steps.md`: the contract is the body of its agent file on
+  Claude Code and OpenCode (so it starts without a read turn), and
+  `.ai/agent/task/work.md` on Copilot, which stays on every harness for a
+  continued worker to re-read. It does every step the task names: the code,
   the tests, and after them the branch, commit, push, pull request,
   waiting for CI, dev runs, a tracker comment. Before code ships it asks
   for a review. It reports with a `Worker round <n>` line in Findings:
@@ -453,11 +517,23 @@ Claude Code's slash commands:
 - commands: `.opencode/commands/*.md`, invoked the same way (`/explore`,
   `/task do FEAT-42`, `/framework-update dry-run`)
 - reviewer: `.opencode/agents/reviewer.md`, a sub-agent that cannot edit
+  and whose shell is limited to read-only commands
 - permissions: `.opencode/opencode.json`, the same read-only list as `shell`
   rules. OpenCode allows by default, so these matter if your global config
   asks about shell commands
 - hooks: the two scripts in `.opencode/hooks/`, run by
   `.opencode/plugins/llm-agent.js` (needs `python3`)
+
+Long sessions: OpenCode compacts the conversation automatically, and its
+config has a `compaction` block for it (`auto`, `keep.tokens`, `buffer`, the
+share of the context window kept free before compaction starts; see
+https://opencode.ai/docs/config/). The framework leaves the harness default:
+no measurement shows it hurting, so any value written here would be a guess.
+Consider changing it in `.opencode/opencode.json` when a long `/task do`
+supervising session visibly loses what it should remember after a
+compaction (a larger `keep.tokens`) or compacts too late for the model's
+window (a larger `buffer`); the block survives a re-init and an update.
+Claude Code's own settings differ and are not touched.
 
 Two differences from Claude Code: OpenCode has no per-command `effort`, and a
 sub-agent cannot be given a model when it is spawned, so both sub-agents take
@@ -486,6 +562,11 @@ inheriting the session's model.
   session: it read the agent files when it started. Names are written as
   your harness or provider uses them, so a model served through a proxy
   (`gpt-6.1-sol`) works; `inherit` is not a model.
+- **Turn limits:** each sub-agent file carries a limit against tool-call
+  loops, `maxTurns` on Claude Code and `steps` on OpenCode: worker 200,
+  reviewer 50, updater 100. They are tripwires, not budgets; edit the
+  number in the agent file if a run legitimately needs more (a re-init
+  resets it). Copilot's agent files have none.
 - **OpenCode names** are written as `opencode models` prints them,
   `<provider>/<model>`, optionally with a variant: `claude-agent/sonnet#medium`.
   Without one the sub-agent runs on the model's default variant, not the

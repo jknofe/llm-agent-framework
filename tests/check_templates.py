@@ -60,11 +60,16 @@ def rendered_artifacts():
             out.append((f"{harness} skill:{name} desc", desc))
         out.append((f"{harness} AGENTS.md",
                     content.render_agents_md("p", "d", harness)))
-    for part in ("create", "do", "work"):
+    for part in ("create", "do", "work", "steps"):
         for harness in HARNESSES:
             out.append((f"{harness} task part:{part}",
                         content.render_task_part(part, harness)))
     out.append(("reviewer", content.render_reviewer_agent()))
+    for harness in HARNESSES:
+        out.append((f"{harness} worker",
+                    content.render_worker_agent(harness)))
+    out.append(("opencode worker", content.render_opencode_worker()))
+    out.append(("copilot worker", content.render_copilot_agent("worker")))
     for harness in HARNESSES:
         out.append((f"{harness} updater",
                     content.render_updater_agent(harness)))
@@ -77,6 +82,7 @@ def rendered_artifacts():
     out.append(("opencode plugin", content.render_opencode_plugin()))
     for fn in ("render_tool_probe", "render_tool_tasks",
                "render_hook_ai_repo_clean", "render_hook_git_guard",
+               "render_hook_reviewer_guard", "render_hook_notes_session",
                "render_notes_stub"):
         out.append((fn, getattr(content, fn)()))
     return out
@@ -140,16 +146,53 @@ def check_json():
             fail("json", f"{label} invalid: {e}")
 
 
-def check_opencode_syntax():
-    """An OpenCode command template runs !`...` in a shell before the prompt
-    is sent, outside the permission flow, and replaces $1, $2 with arguments.
-    Prose that merely quotes such text would do both silently."""
-    specs = content.command_specs("opencode", "$ARGUMENTS", "$ARGUMENTS")
-    for fname, text in content.render_opencode_commands(specs).items():
-        if "!`" in text or re.search(r"\$\d", text):
-            fail("opencode", f"{fname}: !`...` or $N would be expanded")
-        if "$ARGUMENTS" not in text:
-            fail("opencode", f"{fname}: no $ARGUMENTS, arguments get appended")
+# The one command a skill may run before the model sees it (CONCEPT.md
+# section 84): Claude Code and OpenCode run `!`...`` in a shell as the
+# command is rendered, outside the model's control, and abort or expand
+# arguments in ways prose that merely quotes the syntax would trigger.
+ALLOWED_INJECTIONS = {"claude": {"python3 .ai/agent/tools/tasks.py models "
+                                 "--list --exit-zero"},
+                      "opencode": {"python3 .ai/agent/tools/tasks.py models "
+                                   "--list --exit-zero"},
+                      "copilot": set()}
+INJECT_RE = re.compile(r"(?:^|(?<=\s))!`([^`\n]*)`")
+
+
+def check_injection_syntax():
+    """Every `!`...`` in a rendered command is a known, argument-free
+    injection; a stray one would run in a shell, and a command with `$`
+    in it could carry the user's arguments into the shell. Also: an
+    OpenCode command expands $1, $2 and needs $ARGUMENTS, and a Claude
+    skill with an injection pre-approves its script in `allowed-tools`."""
+    for harness in HARNESSES:
+        specs = content.command_specs(harness, "$ARGUMENTS", "$ARGUMENTS")
+        if harness == "claude":
+            files = content.render_skills(specs)
+        elif harness == "opencode":
+            files = content.render_opencode_commands(specs)
+        else:
+            files = content.render_prompt_files(specs)
+        for fname, text in files.items():
+            found = INJECT_RE.findall(text)
+            if text.count("!`") != len(found) or "```!" in text:
+                fail("injection", f"{harness} {fname}: a !`...` or ```! "
+                                  "that is not a plain inline injection")
+            for command in found:
+                if command not in ALLOWED_INJECTIONS[harness]:
+                    fail("injection", f"{harness} {fname}: runs "
+                                      f"{command!r}, not an allowed command")
+                if "$" in command:
+                    fail("injection", f"{harness} {fname}: {command!r} could "
+                                      "carry arguments into the shell")
+            if found and harness == "claude" and "allowed-tools: Bash(" \
+                    not in text:
+                fail("injection", f"{fname}: injects without allowed-tools")
+            if harness == "opencode":
+                if re.search(r"\$\d", text):
+                    fail("opencode", f"{fname}: $N would be expanded")
+                if "$ARGUMENTS" not in text:
+                    fail("opencode", f"{fname}: no $ARGUMENTS, arguments "
+                                     "get appended")
 
 
 def check_register():
@@ -242,11 +285,45 @@ def check_budget():
                                "into /task in 9.0")
 
 
+def check_worker_files():
+    """CONCEPT section 77: the worker reads work.md and steps.md only, so
+    neither names do.md, the supervisor's part."""
+    for harness in HARNESSES:
+        for part in ("work", "steps"):
+            if "do.md" in content.render_task_part(part, harness):
+                fail("worker", f"{harness} {part}.md names do.md")
+
+
+def check_worker_contract():
+    """CONCEPT section 85: on Claude Code and OpenCode the worker's agent
+    body is the contract itself, rendered from the one template that also
+    writes work.md; Copilot's body points at the file instead. A prompt that
+    still says to read work.md first would spend the turn the change saved."""
+    for harness, agent in (("claude", content.render_worker_agent("claude")),
+                           ("opencode", content.render_opencode_worker())):
+        contract = content.render_task_part("work", harness).strip()
+        if contract not in agent:
+            fail("worker", f"{harness} worker body lacks the work.md contract")
+        do = content.render_task_part("do", harness)
+        if "work.md and follow it" in do:
+            fail("worker", f"{harness} do.md still sends the worker to read "
+                           "work.md at start")
+        if "init-agent's model check" not in agent:
+            fail("worker", f"{harness} worker lost the model-check guard")
+    pointer = content.render_copilot_agent("worker")
+    if ".ai/agent/task/work.md" not in pointer or \
+            "Work (the worker's body)" in pointer:
+        fail("worker", "copilot worker body is not the pointer")
+    if "work.md and follow it" not in content.render_task_part("do",
+                                                               "copilot"):
+        fail("worker", "copilot do.md does not send its worker to work.md")
+
+
 def main():
     for check in (check_orphans, check_slots, check_unfilled, check_python,
-                  check_json, check_opencode_syntax, check_register, check_names,
+                  check_json, check_injection_syntax, check_register, check_names,
                   check_reference,
-                  check_budget):
+                  check_budget, check_worker_files, check_worker_contract):
         check()
     if failures:
         print(f"FAIL ({len(failures)})")
@@ -254,7 +331,7 @@ def main():
             print("  " + f)
         return 1
     print(f"ok: {len(all_templates())} templates, "
-          f"{len(rendered_artifacts())} rendered artifacts, 10 checks passed")
+          f"{len(rendered_artifacts())} rendered artifacts, 11 checks passed")
     return 0
 
 

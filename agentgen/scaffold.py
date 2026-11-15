@@ -7,6 +7,7 @@ section so /explore output survives a regeneration.
 """
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,98 @@ def write(path: Path, content: str, force: bool, created: list, skipped: list):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     created.append(path)
+
+def write_settings(path: Path, content: str, force: bool, created: list,
+                   skipped: list):
+    """`.claude/settings.json`: framework-owned like any other file, except
+    the `autoMemoryEnabled` value a user already set, which survives a
+    regeneration (CONCEPT.md section 80). An unreadable file is replaced as
+    before."""
+    kept = None
+    if path.is_file():
+        try:
+            kept = json.loads(path.read_text(encoding="utf-8")).get(
+                "autoMemoryEnabled")
+        except (ValueError, AttributeError):
+            kept = None
+    if isinstance(kept, bool):
+        data = json.loads(content)
+        data["autoMemoryEnabled"] = kept
+        content = json.dumps(data, indent=2) + "\n"
+    write(path, content, force, created, skipped)
+
+def write_opencode_config(path: Path, content: str, force: bool,
+                          created: list, skipped: list):
+    """`.opencode/opencode.json`: framework-owned like any other file, except
+    what a user already has in it. The entries of `instructions` survive a
+    regeneration in their order, with the notes hub added once when missing
+    (CONCEPT.md section 86); a value that is not a list of strings is
+    replaced. Every top-level key the framework does not generate
+    (`compaction`, a model, MCP servers) is carried over as it is (section
+    88); `permissions` is regenerated. An unreadable file is replaced."""
+    old = {}
+    if path.is_file():
+        try:
+            old = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            old = {}
+        if not isinstance(old, dict):
+            old = {}
+    kept = old.get("instructions")
+    data = json.loads(content)
+    if isinstance(kept, list) and all(isinstance(e, str) for e in kept):
+        data["instructions"] = kept + ([NOTES_INSTRUCTION]
+                                       if NOTES_INSTRUCTION not in kept
+                                       else [])
+    for key, value in old.items():
+        if key not in data:
+            data[key] = value
+    write(path, json.dumps(data, indent=2) + "\n", force, created, skipped)
+
+def has_agents_import(text: str) -> bool:
+    """Does this CLAUDE.md import AGENTS.md? Claude Code skips fenced code
+    blocks and code spans when it parses imports, so a mention in either is
+    not one."""
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith(("```", "~~~")):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        line = re.sub(r"`[^`]*`", "", line)
+        if re.search(r"(?<![\w/.@])" + re.escape(AGENTS_IMPORT) + r"(?![\w.])",
+                     line):
+            return True
+    return False
+
+def ensure_agents_import(root: Path) -> str:
+    """Claude harness only (CONCEPT.md section 81): make sure the project
+    root's CLAUDE.md imports AGENTS.md, so Claude Code loads it also where
+    it would not read AGENTS.md itself (a CLAUDE.md in a parent directory).
+    None there: write the one line. One there without the import: append the
+    line and leave the rest. One there with it, a symlink to AGENTS.md, or
+    a `.claude/CLAUDE.md` that imports it: nothing. Returns `created`,
+    `appended` or `unchanged`. The file is the user's once it holds more than
+    the line, so it is never recorded as a framework file and never
+    retired."""
+    target = root / "CLAUDE.md"
+    agents = root / "AGENTS.md"
+    if target.exists():
+        if agents.exists() and target.resolve() == agents.resolve():
+            return "unchanged"
+        text = target.read_text(encoding="utf-8")
+        if has_agents_import(text):
+            return "unchanged"
+        sep = "" if not text or text.endswith("\n") else "\n"
+        target.write_text(text + sep + AGENTS_IMPORT + "\n", encoding="utf-8")
+        return "appended"
+    inner = root / ".claude" / "CLAUDE.md"
+    if inner.is_file() and has_agents_import(
+            inner.read_text(encoding="utf-8")):
+        return "unchanged"
+    target.write_text(AGENTS_IMPORT + "\n", encoding="utf-8")
+    return "created"
 
 def write_agent(path: Path, content: str, force: bool, created: list,
                 skipped: list):
@@ -156,6 +249,27 @@ def ensure_ai_gitignore(root: Path):
     content = (content + "\n" if content else "") + "\n".join(add) + "\n"
     gi.write_text(content, encoding="utf-8")
     print(f"updated  .ai/.gitignore (+ {', '.join(add)})")
+
+def link_notes(root: Path):
+    """Claude harness only (CONCEPT.md section 89): keep the symlinks of the
+    path-scoped notes leaves under `.claude/rules/` in step with the leaves,
+    by the project's own `tasks.py notes --link`, which is the one
+    implementation. It must never fail a scaffold: whatever goes wrong is one
+    line."""
+    tool = root / TOOLS_DIR / "tasks.py"
+    if not tool.is_file():
+        return
+    try:
+        res = subprocess.run([sys.executable, str(tool), "notes", "--link",
+                              "--quiet"], cwd=root, capture_output=True,
+                             text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"notes --link: skipped ({type(e).__name__})")
+        return
+    for line in res.stdout.splitlines():
+        print(line)
+    if res.returncode != 0:
+        print("notes --link: failed, skipped")
 
 def ai_commit(root: Path, message: str):
     """Track .ai/ in its own repo; commit pending changes with message."""
@@ -442,7 +556,7 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
           force, created, skipped)
     # /task's Create and Do bodies, read on demand by the /task skill, and
     # the Work body its worker reads.
-    for part in ("create", "do", "work"):
+    for part in ("create", "do", "work", "steps"):
         write(root / TASK_DIR / f"{part}.md",
               render_task_part(part, harness), force, created, skipped)
 
@@ -461,15 +575,27 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
         write_agent(root / ".claude" / "agents" / "reviewer.md",
               render_reviewer_agent(), force, created, skipped)
         write_agent(root / ".claude" / "agents" / "worker.md",
-              render_worker_agent(), force, created, skipped)
+              render_worker_agent("claude"), force, created, skipped)
         write_agent(root / ".claude" / "agents" / "updater.md",
               render_updater_agent("claude"), force, created, skipped)
         write(root / ".claude" / "hooks" / "ai_repo_clean.py",
               render_hook_ai_repo_clean(), force, created, skipped)
         write(root / ".claude" / "hooks" / "git_guard.py",
               render_hook_git_guard(), force, created, skipped)
-        write(root / ".claude" / "settings.json",
-              render_settings_json(), force, created, skipped)
+        write(root / ".claude" / "hooks" / "notes_session.py",
+              render_hook_notes_session(), force, created, skipped)
+        write(root / ".claude" / "hooks" / "reviewer_guard.py",
+              render_hook_reviewer_guard(), force, created, skipped)
+        write_settings(root / ".claude" / "settings.json",
+                       render_settings_json(), force, created, skipped)
+        # Not `write()`: the file is not recorded as framework output, so a
+        # retire or a harness switch never deletes it (section 81). The
+        # reference scaffold of an update has none: the update runs
+        # `init_agent.py --ensure-agents-import` on the project instead.
+        if not reference:
+            how = ensure_agents_import(root)
+            if how != "unchanged":
+                created.append(root / "CLAUDE.md")
     elif harness == "opencode":
         opencode = root / OPENCODE_DIR
         for fname, content in render_opencode_commands(
@@ -488,8 +614,9 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
               render_hook_ai_repo_clean(), force, created, skipped)
         write(opencode / "hooks" / "git_guard.py",
               render_hook_git_guard(), force, created, skipped)
-        write(opencode / "opencode.json",
-              render_opencode_config(), force, created, skipped)
+        write_opencode_config(opencode / "opencode.json",
+                              render_opencode_config(), force, created,
+                              skipped)
     else:
         for fname, content in render_prompt_files(
                 command_specs(harness, "${input:focus}", "${input:ticket}")).items():
@@ -522,6 +649,8 @@ def scaffold(root: Path, name: str, desc: str, harness: str,
 
     ensure_gitignore(root)
     ensure_ai_gitignore(root)
+    if harness == "claude":
+        link_notes(root)
     if switch_from:
         commit_message = commit_message or (
             f"init: switch harness {switch_from.get('harness')} -> {harness}")

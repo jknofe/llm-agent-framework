@@ -318,8 +318,9 @@ Pass when all hold:
 - One fresh `worker` sub-agent (not a fork) runs on a cheaper model than
   the session's: the model its agent file pins, with no model passed at
   spawn, or else one picked at spawn (claude: `"model":"haiku"` or
-  `"sonnet"`), its whole prompt naming the task and
-  `.ai/agent/task/work.md`. No `delegate.py` and no `herdr` call.
+  `"sonnet"`), its whole prompt naming the task (on Copilot also
+  `.ai/agent/task/work.md`; on Claude Code and OpenCode the contract is the
+  agent file's body, 12.23, so the transcript shows no first read of it). No `delegate.py` and no `herdr` call.
 - The worker reports `review` before any host commit: the `.ai` log has
   `worker round 1` before the host branch has a commit. The supervisor's
   review leaves a `Review:` line and a `Supervisor check: round 1
@@ -391,7 +392,7 @@ Pass when all hold:
 - (e, 12.11) Redirect the design while a review of it runs: no new review
   of the old design starts, its findings are not carried over, a `Dropped:`
   line records it; and after the next report the continued worker re-reads
-  `work.md` (visible in its transcript).
+  `work.md` and `steps.md` (visible in its transcript, in one turn).
 - Findings lines are short: `python3 .ai/agent/tools/tasks.py` flags no
   line over 300 characters for the task (12.7), long evidence sits in
   `.ai/tasks/<id>/evidence.md`, and there are no "no merge / no push"

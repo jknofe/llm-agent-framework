@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "12.14"
+FRAMEWORK_VERSION = "12.26"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 
@@ -18,6 +18,14 @@ TOOLS_DIR = ".ai/agent/tools"
 # (CONCEPT.md section 42): one harness-neutral copy beside the tools, so
 # `/task list` loads only the dispatcher.
 TASK_DIR = ".ai/agent/task"
+
+# The `instructions` entry that puts the notes hub in every OpenCode session
+# (CONCEPT.md section 86), relative to the project root.
+NOTES_INSTRUCTION = ".ai/notes.md"
+
+# The one line a Claude Code project's CLAUDE.md must hold for AGENTS.md to
+# load in every case (CONCEPT.md section 81).
+AGENTS_IMPORT = "@AGENTS.md"
 
 GEN_BEGIN = ("<!-- BEGIN GENERATED:project-context "
              "(source: /explore, requirements only, max 300 tokens) -->")
@@ -42,6 +50,11 @@ SKILLS = ["explore", "task", "framework-models", "framework-update"]
 # equivalent is documented for copilot.
 SKILL_EFFORT = {"explore": "medium", "task": "medium",
                 "framework-models": "low", "framework-update": "high"}
+
+# Claude Code `allowed-tools` per skill: the script a skill's injected command
+# runs, pre-approved for the turn (CONCEPT.md section 84), so a project whose
+# permission list lacks it does not abort the invocation.
+SKILL_ALLOWED_TOOLS = {"framework-models": "tasks.py"}
 
 # The harnesses this generator renders. Hermes was the third until 10.0
 # (CONCEPT.md section 43); a scaffold still stamped `hermes` is recognized
@@ -85,6 +98,15 @@ HARNESS_ENTRY_PATHS = {
 # updater without a model only means the update runs inline.
 ROLES = ("worker", "reviewer", "updater")
 TASK_ROLES = ("worker", "reviewer")
+# Turn limit of each role: `maxTurns` on Claude Code, `steps` on OpenCode
+# (CONCEPT.md section 78). A tripwire against a tool-call loop, not a budget.
+# The shell the reviewer may use, all of it read-only (CONCEPT.md section 79).
+# OpenCode's reviewer rules are written from this list; the Claude hook
+# templates/hooks/reviewer_guard.py carries a copy and a test keeps them equal.
+REVIEWER_SHELL = ["git diff", "git show", "git log", "git status", "grep",
+                  "rg", "cat", "ls", "head", "tail", "wc", "gh pr view",
+                  "gh pr diff", "gh pr checks", "gh run view"]
+ROLE_TURNS = {"worker": 200, "reviewer": 50, "updater": 100}
 AGENT_FILES = {
     "claude": {"worker": ".claude/agents/worker.md",
                "reviewer": ".claude/agents/reviewer.md",
