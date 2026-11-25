@@ -6,7 +6,11 @@ source for structure. Normative text plain imperative, notes telegraphic;
 identifiers, paths, and commands verbatim.
 
 ## Right-sizing
-Do the task directly: read what you need, do it, check it per rule 2. Most
+Do the task directly: read what you need, do it, check it per rule 2.
+Make the smallest complete change: reuse what the code, the standard
+library or an installed dependency already has; add no option, abstraction
+or dependency nobody asked for; finish every caller the change breaks and
+the tests rule 2 asks for. Most
 direct tasks add nothing to `.ai/notes.md`; append only what the repository
 cannot state, then commit `.ai`. `/task` is opt-in: never start one
 yourself.

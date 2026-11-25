@@ -141,7 +141,9 @@ file list retires nothing and prints what to remove by hand.
    into `AGENTS.md`. Your answers are the part that measured positive, so
    letting it run unattended gets you most of the cost and little of the
    benefit.
-2. **Work**: ask for what you want. The agent reads what it needs, does it,
+2. **Work**: ask for what you want. The agent reads what it needs, does it
+   as the smallest complete change (reuse before new code, no extras nobody
+   asked for),
    runs the tests that cover what it changed and lint on those files, notes
    anything durable in `.ai/notes.md` and commits `.ai`. This is the default
    path for every task.

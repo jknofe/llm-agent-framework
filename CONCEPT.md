@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-15, v14.1.** The framework rests on four premises, stated in
+**State: 2026-11-25, v14.2.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -265,8 +265,12 @@ Rules that came from failures, not from theory:
   a clean checkout and the test has been read. Later sessions act on notes;
   a wrong note is carried as faithfully as a right one.
 - Neither command ever starts on its own. The default path is direct: read,
-  do the task, run the covering tests if code changed, note what is durable,
-  commit `.ai`.
+  do the task as the smallest complete change (reuse what the code, the
+  standard library or an installed dependency has; no option, abstraction
+  or dependency nobody asked for; every caller the change breaks fixed and
+  the tests rule 2 asks for written),
+  run the covering tests if code changed, note what is durable, commit
+  `.ai` (section 97).
 
 `status:` in the task frontmatter (`planned|in-progress|blocked|done`) is the
 index across parallel task directories. `.ai/.current` is the resume
@@ -344,10 +348,11 @@ default, a Herdr tab only when asked.
 
 ## Property 4: bounded own footprint
 
-- `AGENTS.md` before the generated section: 572 words on claude, 570 on
-  opencode, 688 on copilot, where the balance is that harness's own CLI note.
-  `check_templates` fails above 700 (650 until 12.10, raised for the test
-  rule of section 72, which saves more tokens than it costs). The number is
+- `AGENTS.md` before the generated section: 612 words on claude, 610 on
+  opencode, 728 on copilot, where the balance is that harness's own CLI note.
+  `check_templates` fails above 730 (650 until 12.10, raised for the test
+  rule of section 72, which saves more tokens than it costs; 700 until 14.2,
+  raised for the smallest-change rule of section 97). The number is
   a tripwire against
   drift back toward a digest, not a target: a rule stated clearly beats
   one squeezed to fit.
@@ -596,6 +601,12 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v14.2 (2026-11-25, the smallest complete change on the direct path, section
+97. AGENTS.md's Right-sizing paragraph takes the one-line essence of the
+ponytail skill, with its tests clause; the AGENTS.md tripwire moves from 700
+to 730 words. Live A/B against 14.1 on Haiku 5.5: no loss, no measurable
+size gain. The i-have-adhd skill was evaluated and left out.)
 
 v14.1 (2026-11-15, a sub-agent that runs in the background, section 96.
 OpenCode 2.3.0 returns from a spawn before the sub-agent has finished. The
@@ -6869,6 +6880,19 @@ truncated; what rested on them was verified live.
 - Multi-agent pipeline postmortem:
   https://dev.to/dibi8/multi-agent-pipeline-postmortem-5-ways-subagent-orchestration-goes-wrong-2026-i0e
 
+Coding-agent skills evaluated later (2026-11-25, section 97). Read them again
+with the rest; a new version or benchmark of either reopens section 97.
+
+- ponytail, "the laziest senior dev in the room" (adopted as one AGENTS.md
+  line): https://github.com/DietrichGebert/ponytail, its SKILL.md
+  https://github.com/DietrichGebert/ponytail/blob/main/skills/ponytail/SKILL.md
+- The critique that a plain YAGNI line nearly matches ponytail's benchmark:
+  https://dev.to/yashddesai/ponytail-the-ai-coding-skill-taking-github-by-storm-and-the-one-question-nobodys-answered-yet-46mc
+- i-have-adhd, ADHD-friendly output (evaluated, left out):
+  https://github.com/ayghri/i-have-adhd, its SKILL.md
+  https://github.com/ayghri/i-have-adhd/blob/main/skills/i-have-adhd/SKILL.md;
+  the decision-budget variant https://github.com/alexh/i-really-have-adhd
+
 **Repeating the review.**
 
 1. Scaffold the current version per harness into a temp directory and
@@ -6950,3 +6974,98 @@ harness benchmark):
 
 **Not covered.** The updater as a background sub-agent. A user typing into
 the session while the worker runs. Copilot.
+
+## 97. The smallest complete change, and two skills evaluated (2026-11-25, v14.2)
+
+**Source.** The owner asked how two popular coding-agent skills would affect
+the framework's speed, quality and token cost: ponytail
+(DietrichGebert/ponytail, 592 words) and i-have-adhd (ayghri/i-have-adhd,
+1,242 words). Both SKILL.md files were read as published on 2026-11-25 and
+compared with the 14.1 templates. Their sources are listed with section 95's,
+so a later review reads them again.
+
+**ponytail.** A ladder before any new code: not needed at all, already in
+the codebase, standard library or platform, an installed dependency, one
+line, then the minimum that works; never cut trust-boundary validation,
+data-loss handling, security or accessibility; finish every caller the
+change breaks. Its README reports, on Haiku 4.5 with twelve tickets and four
+runs each, 54% fewer lines, 22% fewer tokens, 20% lower cost and 27% less
+time than no skill. A published critique found that one plain line ("Follow
+YAGNI principles, and prefer one-liner solutions") nearly matched that
+benchmark: most of the effect is the instruction, not the 592 words.
+
+- Already in the framework, on the `/task` path only: the smallest way that
+  meets the steps (`work.md`, section 66), the smallest option
+  (`supervise.md`), the sibling to copy (`create.md`, section 73). The
+  direct path, which carries most tasks, had no such rule.
+- Not taken: its closing lines on what was skipped (the run already ends
+  with Blocked on me, Changed, Found), `shortcut:` comments in the code
+  (durable knowledge goes to `.ai/notes.md`), an assert-based self-check in
+  place of a test that stays in the suite (section 72), and the "ultra"
+  level that questions the request (an answered question stays settled).
+- Seen in this framework's own benchmark (section 75): GPT-6 Luna added a
+  `TypeError` for non-string input nobody asked for, the kind of extra the
+  ladder removes.
+
+**Change.** AGENTS.md's Right-sizing paragraph, after "check it per rule
+2": "Make the smallest complete change: reuse what the code, the standard
+library or an installed dependency already has; add no option, abstraction
+or dependency nobody asked for; finish every caller the change breaks and
+the tests rule 2 asks for." It costs 40 words in every session's cached
+prefix. That puts Copilot's AGENTS.md at 728 words, so the tripwire moves
+from 700 to 730 (Property 4): the number guards against a digest, and a
+rule stated whole beats one cut to fit. Part I's default path names the
+rule. The tests clause was added after the first live run (below).
+
+**i-have-adhd.** Shapes every answer for a reader with ADHD: the next
+action first, numbered steps, state restated each turn, no tangents, lists
+of at most five, concrete time estimates, no preamble, recap or closing
+pleasantry. Left out of the framework:
+
+- It shapes how answers read to one user; generated projects serve every
+  user and stay neutral. Code, tests, task files and worker reports are
+  unaffected, so it changes neither the agent's speed nor the result.
+- Cost: about 1,700 tokens in context per session it is active (cached),
+  against shorter answers; output is about 1% of a session's tokens, so the
+  net is near zero.
+- Conflicts: its "no recap" rule meets the required Changed heading, and its
+  own rule ranks the system prompt above it, so which wins is unstable; its
+  per-turn state restatement repeats what the task file holds; its time
+  estimates are guesses an agent cannot ground; a variant that applies to
+  every message would reach worker reports and their fixed `Worker round`
+  line.
+- Worth knowing, not adopted: the first-and-last-line check (read only
+  those two, and the reader knows what happened and what to do next), and
+  the debug-spiral rule (after three "still broken" turns, stop editing,
+  name the assumption that may be wrong, ask one diagnostic question).
+  A user who wants the style installs the skill for themselves.
+
+**Run live: 14.1 against 14.2** (2026-11-25, Claude Code 2.1.311 headless,
+`claude -p`, Claude Haiku 5.5, the direct path, scratch stdlib project with
+a `parse_quantity`/`to_kg` helper to reuse; each run scored by hidden checks
+and its host diff).
+
+| Task, arm | Runs | Hidden checks | Median s | Turns | Cost $ | Out tok | Code lines | Runs with a test |
+|---|---|---|---|---|---|---|---|---|
+| weights, 14.1 | 4 | 6/6 all | 37.5 | 16 | .0089 | 7,310 | 18 | 4 |
+| weights, 14.2 first wording | 4 | 6/6 all | 33.5 | 18 | .0092 | 6,554 | 17.5 | 4 |
+| CSV export, 14.1 | 12 | 5/5 all | 25 | 13 | .0061 | 4,015 | 14 | 12 |
+| CSV export, 14.2 first wording | 6 | 5/5 all | 23.5 | 10.5 | .0058 | 3,604 | 14 | **4** |
+| CSV export, 14.2 final wording | 6 | 5/5 all | 22.5 | 12 | .0058 | 3,814 | 14 | 6 |
+
+- No arm over-engineered: no new class, option, file or dependency in any
+  of the 32 runs; every run reused the helper or `csv`. On these tasks
+  Haiku 5.5 under 14.1 already writes the minimal change, so the rule had
+  nothing to remove; the size effect the skill's benchmark reports is not
+  reproduced here, and not refuted.
+- The first wording made two of six CSV runs skip the test for the new
+  logic ("add nothing nobody asked for" read as license). The skill itself
+  guards this ("lazy code without its check is unfinished"); the final
+  wording adds "and the tests rule 2 asks for", and six of six wrote one.
+- Speed and cost moved a little in 14.2's favour (CSV final: 22.5 s against
+  25 s, $0.0058 against $0.0061, paired in time with 14.1 runs 7 to 12);
+  within run-to-run spread, no claim.
+- Verdict: the rule costs nothing measurable and lost nothing once the
+  tests clause was in; its benefit needs a task or model that over-builds.
+  Not covered: Copilot, OpenCode, the `/task` path (which had the rule
+  already), larger models.
