@@ -71,6 +71,33 @@ task; do not work it here.
    from the evidence and record it as a numbered assumption in Notes;
    the user redirects from the result. The same holds for any type when
    no human is available (autonomous run).
+
+   For a `change`, `bug` or `test`, ask in the same call what would
+   otherwise stop the work later, only what applies to this task, each
+   with your recommended answer as its first option:
+   - Evidence: what proves each Done-when criterion, and what happens
+     when it cannot be produced here (missing hardware or access, a rule
+     against writes, failures that were there before): defer the
+     criterion, reword it, or block.
+   - Where it is proven: the environment or device, the data, and the
+     writes allowed there.
+   - Scope: the repositories, files and pull requests in it; everything
+     else stays out.
+   - Outward actions the work may take without asking. Recommend: push
+     the task's branch, open and update its pull request, comment on it
+     and on the task's issue, rerun its CI. Merging into the default
+     branch, production, deleting data and force-pushing are never on
+     the list.
+   - Open decisions you found while reading the code (behavior,
+     defaults, edge cases, names, formats): ask them, or state your pick
+     as a numbered assumption in Notes.
+   Check the plan's premises now, so the work does not find them false:
+   run once each command a criterion names (the test command, the
+   linter; `--version` for a tool that changes things) and fix the
+   criterion when it fails here, and confirm each precondition a step
+   relies on.
+   The answers go into `## Autonomy` (step 5). In an autonomous run,
+   write your recommendations there as assumptions.
 5. Write `.ai/tasks/<id>/task.md`:
    ---
    id: <id>             with an issue, `<key>-<slug>`; the key prefixes it
@@ -91,6 +118,9 @@ task; do not work it here.
    ## Findings    empty; Do appends here
    ## Outcome     empty; Do writes the result here
    ## Notes       Q&A answers, decisions, assumptions
+   ## Autonomy    change, bug, test: what the work may decide and do
+                   without asking (evidence and fallback per criterion,
+                   where it is proven, scope, outward actions)
    ## Tracker     the issue this task comes from, or "none"
 
    Write `depends:` only when the user named real dependencies, with

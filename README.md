@@ -155,7 +155,13 @@ file list retires nothing and prints what to remove by hand.
    (`12345-fix-ci-crash`); declining leaves an ordinary issueless task.
    It writes `.ai/tasks/BUG-7/task.md` (goal, done-when criteria for that
    type, steps; for bugs and investigations the steps are hypotheses with a
-   check each). `/task BUG-7 ...` without `create` or `do` works too: a
+   check each). For a change, bug or test it also asks, in the same dialog,
+   what would otherwise stop the work later: what proves each criterion and
+   what happens when that cannot be produced, where it is proven, the scope,
+   and which pushes, pull requests and comments may happen without asking.
+   The answers go into the task's `## Autonomy` section; `/task do` decides
+   what that leaves open, asks you each question once, and offers no extra
+   work. `/task BUG-7 ...` without `create` or `do` works too: a
    script checks whether BUG-7 exists and picks create or do, and asks
    first if a similar id is already there. An investigation is planned and
    worked in one go, with no questions after the type. Anything else waits

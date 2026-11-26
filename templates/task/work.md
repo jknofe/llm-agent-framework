@@ -57,7 +57,9 @@ user talks to the supervisor, not to you.
    of checks; when the wait outlasts it, or a person must act first (a
    merge, an approval), report `waiting`. The rules of `AGENTS.md` hold for you
    as for anyone. Work on a feature branch: never commit on, merge into or
-   force-push the default branch unless a step names it. A step that needs
+   force-push the default branch unless a step names it. An outward action
+the `## Autonomy` section lists (a push, a pull request, a comment, a CI
+rerun) needs no question. A step that needs
    one of these without naming it is a `question`. Record the evidence
    in Findings as you go: the commit, the pull request URL, the CI
    result, the run and its result, each as a pointer.
@@ -67,7 +69,7 @@ user talks to the supervisor, not to you.
    - `question`: something the task file leaves open, or a step you may
      not take on your own: the Goal or a criterion would change, a choice
      between options, a missing toolchain, access or hardware, a merge, an
-     action the steps do not name. Write the question, each option with
+     action neither the steps nor the Autonomy section name. Write the question, each option with
      what it costs, and your recommendation, the smallest option that
      meets the Goal; do not pick an answer or work around it.
    - `waiting`: on CI, a merge, an approval or a deploy; what, and the

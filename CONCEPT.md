@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-25, v14.2.** The framework rests on four premises, stated in
+**State: 2026-11-26, v14.3.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -134,7 +134,13 @@ again. With no issue, the user is asked once whether to file one and may
 decline; an issueless task is normal. The type
 comes from the user: when they did not name it, the first question asks for
 it; the agent never infers it. For a `change`, `bug` or `test` it runs a
-bounded Q&A and stops: the point is the plan a human reads before the work
+bounded Q&A and stops, and in the same dialog settles what would otherwise
+stop the work later: what proves each criterion and what happens when that
+cannot be produced here, where it is proven, the scope, and the outward
+actions (push, pull request, comment, CI rerun) the work may take without
+asking; it runs each command a criterion names once while planning. The
+answers go into the task's `## Autonomy` section (section 98). The point is
+the plan a human reads before the work
 starts, and `/task do` then works it, in the same session or a later one:
 the session supervises and the worker starts fresh (section 67). An
 `investigation` asks
@@ -189,9 +195,12 @@ code ships it reports `review`; it also stops at `question`, `waiting`,
 `stuck` and `done`, each a `Worker round <n>` line in Findings. The session that ran
 `/task do` is the supervisor and stands in for the user: it reviews the
 uncommitted diff before it ships (the review gate), answers a question as
-the user would from the task file, and asks the user only what it cannot
-decide for them (a changed Goal or criterion, a merge, production,
-deleting data). It judges each report from the files and trusts recorded
+the user would from the task file, decides a reversible choice the
+Autonomy section and Notes leave open (a `Decision:` line, reported as made),
+and asks the user only a changed Goal or criterion, an irreversible choice,
+or an action the Autonomy section does not list (a merge into the default
+branch, production, deleting data and a force-push never are). It asks each
+question once (a `Pending:` line) and offers no extra work (section 98). It judges each report from the files and trusts recorded
 evidence, a CI result or a command with its output, and runs no check
 itself: missing or doubtful evidence goes back to the worker (section 63).
 A worker's `done` is a
@@ -601,6 +610,13 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v14.3 (2026-11-26, the work runs on what create settled, section 98.
+`/task create` asks, in its one dialog, what would otherwise stop the work
+(evidence and fallback per criterion, where it is proven, scope, outward
+actions) and runs each criterion's command once; the answers go into
+`## Autonomy`. `/task do` decides reversible choices inside it, asks each
+question once, and offers no extra work.)
 
 v14.2 (2026-11-25, the smallest complete change on the direct path, section
 97. AGENTS.md's Right-sizing paragraph takes the one-line essence of the
@@ -7069,3 +7085,100 @@ and its host diff).
   tests clause was in; its benefit needs a task or model that over-builds.
   Not covered: Copilot, OpenCode, the `/task` path (which had the rule
   already), larger models.
+
+## 98. The work runs on what create settled (2026-11-26, v14.3)
+
+**Source.** The owner felt `/task do` came back to them too often, and asked
+whether the task file was not enough for the supervisor and worker to run
+on their own. Every point where a `/task do` session stopped for the user
+was extracted from the six projects' transcripts (Claude Code) and session
+exports (OpenCode): 269 stops holding 543 questions, 486 on Claude Code, 57
+on OpenCode. A sub-agent classified each question without being told the
+expected answer.
+
+| Kind | Questions | Share |
+|---|---|---|
+| Spec gap: what proves a criterion, behavior and edge cases, test environment, scope, content, access, naming | 251 | 46% |
+| Routine outward action: push, pull request, comment, issue edit, CI rerun | 119 | 22% |
+| Risky: merge, production, deleting data, force-push | 43 | 8% |
+| Offer of extra work ("should I also", a follow-up task, the next phase) | 39 | 7% |
+| Process, a check by hand, a wait, other | 91 | 17% |
+
+- 190 of the 543 (35%) re-asked a decision already asked: an open question
+  stayed in the closing Blocked on me list and came back every turn (one
+  criterion question in 23 turns, one upload question in 18).
+- Claude Code asked 340 questions as text and 146 in a dialog; OpenCode 54
+  of 57 in its `question` dialog.
+- The worker asked 69 times across 134 task files; the supervisor answered
+  39 itself. The stops came from the supervisor.
+- One project held 416 of the 543, one session 138.
+- The largest spec themes, each settleable by one question while planning:
+  what proves a criterion and what to do when it cannot be produced here
+  (45), behavior and edge cases (52), the test environment and the writes
+  allowed there (33), the scope (22).
+
+**Change.**
+
+- `create.md`: for a `change`, `bug` or `test`, the one dialog also asks
+  what would otherwise stop the work: the evidence per criterion and its
+  fallback (defer, reword, block), where it is proven, the scope, the
+  outward actions allowed without asking (recommended: push the task's
+  branch, open and update its pull request, comment on it and the issue,
+  rerun its CI; never a merge into the default branch, production,
+  deleting data or a force-push), and open decisions found in the code,
+  each with the recommended answer first. Each command a criterion names
+  is run once while planning. The answers go into `## Autonomy`.
+- `supervise.md`: a reversible choice inside the Autonomy section is the
+  supervisor's to decide and report as made; it asks only a changed Goal or
+  criterion, an irreversible choice, or an action the section does not
+  list. Each question is asked once (`Pending:` in Findings) and not
+  repeated. No extra work is offered. What the user could check by
+  looking, it reads itself first.
+- `steps.md` (worker and inline session): `Decision:` lines for reversible
+  choices, reported as made; listed outward actions need no question; no
+  extra work and no offer, an out-of-scope defect is one `Out of scope:`
+  line; a question goes out once.
+- `work.md`: an action the Autonomy section lists is not a `question`.
+- The owner ruled out offers of extra work outright, a collected list of
+  them included: they add work nobody asked for.
+
+**Run live: 14.2 against 14.3** (2026-11-25, Claude Code 2.1.311 headless,
+`claude -p`, Claude Haiku 5.5 as supervisor, worker and reviewer, the
+stdlib inventory project with a local `origin`; `/task create` then `/task
+do`, each run scored by hidden checks).
+
+- An easy task (CSV export, push to origin), six runs per arm: both
+  reached `done` where create wrote a plan, 5 of 5 checks each; 14.2 handed
+  open points back in its closing message (branch name, header, tracker),
+  14.3 recorded `Decision:` lines instead. Two runs per arm stopped in
+  create to ask, which a headless run cannot answer, and one 14.3 run hit a
+  permission the harness denied; neither is a difference between the
+  versions.
+- A hard task, the same plus a criterion that cannot be proven here (a
+  staging host that does not resolve), with "no one is available to answer"
+  in the prompt, every shell command allowed, six runs per arm:
+
+| | 14.2 | 14.3 |
+|---|---|---|
+| Hidden checks | 6 of 6 | 6 of 6 |
+| Branch pushed | 5 of 6 | 6 of 6 |
+| Clean end (`blocked` with the reason, or the criterion deferred and stated) | 3 of 6 | 5 of 6 |
+| Questions back to the user at the end | 2, plus 1 asking to confirm | 2, plus 2 asking to confirm |
+| `Decision:` lines | 0 | 2 |
+| Median time, cost | 52 s, $0.046 | 70 s, $0.044 |
+
+- A first 14.3 round had two hand-backs from criteria whose command did not
+  work here (a test command needing `tests/__init__.py`, a linter not
+  installed); running each criterion's command once while planning removed
+  both. The requests to confirm a decision led to "report it as made, never
+  as a question to confirm", added after the runs and not rerun.
+- In one 14.3 run, create, told no one could answer, wrote the unprovable
+  criterion as deferred and the run closed `done` with that stated in
+  Notes and Outcome: the brief's fallback, which an interactive create
+  asks.
+- Verdict: no loss, a cleaner end, every push made. Fewer questions to the
+  user is not shown: a headless run is one turn, so the three largest
+  levers of the analysis, the repeats across turns (35%), the outward
+  approvals during the work (22%) and create's own questions, cannot occur
+  in it. The test of 14.3 is the same extraction over the owner's sessions
+  after some use, against the numbers above.

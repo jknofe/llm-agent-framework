@@ -68,6 +68,18 @@ session that works a task itself instead of handing it to a worker. Both roles w
    module passes its storage size; the cleanup workflow removes every
    deployment the deploy script registers).
 
+Decide what the task file lets you decide. A choice that can be undone
+and stays inside the `## Autonomy` section and the Notes is yours: take
+the smallest option, record it in Findings as `- <today> Decision:
+<what>, because <why>`, and go on; report it as made, never ask the user
+to confirm it. An outward action the Autonomy section
+lists needs no question. Do no extra work and offer none: a defect you
+find outside the task is one line, `- <today> Out of scope: <what>,
+<pointer>`, never a question or a proposal. What can be checked by
+looking (a link, a page, a run's status), check yourself rather than ask.
+A question goes to the user once (a worker's goes in its report); a later
+turn does not ask it again until it is answered.
+
 Escalate instead of improvising: on missing context, do bounded
 discovery then ask the user; if a test fails twice on the same step, or
 two hypotheses in a row die without a new lead, stop and rethink the

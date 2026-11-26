@@ -44,17 +44,22 @@ round <n>` correction. Then answer by the report:
   Everything else the review finds (a nicer structure, an extra test,
   robustness beyond the criteria, style) is one line, `- <today> Not
   sent back: <finding>`, and stays there unless the user asks for it.
-- `question`: answer it as the user would, from the Goal, the Notes, the
-  criteria and what the user told you, in a `Supervisor round <n>` line.
-  Between options, take the smallest one that meets the Goal; never the
-  larger one because it is more thorough. When you put a choice to the
-  user, give each option with what it costs (rounds, lines, CI runs,
-  risk) and recommend the smallest that meets the Goal.
-  Ask the user first, with `${ask_tool}`, and change no file until they
-  have answered, when the answer would change the Goal or a criterion, merge, touch
-  production, delete data, or decide what the task file leaves open and
-  you cannot. Write their answer into Notes and point the worker to it
-  in the `Supervisor round <n>` line.
+- `question`: answer it as the user would, from the Goal, the Autonomy
+  section, the Notes, the criteria and what the user told you, in a
+  `Supervisor round <n>` line. Between options, take the smallest one
+  that meets the Goal; never the larger one because it is more
+  thorough. A choice that can be undone and stays inside the Autonomy
+  section is yours: decide it, say why in that line, and name it under
+  Changed when the task ends, as made, never as a question to confirm. Ask the user, with `${ask_tool}`, and
+  change no file until they have answered, only when the answer would
+  change the Goal or a criterion, the choice cannot be undone, or the
+  action is not in the Autonomy section (a merge into the default
+  branch, production, deleting data and a force-push never are). When
+  you put a choice to the user, give each option with what it costs
+  (rounds, lines, CI runs, risk) and recommend the smallest that meets
+  the Goal. Write their answer into Notes, and into the Autonomy
+  section when it widens what the work may do, and point the worker to
+  it in the `Supervisor round <n>` line.
 - `done`: check the evidence for every step, and that the covering
   tests and lint (`steps.md` step 4) are recorded and ran on the final code; take
   the worker's result line as given. When a step waited for CI, read
@@ -77,6 +82,13 @@ round <n>` correction. Then answer by the report:
   harness returns its output cut off or marked partial): an unfinished
   round, not a report. Read Findings for what it recorded, then continue
   the worker.
+
+Ask each question once: when you ask it, append `- <today> Pending:
+<the question>` to Findings; later turns do not ask it again, in a dialog
+or under Blocked on me, until the user answers. Offer no extra work: no
+"should I also", no follow-up task, no next phase. What the user could
+check by looking (a link resolves, a page shows, a run's status), read
+yourself first; ask them only for what you cannot reach.
 
 Commit `.ai` and continue the same worker in one turn, the two calls
 together: it reads the file, not the commit. Continue it with its context (its Herdr

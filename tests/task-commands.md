@@ -456,6 +456,30 @@ Pass when all hold:
   sent back` line.
 - A policy test across files (a rule, not a value), if present, is kept.
 
+**TC-D12: the work runs on what create settled** (14.3)
+
+`/task create` for a `change` whose request leaves design points open (an
+output format, a flag's position) and names one criterion that cannot be
+proven here (a host that does not resolve), and asks for a push to the
+project's remote. Answer create's questions with its recommendations, then
+`/task do <id>`; best in a long session, where repeated questions showed.
+
+Pass when all hold:
+- Create asks, in its one dialog, for the evidence and fallback per
+  criterion, where it is proven, the scope and the outward actions, and
+  the task file holds a `## Autonomy` section with the answers. Each
+  command a criterion names was run once during planning.
+- Do pushes without asking (the push is listed), and asks nothing whose
+  answer the Autonomy section or Notes give.
+- Open reversible choices end as `Decision:` lines in Findings, reported
+  as made, never as a request to confirm.
+- A question that does go to the user is asked once (a `Pending:` line)
+  and not repeated in a later turn's closing headings.
+- No "should I also", follow-up task or next-phase offer anywhere; an
+  out-of-scope defect is at most one `Out of scope:` line.
+- The unprovable criterion ends as the Autonomy section says (deferred and
+  stated, or `blocked` with the reason), never ticked on a guess.
+
 ### Sub-agent models (11.9)
 
 Every `/task do` case above needs both models set first (`init-agent
