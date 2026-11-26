@@ -56,7 +56,7 @@ def write_opencode_config(path: Path, content: str, force: bool,
     regeneration in their order, with the notes hub added once when missing
     (CONCEPT.md section 86); a value that is not a list of strings is
     replaced. Every top-level key the framework does not generate
-    (`compaction`, a model, MCP servers) is carried over as it is (section
+    (a model, MCP servers, sharing) is carried over as it is (section
     88); `permissions` is regenerated. An unreadable file is replaced."""
     old = {}
     if path.is_file():

@@ -9,7 +9,7 @@ fresh one has `instructions: [".ai/notes.md"]` and the permissions; a forced
 re-init keeps a user's own entries in their order and adds the hub once;
 never twice; a value that is not a list of strings and an unreadable file
 are replaced; `permissions` is regenerated and any other key a user added
-(`compaction`, a model, MCP servers) survives, section 87; claude and copilot have no
+(a model, MCP servers, sharing) survives, section 87; claude and copilot have no
 such file; the update body names the merge case.
 """
 import json
@@ -85,10 +85,9 @@ def main():
           "a JSON non-object is replaced")
 
     # A user's own keys survive a forced re-init (section 87).
-    comp = {"auto": False, "keep": {"tokens": 20000}, "buffer": "10%"}
-    d = reinit(["docs/a.md"], {"compaction": comp, "model": "p/m",
+    d = reinit(["docs/a.md"], {"share": "disabled", "model": "p/m",
                                "mcp": {"x": {"type": "local"}}})
-    check(d.get("compaction") == comp, f"compaction kept: {d.get('compaction')}")
+    check(d.get("share") == "disabled", f"share kept: {d.get('share')}")
     check(d.get("model") == "p/m" and d.get("mcp") == {"x": {"type": "local"}},
           "other user keys kept")
     check(d["permissions"], "permissions regenerated beside user keys")
@@ -97,7 +96,7 @@ def main():
     check(d2 == d, "a second re-init changes nothing")
     f.write_text("{not json", encoding="utf-8")
     init(root)
-    check("compaction" not in json.loads(f.read_text()),
+    check("share" not in json.loads(f.read_text()),
           "an unreadable file is replaced, nothing to keep")
 
     # An unforced re-init leaves the file alone.

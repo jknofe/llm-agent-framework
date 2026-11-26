@@ -7182,3 +7182,26 @@ do`, each run scored by hidden checks).
   approvals during the work (22%) and create's own questions, cannot occur
   in it. The test of 14.3 is the same extraction over the owner's sessions
   after some use, against the numbers above.
+
+## 99. Compaction left to the user's setup (2026-11-26)
+
+**Source.** Section 88 had the README advise OpenCode's `compaction` block
+per project (`keep.tokens`, `buffer`) and used `compaction` as the example of
+a user key a re-init keeps. The owner decided compaction is not the
+framework's: it belongs to each user's harness setup, not to a scaffold.
+
+**Seen, OpenCode 2.4.2.** The summary prompt can be steered after all, which
+section 88's docs did not show: an undocumented plugin hook,
+`ctx.session.hook("compaction", req => ...)`, gets the summary request, and
+text added to `req.system[0]` reaches the summary (appended as a part of its
+own it did not, with the Copilot GPT models). The owner's setup agent built a
+plugin on it that applies the same policy as the owner's Claude Code
+PreCompact hook, plus `compaction.keep.tokens: 100000`, in the owner's
+OpenCode setup repository; a compaction in a scratch session then kept the
+user's rule verbatim, put a file in as a pointer, and ended with the line
+naming `opencode session export <id>`.
+
+**Removed.** The README's "Long sessions" paragraph. The re-init keeps
+every key a user adds to `.opencode/opencode.json`, a `compaction` block
+included, as before (section 88); its examples now name a model, MCP servers
+and sharing. Nothing in a scaffold changes, so no version bump.
