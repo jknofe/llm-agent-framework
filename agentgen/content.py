@@ -669,9 +669,10 @@ def render_settings_json() -> str:
 
 def render_opencode_config() -> str:
     """Project config (.opencode/opencode.json): the permission list of the
-    claude settings in OpenCode V2's form. OpenCode allows by default, so
-    these rules matter when a user's global config asks about shell commands;
-    they keep exploration free of prompts there. The plugin in
+    claude settings in OpenCode V2's form, plus a `subagent` allow for each
+    role. OpenCode allows by default, so these rules matter when a user's
+    global config asks; they keep exploration and the spawns of /task do
+    free of prompts there. The plugin in
     .opencode/plugins/ is discovered by its location and needs no entry."""
     rules = []
     for entry in render.sectioned_list("config/permissions.txt",
@@ -680,6 +681,11 @@ def render_opencode_config() -> str:
         command = entry[len("Bash("):-len(":*)")]
         rules.append({"action": "shell", "resource": f"{command} *",
                       "effect": "allow"})
+    # The framework's own sub-agents start without a prompt: an `ask` from
+    # a user's global config stops every /task do and fails the headless
+    # model check, which cannot answer it (CONCEPT.md section 100).
+    rules += [{"action": "subagent", "resource": role, "effect": "allow"}
+              for role in ROLES]
     # The notes hub in every session's instructions (CONCEPT.md section 86).
     return json.dumps({"permissions": rules,
                        "instructions": [NOTES_INSTRUCTION]}, indent=2) + "\n"

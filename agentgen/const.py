@@ -8,7 +8,7 @@ from datetime import date
 
 TODAY = date.today().isoformat()
 
-FRAMEWORK_VERSION = "14.3"
+FRAMEWORK_VERSION = "14.4"
 
 FRAMEWORK_JSON = ".ai/agent/framework.json"
 

@@ -1,6 +1,6 @@
 # Project-Aware LLM Agent Framework: Concept
 
-**State: 2026-11-26, v14.3.** The framework rests on four premises, stated in
+**State: 2026-11-27, v14.4.** The framework rests on four premises, stated in
 Part I. Two are claims about what it does for a project; two are properties of
 the artifact. Everything the generator emits serves one of them or is a
 candidate for removal.
@@ -610,6 +610,11 @@ are the reasoning that produced Part I. Where 37 and 38 name `/spec`,
 generalized; their evidence carries over unchanged.
 
 ## Version log
+
+v14.4 (2026-11-27, the framework's sub-agents start without a prompt,
+section 100. `.opencode/opencode.json` allows the `subagent` action for
+`worker`, `reviewer` and `updater`. A global `ask` on it rejected every
+spawn in the headless model check and would have stopped every `/task do`.)
 
 v14.3 (2026-11-26, the work runs on what create settled, section 98.
 `/task create` asks, in its one dialog, what would otherwise stop the work
@@ -7205,3 +7210,41 @@ naming `opencode session export <id>`.
 every key a user adds to `.opencode/opencode.json`, a `compaction` block
 included, as before (section 88); its examples now name a model, MCP servers
 and sharing. Nothing in a scaffold changes, so no version bump.
+
+## 100. The framework's sub-agents start without a prompt (2026-11-27, v14.4)
+
+**Seen.** On a user's machine with OpenCode and Copilot models,
+`init-agent --models` failed for all three roles with "This non-interactive
+run cannot ask the user for permission, so the request was rejected." The
+models were not the cause: `opencode run --format json` with the test prompt
+printed `! permission requested: subagent (worker); auto-rejecting`, and the
+`subagent` tool call ended in `status: error` before the worker started. A
+rule outside the project asked before every spawn. In an interactive session
+the same rule stops every `/task do` twice, for the worker and the reviewer.
+
+**Sources**, as read on 2026-11-27.
+
+- https://opencode.ai/docs/permissions/: the action for a spawn is
+  `subagent` (V1 `task`), its resource the "Target agent ID"; "If no rule
+  matches, OpenCode uses `ask`"; the base policy allows `*`; "the last match
+  wins", and agent rules are appended after the config's. "Global and
+  Console-managed policies override project configuration."
+- https://opencode.ai/docs/config/: the global config ranks lowest, the
+  project's `.opencode/opencode.json` above it, `/etc/opencode` and managed
+  preferences above both; "users and projects cannot override" managed
+  settings.
+- `opencode run --help` (the user's version) lists `--auto`, "Auto-approve
+  permissions that are not explicitly denied". Not used: it would approve
+  whatever the test's sub-agent does, and it fixes the test, not `/task do`.
+
+**Change.** `render_opencode_config` appends one rule per role in
+`const.ROLES`: `{"action": "subagent", "resource": <role>, "effect":
+"allow"}`, after the `shell` rules. Any other sub-agent stays under the
+user's own rules. A re-init regenerates `permissions` (section 88), so
+`/framework-update` brings the rules to an existing scaffold. A managed
+config still wins; there the user saves with `--models --no-test` and checks
+the first `/task do`.
+
+**Not changed.** Claude Code: its `Agent` tool did not prompt in the
+headless test (section 59), and nothing was seen asking. Copilot: no
+headless test exists yet (section 59), and no spawn permission was seen.

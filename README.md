@@ -542,8 +542,10 @@ Claude Code's slash commands:
 - reviewer: `.opencode/agents/reviewer.md`, a sub-agent that cannot edit
   and whose shell is limited to read-only commands
 - permissions: `.opencode/opencode.json`, the same read-only list as `shell`
-  rules. OpenCode allows by default, so these matter if your global config
-  asks about shell commands
+  rules, plus a `subagent` allow for `worker`, `reviewer` and `updater`.
+  OpenCode allows by default, so these matter if your global config asks
+  about shell commands or sub-agents. A managed config (`/etc/opencode`,
+  MDM) outranks the project and cannot be overridden here
 - hooks: the two scripts in `.opencode/hooks/`, run by
   `.opencode/plugins/llm-agent.js` (needs `python3`)
 
